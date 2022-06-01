@@ -89,7 +89,7 @@ contract DataBounty {
     constructor(address _OOF) {
         OOF = IOOF(_OOF);
     }
-//[]
+
     mapping(uint256 => string) public requestsName;
     mapping(uint256 => uint256) public bountyETH;
     mapping(uint256 => string) public APIendpoints;
@@ -106,7 +106,6 @@ contract DataBounty {
         string[] memory _name,
         uint256[] memory amountETH
     ) public payable {
-        //rqttfeedfeedfeedfeedfeedfeedsfeedfeeddfeed<
         uint256 totals;
         for (uint256 n; n < IDs.length; n++) {
             require(IDsToPosition[IDs[n]] == 0, "feedIDs already requested");
@@ -130,7 +129,6 @@ contract DataBounty {
         );
     }
 
-    //feedfeedfeed;[[];<
     function feedsFilled(uint256[] memory IDs) public {
         uint256[] memory feeds;
         uint256 totalETH;
@@ -139,7 +137,6 @@ contract DataBounty {
             require(feeds[n] != 0, "feeds not filled");
             totalETH += bountyETH[n];
             bountyETH[n] = 0;
-            //wl
         }
         payable(address(OOF)).transfer(totalETH);
     }
@@ -152,7 +149,7 @@ contract DataBounty {
             supportAddrs[msg.sender][IDs[n]] = 0;
         }  
         payable(msg.sender).transfer(total);
-    }//// string[] _endpoint,string[] _path,string[] _name,
+    }
         
         
 event feedSupported(uint256[] feedid,
@@ -168,7 +165,7 @@ event feedSupported(uint256[] feedid,
             bountyETH[IDs[n]] += amount[n];
             supportAddrs[msg.sender][IDs[n]] += amount[n];
             bountys[n] = bountyETH[IDs[n]];
-        }//ETH[IDs]
+        }
         require(total == msg.value);
         
         emit feedSupported(IDs, bountys);
