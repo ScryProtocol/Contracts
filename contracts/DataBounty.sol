@@ -98,6 +98,8 @@ contract DataBounty {
     mapping(uint256 => uint256) public feedIDs;
     mapping(uint256 => uint256) public IDsToPosition;
     uint256 feedsSubmitted;
+    mapping (address=>mapping(uint256=>uint256)) public supportAddrs;
+    event feedSupported(uint256[] feedid,uint256[] _amountETH);
 
     function requestFeed(
         uint256[] memory IDs,
@@ -129,7 +131,6 @@ contract DataBounty {
         );
     }
 
-    //feedfeedfeed;[[];<
     function feedsFilled(uint256[] memory IDs) public {
         uint256[] memory feeds;
         uint256 totalETH;
@@ -138,11 +139,10 @@ contract DataBounty {
             require(feeds[n] != 0, "feeds not filled");
             totalETH += bountyETH[n];
             bountyETH[n] = 0;
-            //wl
         }
         payable(address(OOF)).transfer(totalETH);
     }
-    mapping (address=>mapping(uint256=>uint256)) public supportAddrs;
+    
     function withdraw(uint256[] memory IDs) public{
         uint256 total;
         for (uint256 n; n < IDs.length; n++) {
@@ -154,9 +154,6 @@ contract DataBounty {
     }
         
         
-event feedSupported(uint256[] feedid,
-       
-        uint256[] _amountETH);
     function supportBounty(uint256[] memory IDs, uint256[] memory amount)
         public
         payable
@@ -167,7 +164,7 @@ event feedSupported(uint256[] feedid,
             bountyETH[IDs[n]] += amount[n];
             supportAddrs[msg.sender][IDs[n]] += amount[n];
             bountys[n] = bountyETH[IDs[n]];
-        }//ETH[IDs]
+        }
         require(total == msg.value);
         
         emit feedSupported(IDs, bountys);
