@@ -5,10 +5,10 @@ pragma experimental ABIEncoderV2;
 import "./interfaces/IStakingRewards.sol";
 
 
-/// @author Conjure Team
-/// @title ConjureRouter
-/// @notice The ConjureRouter which distributes the conjure fees
-contract ConjureRouter {
+/// @author Scry Team
+/// @title ScryRouter
+/// @notice The Router which distributes fees
+contract ScryRouter {
 
     // event for distribution
     event FeeDistribution(address treasury, address stakingrewards, uint256 amount);
