@@ -4,8 +4,8 @@ pragma abicoder v2;
 
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import "./interfaces/IConjureFactory.sol";
-import "./interfaces/IConjureRouter.sol";
+import "./interfaces/IScryFactory.sol";
+import "./interfaces/IScryRouter.sol";
 
 contract OpenOracleFrameworkLight {
 
@@ -531,8 +531,8 @@ contract OpenOracleFrameworkLight {
         require(msg.value >= total, "Not enough funds sent to cover oracle fees");
 
         // send feeds to router
-        address payable conjureRouter = IConjureFactory(factoryContract).getConjureRouter();
-        IConjureRouter(conjureRouter).deposit{value:msg.value/50}();
+        address payable ScryRouter = IScryFactory(factoryContract).getScryRouter();
+        IScryRouter(ScryRouter).deposit{value:msg.value/50}();
         emit routerFeeTaken(msg.value/50, msg.sender);
     }
 
@@ -547,8 +547,8 @@ contract OpenOracleFrameworkLight {
             hasPass[buyer] = hasPass[buyer].add(duration);
         }
 
-        address payable conjureRouter = IConjureFactory(factoryContract).getConjureRouter();
-        IConjureRouter(conjureRouter).deposit{value:msg.value/50}();
+        address payable ScryRouter = IScryFactory(factoryContract).getScryRouter();
+        IScryRouter(ScryRouter).deposit{value:msg.value/50}();
         emit routerFeeTaken(msg.value/50, msg.sender);
     }
 
@@ -566,8 +566,8 @@ contract OpenOracleFrameworkLight {
 
         require(msg.value >= total, "Msg.value does not meet support values");
 
-        address payable conjureRouter = IConjureFactory(factoryContract).getConjureRouter();
-        IConjureRouter(conjureRouter).deposit{value:total/100}();
+        address payable ScryRouter = IScryFactory(factoryContract).getScryRouter();
+        IScryRouter(ScryRouter).deposit{value:total/100}();
         emit routerFeeTaken(total/100, msg.sender);
     }
 }
