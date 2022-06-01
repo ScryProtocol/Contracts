@@ -106,7 +106,6 @@ contract DataBounty {
         string[] memory _name,
         uint256[] memory amountETH
     ) public payable {
-        //rqttfeedfeedfeedfeedfeedfeedsfeedfeeddfeed<
         uint256 totals;
         for (uint256 n; n < IDs.length; n++) {
             require(IDsToPosition[IDs[n]] == 0, "feedIDs already requested");
