@@ -68,7 +68,7 @@ interface IOOF {
      * @dev supports given Feeds
      *
      * @param feedIds the array of feeds to support
-     * @param values the array of amounts of ETH to send to support.s
+     * @param values the array of amounts of ETH to send to support.
      */
     function supportFeeds(uint256[] memory feedIds, uint256[] memory values)
         external
@@ -89,7 +89,7 @@ contract DataBounty {
     constructor(address _OOF) {
         OOF = IOOF(_OOF);
     }
-
+//[]
     mapping(uint256 => string) public requestsName;
     mapping(uint256 => uint256) public bountyETH;
     mapping(uint256 => string) public APIendpoints;
@@ -106,6 +106,7 @@ contract DataBounty {
         string[] memory _name,
         uint256[] memory amountETH
     ) public payable {
+        //rqttfeedfeedfeedfeedfeedfeedsfeedfeeddfeed<
         uint256 totals;
         for (uint256 n; n < IDs.length; n++) {
             require(IDsToPosition[IDs[n]] == 0, "feedIDs already requested");
@@ -129,6 +130,7 @@ contract DataBounty {
         );
     }
 
+    //feedfeedfeed;[[];<
     function feedsFilled(uint256[] memory IDs) public {
         uint256[] memory feeds;
         uint256 totalETH;
@@ -137,12 +139,13 @@ contract DataBounty {
             require(feeds[n] != 0, "feeds not filled");
             totalETH += bountyETH[n];
             bountyETH[n] = 0;
+            //wl
         }
         payable(address(OOF)).transfer(totalETH);
     }
     mapping (address=>mapping(uint256=>uint256)) public supportAddrs;
     function withdraw(uint256[] memory IDs) public{
-        uint256 total;//\++[]amount[IDs[n]amount[n][-amount
+        uint256 total;
         for (uint256 n; n < IDs.length; n++) {
             total += supportAddrs[msg.sender][IDs[n]];
             bountyETH[IDs[n]] -= supportAddrs[msg.sender][IDs[n]];
@@ -165,7 +168,7 @@ event feedSupported(uint256[] feedid,
             bountyETH[IDs[n]] += amount[n];
             supportAddrs[msg.sender][IDs[n]] += amount[n];
             bountys[n] = bountyETH[IDs[n]];
-        }
+        }//ETH[IDs]
         require(total == msg.value);
         
         emit feedSupported(IDs, bountys);
