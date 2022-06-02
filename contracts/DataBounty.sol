@@ -68,7 +68,7 @@ interface IOOF {
      * @dev supports given Feeds
      *
      * @param feedIds the array of feeds to support
-     * @param values the array of amounts of ETH to send to support.
+     * @param values the array of amounts of ETH to send to support.s
      */
     function supportFeeds(uint256[] memory feedIds, uint256[] memory values)
         external
@@ -83,19 +83,23 @@ contract DataBounty {
         string[] _endpoint,
         string[] _path,
         string[] _name,
+        uint256[] _freq,
+        uint256[] _dec,
         uint256[] _amountETH
     );
 
     constructor(address _OOF) {
         OOF = IOOF(_OOF);
     }
-//[]
+
     mapping(uint256 => string) public requestsName;
     mapping(uint256 => uint256) public bountyETH;
     mapping(uint256 => string) public APIendpoints;
     mapping(uint256 => string) public path;
     mapping(uint256 => string) public name;
     mapping(uint256 => uint256) public feedIDs;
+mapping(uint256 => uint256) public freq;
+mapping(uint256 => uint256) public dec;
     mapping(uint256 => uint256) public IDsToPosition;
     uint256 feedsSubmitted;
     mapping (address=>mapping(uint256=>uint256)) public supportAddrs;
@@ -106,19 +110,23 @@ contract DataBounty {
         string[] memory _APIendpoint,
         string[] memory _path,
         string[] memory _name,
+        uint256[]  memory _freq,
+        uint256[]  memory _dec,
         uint256[] memory amountETH
     ) public payable {
         uint256 totals;
         for (uint256 n; n < IDs.length; n++) {
             require(IDsToPosition[IDs[n]] == 0, "feedIDs already requested");
-            totals += amountETH[IDs[n]];
+            totals += amountETH[n];
              feedsSubmitted++;
             feedIDs[feedsSubmitted] = IDs[n];
             IDsToPosition[IDs[n]] = feedsSubmitted;
-           name[IDs[n]] = _name[IDs[n]];
-            APIendpoints[IDs[n]] = _APIendpoint[IDs[n]];
-            path[IDs[n]] = _path[IDs[n]];
-            bountyETH[IDs[n]] = amountETH[IDs[n]];
+           name[IDs[n]] = _name[n];
+            APIendpoints[IDs[n]] = _APIendpoint[n];
+            path[IDs[n]] = _path[n];
+            freq[IDs[n]] = _freq[n];
+            dec[IDs[n]] = _dec[n];
+            bountyETH[IDs[n]] = amountETH[n];
         }
         require(totals == msg.value);
         emit feedRequested(
@@ -127,6 +135,8 @@ contract DataBounty {
             _APIendpoint,
             _path,
             _name,
+            _freq,
+            _dec,
             amountETH
         );
     }
