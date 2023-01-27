@@ -8,14 +8,13 @@ var bigInt = require("big-integer");
 const { cloudresourcemanager } = require('googleapis/build/src/apis/cloudresourcemanager');
 
 // config go to file later
-const rpc = 'https://goerli.infura.io/v3/9aa3d95b3bc440fa88ea12eaa445616'
+const rpc = 'https://goerli.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161'
 const pk = process.env.PK
 const oofAddress = '0x7Bae4f06a69C7E6664E52C71465d19ab946F0377'
 const sheetapi = process.env.SHEETAPI
 const sheetid = process.env.SHEETID
 const sheettitle = process.env.SHEETTITLE
-const GASLIM = process.env.GASLIMIT
-
+const GASLIM = process.env.GASLIMIT	
 // 100 gwei
 const GAS_PRICE_MAX = BigNumber.from("10000000000");
 
