@@ -115,8 +115,7 @@ contract OpenOracleFramework {
     }
 
     constructor() {
-        // Don't allow implementation to be initialized.
-        factoryContract = address(1);
+        //  factoryContract = address(1);
     }
 
     function initialize(
