@@ -17,7 +17,7 @@ const sheettitle = process.env.SHEETTITLE
 const GASLIM = process.env.GASLIMIT
 
 // 100 gwei
-const GAS_PRICE_MAX = BigNumber.from("100000000000");
+const GAS_PRICE_MAX = BigNumber.from("10000000000");
 
 const provider = new ethers.providers.JsonRpcProvider(rpc);
 const walletWithProvider = new ethers.Wallet(pk, provider);
