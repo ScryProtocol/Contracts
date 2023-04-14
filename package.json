@@ -22,6 +22,7 @@
     "ethers": "^5.4.0",
     "google-spreadsheet": "^3.1.15",
     "googleapis": "^39.2.0",
+    "keccak256": "^1.0.6",
     "node-fetch": "^2.6.1"
   }
 }
