@@ -27,7 +27,9 @@ Simply download the binaries or use the dev repo. Put your private key for your 
 
 .env```
 RPC=https://rpc.sepolia.org
+
 OOFAddress=
+      
 PK=```
 
 Set the RPC for any EVM network where your contract is deployed (Goerli).
