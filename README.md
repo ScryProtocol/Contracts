@@ -31,7 +31,8 @@ RPC=https://rpc.sepolia.org
 
 OOFAddress=
       
-PK=```
+PK=
+```
 
 Set the RPC for any EVM network where your contract is deployed (Goerli).
 Set the OOFAddress to the oracle address you deployed.
