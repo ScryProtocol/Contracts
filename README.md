@@ -12,6 +12,7 @@ Use `npm i` to install dependancies. Then you can either deploy the contract dir
 - Fully custom VRF and proof system with cryptographically secure 256b Hash RanCh VRFs
 
 Nondev focused binaries
+
 Linux
 https://github.com/ScryProtocol/Contracts/raw/Scry/morpheus-linux
 
@@ -21,7 +22,7 @@ https://github.com/ScryProtocol/Contracts/raw/Scry/morpheus-macos
 Windows
 https://github.com/ScryProtocol/Contracts/raw/Scry/morpheus-win.exe
 
-Usage
+## Usage
 Simply download the binaries or use the dev repo. Put your private key for your oracle signer in the .env and use morph.js to deploy. If using the binaries
 
 .env
