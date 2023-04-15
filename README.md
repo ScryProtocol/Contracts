@@ -4,6 +4,42 @@ Morpheus' a simple, lightweight and easy to use open source node to use with the
 ## Installation
 Use `npm i` to install dependancies. Then you can either deploy the contract directly using hardhat, using the address in the .env after deployment and then using initialize.js to set up the oracle, followed by morpheus.js. You can also just use morpheus.js if do not wish to deploy using your own framework, if no oracles address is set an oracle will be deployed using the preset bytecode automatically.
 
+## Features 
+- Deploy your own autonomous oracle infrastructure to ANY EVM network in <60s.
+- Support any API endpoint in realtime, allowing requests to be made fully onchain to the oracle fully permissionlessly
+- Earn fees from requests for data, only filling requests if profitable
+- 1 click deployment and setup. No need for any prereqs just launch out of the box ready to use. No developer experience or technical experience needed.
+- Fully custom VRF and proof system with cryptographically secure 256b Hash RanCh VRFs
+
+Nondev focused binaries
+Linux
+https://github.com/ScryProtocol/Contracts/raw/Scry/morpheus-linux
+
+MacOS
+https://github.com/ScryProtocol/Contracts/raw/Scry/morpheus-macos
+
+Windows
+https://github.com/ScryProtocol/Contracts/raw/Scry/morpheus-win.exe
+
+Usage
+Simply download the binaries or use the dev repo. Put your private key for your oracle signer in the .env and use morph.js to deploy. If using the binaries
+
+.env
+RPC=https://rpc.sepolia.org
+OOFAddress=
+PK=
+
+Set the RPC for any EVM network where your contract is deployed (Goerli).
+Set the OOFAddress to the oracle address you deployed.
+Set the PK to your private key for your oracle signer.
+
+For those using the non dev binaries use your prefered terminal such as cmd on windows. Then go to the binary location and do 
+morpheus.exe
+ or just run it as usual.
+
+Oracles will automatically be deployed, setup and then run autonomously. Make sure to give a little in tokens for gas like ETH. Oracles will refill based on requests.
+
+GL. 
 ## Docs
 https://docs.scry.finance/docs/morpheus/morpehus
 
