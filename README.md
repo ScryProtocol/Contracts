@@ -25,7 +25,8 @@ https://github.com/ScryProtocol/Contracts/raw/Scry/morpheus-win.exe.zip
 ## Usage
 Simply download the binaries or use the dev repo. Put your private key for your oracle signer in the .env and use morph.js to deploy. If using the binaries
 
-.env```
+.env
+```
 RPC=https://rpc.sepolia.org
 
 OOFAddress=
