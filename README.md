@@ -42,6 +42,14 @@ morpheus.exe
 
 Oracles will automatically be deployed, setup and then run autonomously. Make sure to give a little in tokens for gas like ETH. Oracles will refill based on requests.
 
+# Params
+-a Used to set the oracle address if already deployed
+-r Used to set the RPC for an EVM network
+-pk Used to set the PK used for the oracle signer and deployment
+
+Sample
+```morpheus -a 0x00f0000000F11a5380Da5A184F0C563B5995fee2 -r https://sepolia.infura.io/v3/6822e4e6edc847829086404ffe6d5b2b -pk 0000000000000000000000000000000000000000000000000000000000```
+
 GL. 
 ## Docs
 https://docs.scry.finance/docs/morpheus/morpehus
