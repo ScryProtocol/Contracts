@@ -26,13 +26,11 @@ https://github.com/ScryProtocol/Contracts/raw/Scry/morpheus-win.exe.zip
 Simply download the binaries or use the dev repo. Put your private key for your oracle signer in the .env and use morph.js to deploy. If using the binaries
 
 .env
-```
 RPC=https://rpc.sepolia.org
 
 OOFAddress=
       
 PK=
-```
 
 Set the RPC for any EVM network where your contract is deployed (Goerli).
 Set the OOFAddress to the oracle address you deployed.
