@@ -31,13 +31,13 @@ console.log('Parsed flags:', flags);
 const rpcFlag = flags['-r'];
 const aFlag = flags['-a'];
 const pkFlag = flags['-pk'];
-if (rpcFlag != '') {
+if (rpcFlag != null) {
   rpc = rpcFlag
 }
-if (aFlag != '') {
+if (aFlag != null) {
   contractAddress = aFlag
 }
-if (pkFlag != '') {
+if (pkFlag != null) {
   pk = pkFlag
 }
 const provider = new ethers.providers.JsonRpcProvider(rpc);
