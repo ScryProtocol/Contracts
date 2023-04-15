@@ -14,21 +14,21 @@ Use `npm i` to install dependancies. Then you can either deploy the contract dir
 Nondev focused binaries
 
 Linux
-https://github.com/ScryProtocol/Contracts/raw/Scry/morpheus-linux
+https://github.com/ScryProtocol/Contracts/raw/Scry/morpheus-linux.zip
 
 MacOS
-https://github.com/ScryProtocol/Contracts/raw/Scry/morpheus-macos
+https://github.com/ScryProtocol/Contracts/raw/Scry/morpheus-macos.zip
 
 Windows
-https://github.com/ScryProtocol/Contracts/raw/Scry/morpheus-win.exe
+https://github.com/ScryProtocol/Contracts/raw/Scry/morpheus-win.exe.zip
 
 ## Usage
 Simply download the binaries or use the dev repo. Put your private key for your oracle signer in the .env and use morph.js to deploy. If using the binaries
 
-.env
+.env```
 RPC=https://rpc.sepolia.org
 OOFAddress=
-PK=
+PK=```
 
 Set the RPC for any EVM network where your contract is deployed (Goerli).
 Set the OOFAddress to the oracle address you deployed.
