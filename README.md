@@ -33,7 +33,9 @@ OOFAddress=
 PK=
 
 Set the RPC for any EVM network where your contract is deployed (Goerli).
-Set the OOFAddress to the oracle address you deployed.
+
+Set the OOFAddress to the oracle address you deployed. You can leave this empty and the script will deploy a contract for you automatically from the set PK.
+
 Set the PK to your private key for your oracle signer.
 
 For those using the non dev binaries use your prefered terminal such as cmd on windows. Then go to the binary location and do 
