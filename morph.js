@@ -196,7 +196,7 @@ response3(endpointp, feedId)
 
       // set new update timestamp
       lastUpdate[feedId] = Date.now()
-
+      console.log("Subm")
 
       const provider = new ethers.providers.JsonRpcProvider(rpc);
       const oofAddress = process.env.OOFAddress
@@ -213,19 +213,9 @@ response3(endpointp, feedId)
         return new Promise(resolve => {
           setTimeout(resolve, ms);
         });
-      } const gasL = await oofContract.estimateGas.submitFeed(feedIdArray, feedValueArray, tx_obk);
-      const gasF = gasL * gasPrice;
-      // console.log('Gas fee:', ethers.utils.formatEther(gasF.toString()), 'ETH ', ethers.utils.formatUnits(gasPrice, "gwei") + " gwei");
-      // console.log('Bounty ', ethers.utils.formatEther(await oofContract.feedSupport(feedId)).toString())
-
-      const gF = (await oofContract.feedSupport(feedId) - gasF).toString()
-      //  console.log('ETH Profit', ethers.utils.formatEther(gF))
-      if (ethers.utils.formatEther(gF) > 0) {
+      } //if (ethers.utils.formatEther(gF) > 0) {
         submit(feedId, toParse, 0)
-      }
-      else {
-        console.log('not profitable')
-      }
+      
     }
     catch { console.log('Could not process feed request API ', endpoint, ' path ', endpointp, ' args ', parsingargs, ' feed request ID ', feedId, ' c ', c) }
   }
@@ -311,31 +301,18 @@ response3(endpointp, feedId)
 
         // set new update timestamp
         lastUpdate[feedId] = Date.now()
-
+        console.log("Subm")
         let gasPrice = await provider.getGasPrice()
         let tx_obk = {
 
           gasPrice: gasPrice
-        }
-        const gasL = await oofContract.estimateGas.submitFeed(feedIdArray, feedValueArray, tx_obk);
-
-        const gasF = gasL * gasPrice;
-
-        // console.log('Gas fee:', ethers.utils.formatEther(gasF.toString()), 'ETH ', ethers.utils.formatUnits(gasPrice, "gwei") + " gwei");
-        //console.log('Bounty ', ethers.utils.formatEther(await oofContract.feedSupport(feedId)).toString())
-        //console.log('ETH Profit', ethers.utils.formatEther(ethProfit.toString()));
-
-        const gF = (await oofContract.feedSupport(feedId) - gasF).toString()
-        // console.log('ETH Profit ', gF);
-
-        if (ethers.utils.formatEther(gF) > 0) {
-          submit(feedId, toParse, 0)
-        }
-        else {
-          console.log('not profitable')
-        }
+        }submit(feedId, toParse, 0)
+       // }
+       // else {
+         // console.log('not profitable')
+       // }
       }
-      catch { console.log('Could not process feed request API ', endpoint, ' path ', endpointp, ' args ', parsingargs, ' feed request ID ', Number(feedId), ' c ', c) }
+      catch (error){ console.log(error,'Could not process feed request API ', endpoint, ' path ', endpointp, ' args ', parsingargs, ' feed request ID ', Number(feedId), ' c ', c) }
     }
   }
   let txa = []
@@ -350,18 +327,22 @@ response3(endpointp, feedId)
     submit(feedID, resp.data.choices[0].text);
   }
   async function response3(input,feedID){ 
-    let resp = await openai.createChatCompletion({
+    try {
+      
+     let resp = await openai.createChatCompletion({
       model: "gpt-3.5-turbo",
       messages: [{role: "user", content: input}],
     });
     console.log(resp.data.choices[0].message.content)
-    submit(feedID,resp.data.choices[0].message.content)}
+    submit(feedID,resp.data.choices[0].message.content)} catch (error) {
+      console.log('error')
+    }}
   async function submit(feedId, value, fl) {
     try{
       let valu= BigNumber.from(value)
       val=''
      }catch{val=value
-     value=11111}
+     value=101010101}
     if (txa.length == 0 || fl == 1) {
       // If not, add the new feedId and value to the queue
       txa.unshift({ feedId: feedId, value: value });
