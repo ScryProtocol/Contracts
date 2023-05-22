@@ -8,7 +8,7 @@ const ABI = [
  ];
 const provider = new ethers.providers.JsonRpcProvider(rpc);
 const walletWithProvider = new ethers.Wallet(pk, provider);
-const signers = [''];
+const signers = ['0x00da7a00b4b4D7c537015621dc58381E78b7189D'];
 const threshold = 1
     
 async function init() {
@@ -22,7 +22,7 @@ async function init() {
     // Create a contract object
     const contract = new ethers.Contract(oofAddress, ABI, walletWithProvider);
     try {
-        let tx = await contract.initialize(signers,threshold,'0x0000000000000000000000000000000000000000',0,'0x0000000000000000000000000000000000000001');
+        let tx = await contract.initialize(signers,threshold,'0x0000000000000000000000000000000000000000',0,'0x00da7a00b4b4D7c537015621dc58381E78b7189D');
         const {events, cumulativeGasUsed, gasUsed, transactionHash} = await tx.wait();
         console.log(`Cumulative: ${cumulativeGasUsed.toNumber()}`);
         console.log(`Gas: ${gasUsed.toNumber()}`)
