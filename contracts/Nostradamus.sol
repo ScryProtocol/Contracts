@@ -24,6 +24,7 @@ contract Nostradamus {
 
     // threshold which has to be reached
     uint256 public signerThreshold = 1;
+    mapping(uint256 => mapping(address => uint256)) private signerSign;
 
     // indicates if sender is a signer
     mapping(address => bool) private isSigner;
@@ -31,6 +32,8 @@ contract Nostradamus {
     // indicates support of feeds
     mapping(uint256 => uint256) public feedSupport;
 
+    // indicates if address si subscribed to a feed
+    mapping(address => mapping(uint256 => uint256)) private subscribedTo;
 
     struct oracleStruct {
         string feedAPIendpoint;
@@ -38,7 +41,6 @@ contract Nostradamus {
         uint256 latestPrice;
         uint256 latestPriceUpdate;
         uint256 feedDecimals;
-        string feedString;
     }
 
     oracleStruct[] private feedList;
@@ -86,7 +88,7 @@ contract Nostradamus {
         uint256 timestamp,
         address signer
     );
-    event feedSubmitted(uint256 feedId, uint256 value, uint256 timestamp,string);
+    event feedSubmitted(uint256 feedId, uint256 value, uint256 timestamp);
     event routerFeeTaken(uint256 value, address sender);
     event feedSupported(uint256 feedId, uint256 supportvalue);
     event newProposal(
@@ -97,6 +99,7 @@ contract Nostradamus {
         address proposer
     );
     event proposalSigned(uint256 proposalId, address signer);
+    event newFee(uint256 value);
     event newThreshold(uint256 value);
     event newSigner(address signer);
     event signerRemoved(address signer);
@@ -165,7 +168,6 @@ contract Nostradamus {
             uint256[] memory,
             uint256[] memory,
             string[] memory,
-            string[] memory,
             string[] memory
         )
     {
@@ -175,14 +177,12 @@ contract Nostradamus {
         uint256[] memory returnDecimals = new uint256[](feedLen);
         string[] memory returnEndpoint = new string[](feedLen);
         string[] memory returnPath = new string[](feedLen);
-        string[] memory returnStr = new string[](feedLen);
         for (uint256 i = 0; i < feedIDs.length; i++) {
-            (returnPrices[i], returnTimestamps[i], returnDecimals[i],) = getFeed(
+            (returnPrices[i], returnTimestamps[i], returnDecimals[i]) = getFeed(
                 feedIDs[i]
             );
             returnEndpoint[i] = feedList[feedIDs[i]].feedAPIendpoint;
             returnPath[i] = feedList[feedIDs[i]].feedAPIendpointPath;
-            returnStr[i] = feedList[feedIDs[i]].feedString;
         }
 
         return (
@@ -190,7 +190,7 @@ contract Nostradamus {
             returnTimestamps,
             returnDecimals,
             returnEndpoint,
-            returnPath,returnStr
+            returnPath
         );
     }
 
@@ -201,7 +201,7 @@ contract Nostradamus {
      */
     function getFeed(
         uint256 feedID
-    ) public view returns (uint256, uint256, uint256,string memory){//m) {
+    ) public view returns (uint256, uint256, uint256) {
         uint256 returnPrice;
         uint256 returnTimestamp;
         uint256 returnDecimals;
@@ -209,8 +209,7 @@ contract Nostradamus {
         returnPrice = feedList[feedID].latestPrice;
         returnTimestamp = feedList[feedID].latestPriceUpdate;
         returnDecimals = feedList[feedID].feedDecimals;
-        
-        return (returnPrice, returnTimestamp, returnDecimals, feedList[feedID].feedString);
+        return (returnPrice, returnTimestamp, returnDecimals);
     }
 
     function getFeedLength() external view returns (uint256) {
@@ -249,8 +248,7 @@ contract Nostradamus {
                     feedAPIendpointPath: APIendpointPath[i],
                     latestPrice: 0,
                     latestPriceUpdate: 0,
-                    feedDecimals: decimals[i],
-                    feedString:''
+                    feedDecimals: decimals[i]
                 })
             );
             total += bounties[i];
@@ -280,8 +278,7 @@ contract Nostradamus {
      */
     function submitFeed(
         uint256[] memory feedIDs,
-        uint256[] memory values,
-        string[] memory vals
+        uint256[] memory values
     ) external onlySigner {
         require(
             values.length == feedIDs.length,
@@ -292,8 +289,7 @@ contract Nostradamus {
             emit feedSigned(feedIDs[i], values[i], block.timestamp, msg.sender);
             feedList[feedIDs[i]].latestPriceUpdate = block.timestamp;
             feedList[feedIDs[i]].latestPrice = values[i];
-            feedList[feedIDs[i]].feedString = vals[i];
-            emit feedSubmitted(feedIDs[i], values[i], block.timestamp,vals[i]);
+            emit feedSubmitted(feedIDs[i], values[i], block.timestamp);
             feedSupport[feedIDs[i]] = 0;
         }
         payable(factoryContract).transfer(address(this).balance / 100);
