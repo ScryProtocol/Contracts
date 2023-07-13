@@ -5,7 +5,7 @@ pragma abicoder v2;
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
-contract Nostradamus {
+contract NostradamusSS {
     // using Openzeppelin contracts for SafeMath and Address
     using SafeMath for uint256;
     using Address for address;
