@@ -6,7 +6,6 @@ const keccak256 = require('keccak256')
 let contractAddress = process.env.OOFAddress; // replace with your contract address
 const ABI = require('./abi/morph.json')
 const { Contract, BigNumber } = require("ethers");
-var bigInt = require("big-integer");// store the feed inventory
 let feedInventory = [];
 // storage for last update timestamp
 let lastUpdate = {};
@@ -142,10 +141,15 @@ async function node() {
       } else {
         vrfHash(endpointp, feedId, 0)// code to execute if endpoint is 'vrf' or 'VRF'
       }
-    } else if(endpoint == 'GPT'){
-response3(endpointp, feedId)
+    } else if (endpoint == 'GPT') {
+      response3(endpointp, feedId)
+    } else if (endpoint == 'XCHAIN') {
+      if (endpointp.includes('XBALANCE')) {
+        XBALANCE(endpointp, feedId)
+      }
+      Xchain(endpointp, feedId)
     }
-    
+
     else {
       let parsingargs = []
 
@@ -196,7 +200,7 @@ response3(endpointp, feedId)
 
       // set new update timestamp
       lastUpdate[feedId] = Date.now()
-      console.log("Subm")
+      console.log("Time ", lastUpdate[feedId])
 
       const provider = new ethers.providers.JsonRpcProvider(rpc);
       const oofAddress = process.env.OOFAddress
@@ -214,10 +218,10 @@ response3(endpointp, feedId)
           setTimeout(resolve, ms);
         });
       } //if (ethers.utils.formatEther(gF) > 0) {
-        submit(feedId, toParse, 0)
-      
+      submit(feedId, toParse, 0)
+
     }
-    catch { console.log('Could not process feed request API ', endpoint, ' path ', endpointp, ' args ', parsingargs, ' feed request ID ', feedId, ' c ', c) }
+    catch (error) { console.log('Could not process feed request API ', endpoint, ' path ', endpointp, ' args ', parsingargs, ' feed request ID ', feedId, ' c ', c, error) }
   }
 
   contract.on('feedSupported', (feedd) => {
@@ -267,6 +271,11 @@ response3(endpointp, feedId)
       } else {
         vrfHash(endpointp, Number(feedId), 0)// code to execute if endpoint is 'vrf' or 'VRF'
       }
+    } else if (endpoint == 'XCHAIN') {
+      if (endpointp.includes('XBALANCE')) {
+        XBALANCE(endpointp, feedId)
+      }
+      Xchain(endpointp, feedId)
     } else {
       let parsingargs = []
       try {
@@ -308,53 +317,129 @@ response3(endpointp, feedId)
           gasPrice: gasPrice
         }
         submit(feedId, toParse, 0)
-       // }
-       // else {
-         // console.log('not profitable')
-       // }
+        // }
+        // else {
+        // console.log('not profitable')
+        // }
       }
-      catch (error){ console.log(error,'Could not process feed request API ', endpoint, ' path ', endpointp, ' args ', parsingargs, ' feed request ID ', Number(feedId), ' c ', c) }
+      catch (error) { console.log(error, 'Could not process feed request API ', endpoint, ' path ', endpointp, ' args ', parsingargs, ' feed request ID ', Number(feedId), ' c ', c) }
     }
   }
   let txa = []
-  async function response4(input,feedID){ 
-    let resp = await openai.createCompletion({
-      model: "gpt-3.5-turbo",
-      prompt: input,
-      temperature: 0,
-      max_tokens: 100,
-    })
-    console.log(resp.data.choices[0].text)
-    submit(feedID, resp.data.choices[0].text);
-  }
-  async function response3(input,feedID){ 
+  async function response3(input, feedID) {
     try {
-      
-     let resp = await openai.createChatCompletion({
-      model: "gpt-3.5-turbo",
-      messages: [{role: "user", content: input}],
-    });
-    console.log(resp.data.choices[0].message.content)
-    submit(feedID,resp.data.choices[0].message.content)} catch (error) {
+
+      let resp = await openai.createChatCompletion({
+        model: "gpt-3.5-turbo",
+        messages: [{ role: "user", content: input }],
+      });
+      console.log(resp.data.choices[0].message.content)
+      submit(feedID, resp.data.choices[0].message.content)
+    } catch (error) {
       console.log('error')
-    }}
+    }
+  }
+  async function Xchain(input, feedID) {
+    // const functionSignature = 'balanceOf(address)';
+    // const types = ['address'];
+    // const values = ['0x9d31e30003f253563ff108bc60b16fdf2c93abb5'];
+    // const encodedData = ethers.utils.defaultAbiCoder.encode(types, values);
+    // const functionHash = ethers.utils.id(functionSignature).slice(0, 10);
+    // console.log(`Function call: ${functionHash}`);
+    // console.log(`Encoded data: ${encodedData}`, input);
+    try {
+      // Parse the RPC string
+      const params = new URLSearchParams(input.split('?').slice(1).join('&'));
+      const rpc = params.get('RPC');
+      const addrs = params.get('ADDRS');
+      let dat = params.get('DATA');
+      const flag = params.get('FLAG');
+      console.log('rpc', rpc, 't', addrs, dat);
+      // Connect to the provider
+      let provider;
+      provider = new ethers.providers.JsonRpcProvider(rpc);
+      if (flag == 1) {
+        const functionSig = 'balanceOf(address)';
+        const fnHash = ethers.utils.id(functionSig);  // keccak256 hash of function signature
+        const functionSelector = fnHash.slice(0, 10);  // first four bytes of hash         
+        const types = ['address'];
+        const values = [dat];
+        const encodedParams = ethers.utils.defaultAbiCoder.encode(types, values);
+        // Concatenate function selector and parameters
+        const encodedData = functionSelector + encodedParams.slice(2);  // remove '0x' from params
+        dat = encodedData
+      }
+
+      // Prepare the transaction
+      const tx = {
+        to: addrs,
+        data: dat,
+      };
+      // Send the transaction and get the response
+      let resp = await provider.call(tx);
+      if (flag == 1) {
+        resp = BigInt(resp).toString();
+      }
+      console.log(resp)
+      submit(feedID, resp)
+    }
+    catch (error) {
+      console.log(error)
+    }
+  } async function XBALANCE(input, feedID) {
+    try {
+      // Parse the RPC string
+      const params = new URLSearchParams(input.split('?').slice(1).join('&'));
+      const rpc = params.get('RPC');
+      const addrs = params.get('ADDRS');
+
+      // Connect to the provider
+      let provider;
+      provider = new ethers.providers.JsonRpcProvider(rpc);
+      let resp = await provider.getBalance(addrs);
+      resp = BigInt(resp).toString();
+      console.log(resp)
+      submit(feedID, resp)
+    }
+    catch (error) {
+      console.log(error)
+    }
+  } function hexToUtf8(hex) {
+    let str = '';
+    for (let i = 0; i < hex.length; i += 2) {
+      const v = parseInt(hex.substr(i, 2), 16);
+      if (v) str += String.fromCharCode(v);
+    }
+    return (str);
+  }
+
   async function submit(feedId, value, fl) {
-    try{
-      let valu= BigNumber.from(value)
-      val=''
-     }catch{val=value
-     value=101010101}
+    try {
+      let valu = BigNumber.from(value)
+      val = ''
+      if (ethers.utils.isHexString(value)) {
+        val = hexToUtf8(val)
+      }
+    } catch {
+      val = value
+      value = 88888888
+      if (ethers.utils.isHexString(val)) {
+        val = hexToUtf8(val)
+      }
+    }
     if (txa.length == 0 || fl == 1) {
       // If not, add the new feedId and value to the queue
       txa.unshift({ feedId: feedId, value: value });
       const gasPrice = await provider.getGasPrice();
-      const tx_obk = { gasPrice };
-      const gasLimit = await oofContract.estimateGas.submitFeed(
+      let tx_obk = { gasPrice };
+      let gasLimit = await oofContract.estimateGas.submitFeed(
         [feedId],
         [value],
         [val],
         tx_obk
-      );
+      )
+      gasLimit = gasLimit.add(100000);
+      tx_obk = { gasPrice:gasPrice,gasLimit:gasLimit };
       const gasFee = gasLimit.mul(gasPrice);
       let sup = await oofContract.feedSupport(feedId)
       const ethProfit = sup - gasFee;
@@ -371,7 +456,7 @@ response3(endpointp, feedId)
           " gwei"
         );
         console.log("submitting feeds...");
-        const tx = await oofContract.submitFeed([feedId], [value],[val], tx_obk);
+        const tx = await oofContract.submitFeed([feedId], [value], [val], tx_obk);
         console.log(
           `submitted feed id ${feedId} with value ${value} at ${Date.now()}`
         );
