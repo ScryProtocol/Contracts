@@ -54,8 +54,6 @@ if (endFlag != null) {
 const provider = new ethers.providers.JsonRpcProvider(rpc);
 
 const walletWithProvider = new ethers.Wallet(pk, provider);
-//const signers = ['0x00f0000000f11a5380da5a184f0c563b5995fee2
-console.log("Deploying your Morpheus contract");
 const oofContract = !!ABI && !!walletWithProvider
   ? new Contract(contractAddress, ABI, walletWithProvider)
   : undefined; let i;
@@ -70,7 +68,7 @@ async function sub() {
   for (let n = 0; n == 0;) {
     await sleep(10000);
     let t = await oofContract.getFeeds([0])
-    console.log('uint ', t[0].toString(), 'str ', t[5].toString());
+    console.log('Feed uint value: ', t[0].toString(), 'string value: ', t[5].toString());
     n = t[0].toString()
   }
 
