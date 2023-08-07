@@ -1,0 +1,9 @@
+version: "3.5"
+services:
+  morpheus:
+    image: scryprotocol/morpheus:latest
+    environment:
+      RPC: "https://sepolia.gateway.tenderly.co"
+      OOFAddress: "" # replace with address of your contract once deployed
+      PK: "0x5471422c144d9fea1ea4437cf0f5553ffc98df6ed1edea6685ca4b36ed3a4c7d" # use a different one 
+      OPENAI_API_KEY: ""
