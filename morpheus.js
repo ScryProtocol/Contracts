@@ -10,6 +10,7 @@ let feedInventory = [];
 // storage for last update timestamp
 let lastUpdate = {};
 let pk = process.env.PK
+let minfee = process.env.MINFEE
 let contract;
 // script.js
 const args = process.argv.slice(2);
@@ -439,7 +440,7 @@ async function node() {
         tx_obk
       )
       gasLimit = gasLimit.add(100000);
-      tx_obk = { gasPrice:gasPrice,gasLimit:gasLimit };
+      tx_obk = { gasPrice: gasPrice, gasLimit: gasLimit };
       const gasFee = gasLimit.mul(gasPrice);
       let sup = await oofContract.feedSupport(feedId)
       const ethProfit = sup - gasFee;
@@ -449,7 +450,7 @@ async function node() {
       console.log('ETH Profit', ethers.utils.formatEther(ethProfit.toString()));
 
 
-      if (ethProfit > 0) {
+      if (ethProfit > 0 && ethProfit >= minfee) {
         console.log(
           "submitting with gas price: " +
           ethers.utils.formatUnits(gasPrice, "gwei") +
