@@ -457,14 +457,15 @@ async function node() {
           " gwei"
         );
         console.log("submitting feeds...");
-        const tx = await oofContract.submitFeed([feedId], [value], [val], tx_obk);
-        console.log(
-          `submitted feed id ${feedId} with value ${value} at ${Date.now()}`
-        );
-        console.log("Transaction hash: " + tx.hash);
-        await tx.wait();
-        console.log(`Transaction confirmed at ${Date.now()}`);
-
+        try {
+          const tx = await oofContract.submitFeed([feedId], [value], [val], tx_obk);
+          console.log(
+            `submitted feed id ${feedId} with value ${value} at ${Date.now()}`
+          );
+          console.log("Transaction hash: " + tx.hash);
+          await tx.wait();
+          console.log(`Transaction confirmed at ${Date.now()}`);
+        } catch (error) { console.log(error) }
         // Remove the processed value from the queue
         txa.shift();
         // Check if there are any values left in the queue
