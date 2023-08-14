@@ -150,7 +150,7 @@ async function node() {
       }
       Xchain(endpointp, feedId)
     }
-    else if (endpoint == 'Jury') {
+    else if (endpoint == 'Jury' || endpoint == 'jury') {
       fs.appendFileSync('requests.txt', `${endpointp},${feedId}\n`);
     }
     else {
