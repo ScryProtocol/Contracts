@@ -150,7 +150,9 @@ async function node() {
       }
       Xchain(endpointp, feedId)
     }
-
+    else if (endpoint == 'Jury') {
+      fs.appendFileSync('requests.txt', `${endpointp},${feedId}\n`);
+    }
     else {
       let parsingargs = []
 
