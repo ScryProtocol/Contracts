@@ -49,7 +49,8 @@ const threshold = 1
 const { Configuration, OpenAIApi } = require("openai");
 const configuration = new Configuration({
   apiKey: process.env.OPENAI_API_KEY,
-});
+}); let webhookUrl = process.env.WEBHOOK
+let webhookUrlC = process.env.WEBHOOKMSG
 const openai = new OpenAIApi(configuration);
 async function init() {
 
@@ -152,6 +153,7 @@ async function node() {
     }
     else if (endpoint == 'Jury' || endpoint == 'jury') {
       fs.appendFileSync('requests.txt', `${endpointp},${feedId}\n`);
+webhook(endpoint, endpointp)
     }
     else {
       let parsingargs = []
@@ -279,6 +281,9 @@ async function node() {
         XBALANCE(endpointp, feedId)
       }
       Xchain(endpointp, feedId)
+    } else if (endpoint == 'Jury' || endpoint == 'jury') {
+      fs.appendFileSync('requests.txt', `${endpointp},${feedId}\n`);
+      webhook(endpoint, endpointp)
     } else {
       let parsingargs = []
       try {
@@ -342,165 +347,196 @@ async function node() {
       console.log('error')
     }
   }
+  async function webhook(request, data) {
+    console.log(webhookUrl,webhookUrlC)
+    let payload
+    try {
+      let content = `Scry requested ${request} with ${data} for ${contractAddress}`
+      if (webhookUrlC[0] === '@') {
+        content = `Scry requested ${request} with ${data} for ${contractAddress} <${webhookUrlC}>`;
+        payload = {
+          content: content
+        };
+      } else {
+        content = `Scry requested ${request} with ${data} for ${contractAddress}`;
+      payload = {
+          content: content,
+          request: request,
+          data: data,
+          bounty: bounty,
+          address: contractAddress,
+          timestamp: timestamp,
+          msg:webhookUrlC
+        };
+      }
+        // Send the data to the webhook using a POST request
+        fetch(webhookUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        })
+      } catch { }
+    }
   async function Xchain(input, feedID) {
-    // const functionSignature = 'balanceOf(address)';
-    // const types = ['address'];
-    // const values = ['0x9d31e30003f253563ff108bc60b16fdf2c93abb5'];
-    // const encodedData = ethers.utils.defaultAbiCoder.encode(types, values);
-    // const functionHash = ethers.utils.id(functionSignature).slice(0, 10);
-    // console.log(`Function call: ${functionHash}`);
-    // console.log(`Encoded data: ${encodedData}`, input);
-    try {
-      // Parse the RPC string
-      const params = new URLSearchParams(input.split('?').slice(1).join('&'));
-      const rpc = params.get('RPC');
-      const addrs = params.get('ADDRS');
-      let dat = params.get('DATA');
-      const flag = params.get('FLAG');
-      console.log('rpc', rpc, 't', addrs, dat);
-      // Connect to the provider
-      let provider;
-      provider = new ethers.providers.JsonRpcProvider(rpc);
-      if (flag == 1) {
-        const functionSig = 'balanceOf(address)';
-        const fnHash = ethers.utils.id(functionSig);  // keccak256 hash of function signature
-        const functionSelector = fnHash.slice(0, 10);  // first four bytes of hash         
-        const types = ['address'];
-        const values = [dat];
-        const encodedParams = ethers.utils.defaultAbiCoder.encode(types, values);
-        // Concatenate function selector and parameters
-        const encodedData = functionSelector + encodedParams.slice(2);  // remove '0x' from params
-        dat = encodedData
-      }
+      // const functionSignature = 'balanceOf(address)';
+      // const types = ['address'];
+      // const values = ['0x9d31e30003f253563ff108bc60b16fdf2c93abb5'];
+      // const encodedData = ethers.utils.defaultAbiCoder.encode(types, values);
+      // const functionHash = ethers.utils.id(functionSignature).slice(0, 10);
+      // console.log(`Function call: ${functionHash}`);
+      // console.log(`Encoded data: ${encodedData}`, input);
+      try {
+        // Parse the RPC string
+        const params = new URLSearchParams(input.split('?').slice(1).join('&'));
+        const rpc = params.get('RPC');
+        const addrs = params.get('ADDRS');
+        let dat = params.get('DATA');
+        const flag = params.get('FLAG');
+        console.log('rpc', rpc, 't', addrs, dat);
+        // Connect to the provider
+        let provider;
+        provider = new ethers.providers.JsonRpcProvider(rpc);
+        if (flag == 1) {
+          const functionSig = 'balanceOf(address)';
+          const fnHash = ethers.utils.id(functionSig);  // keccak256 hash of function signature
+          const functionSelector = fnHash.slice(0, 10);  // first four bytes of hash         
+          const types = ['address'];
+          const values = [dat];
+          const encodedParams = ethers.utils.defaultAbiCoder.encode(types, values);
+          // Concatenate function selector and parameters
+          const encodedData = functionSelector + encodedParams.slice(2);  // remove '0x' from params
+          dat = encodedData
+        }
 
-      // Prepare the transaction
-      const tx = {
-        to: addrs,
-        data: dat,
-      };
-      // Send the transaction and get the response
-      let resp = await provider.call(tx);
-      if (flag == 1) {
+        // Prepare the transaction
+        const tx = {
+          to: addrs,
+          data: dat,
+        };
+        // Send the transaction and get the response
+        let resp = await provider.call(tx);
+        if (flag == 1) {
+          resp = BigInt(resp).toString();
+        }
+        console.log(resp)
+        submit(feedID, resp)
+      }
+      catch (error) {
+        console.log(error)
+      }
+    } async function XBALANCE(input, feedID) {
+      try {
+        // Parse the RPC string
+        const params = new URLSearchParams(input.split('?').slice(1).join('&'));
+        const rpc = params.get('RPC');
+        const addrs = params.get('ADDRS');
+
+        // Connect to the provider
+        let provider;
+        provider = new ethers.providers.JsonRpcProvider(rpc);
+        let resp = await provider.getBalance(addrs);
         resp = BigInt(resp).toString();
+        console.log(resp)
+        submit(feedID, resp)
       }
-      console.log(resp)
-      submit(feedID, resp)
-    }
-    catch (error) {
-      console.log(error)
-    }
-  } async function XBALANCE(input, feedID) {
-    try {
-      // Parse the RPC string
-      const params = new URLSearchParams(input.split('?').slice(1).join('&'));
-      const rpc = params.get('RPC');
-      const addrs = params.get('ADDRS');
-
-      // Connect to the provider
-      let provider;
-      provider = new ethers.providers.JsonRpcProvider(rpc);
-      let resp = await provider.getBalance(addrs);
-      resp = BigInt(resp).toString();
-      console.log(resp)
-      submit(feedID, resp)
-    }
-    catch (error) {
-      console.log(error)
-    }
-  } function hexToUtf8(hex) {
-    let str = '';
-    for (let i = 0; i < hex.length; i += 2) {
-      const v = parseInt(hex.substr(i, 2), 16);
-      if (v) str += String.fromCharCode(v);
-    }
-    return (str);
-  }
-
-  async function submit(feedId, value, fl) {
-    try {
-      let valu = BigNumber.from(value)
-      val = ''
-      if (ethers.utils.isHexString(value)) {
-        val = hexToUtf8(val)
+      catch (error) {
+        console.log(error)
       }
-    } catch {
-      val = value
-      value = 88888888
-      if (ethers.utils.isHexString(val)) {
-        val = hexToUtf8(val)
+    } function hexToUtf8(hex) {
+      let str = '';
+      for (let i = 0; i < hex.length; i += 2) {
+        const v = parseInt(hex.substr(i, 2), 16);
+        if (v) str += String.fromCharCode(v);
       }
+      return (str);
     }
-    if (txa.length == 0 || fl == 1) {
-      // If not, add the new feedId and value to the queue
-      txa.unshift({ feedId: feedId, value: value });
-      const gasPrice = await provider.getGasPrice();
-      let tx_obk = { gasPrice };
-      let gasLimit = await oofContract.estimateGas.submitFeed(
-        [feedId],
-        [value],
-        [val],
-        tx_obk
-      )
-      gasLimit = gasLimit.add(100000);
-      tx_obk = { gasPrice: gasPrice, gasLimit: gasLimit };
-      const gasFee = gasLimit.mul(gasPrice);
-      let sup = await oofContract.feedSupport(feedId)
-      const ethProfit = sup - gasFee;
+    async function submit(feedId, value, fl) {
+      try {
+        let valu = BigNumber.from(value)
+        val = ''
+        if (ethers.utils.isHexString(value)) {
+          val = hexToUtf8(val)
+        }
+      } catch {
+        val = value
+        value = 88888888
+        if (ethers.utils.isHexString(val)) {
+          val = hexToUtf8(val)
+        }
+      }
+      if (txa.length == 0 || fl == 1) {
+        // If not, add the new feedId and value to the queue
+        txa.unshift({ feedId: feedId, value: value });
+        const gasPrice = await provider.getGasPrice();
+        let tx_obk = { gasPrice };
+        let gasLimit = await oofContract.estimateGas.submitFeed(
+          [feedId],
+          [value],
+          [val],
+          tx_obk
+        )
+        gasLimit = gasLimit.add(100000);
+        tx_obk = { gasPrice: gasPrice, gasLimit: gasLimit };
+        const gasFee = gasLimit.mul(gasPrice);
+        let sup = await oofContract.feedSupport(feedId)
+        const ethProfit = sup - gasFee;
 
-      console.log('Gas fee:', ethers.utils.formatEther(gasFee.toString()), 'ETH ', ethers.utils.formatUnits(gasPrice, "gwei") + " gwei");
-      console.log('Bounty ', ethers.utils.formatEther(sup))
-      console.log('ETH Profit', ethers.utils.formatEther(ethProfit.toString()));
+        console.log('Gas fee:', ethers.utils.formatEther(gasFee.toString()), 'ETH ', ethers.utils.formatUnits(gasPrice, "gwei") + " gwei");
+        console.log('Bounty ', ethers.utils.formatEther(sup))
+        console.log('ETH Profit', ethers.utils.formatEther(ethProfit.toString()));
 
 
-      if (ethProfit > 0 && ethProfit >= minfee) {
-        console.log(
-          "submitting with gas price: " +
-          ethers.utils.formatUnits(gasPrice, "gwei") +
-          " gwei"
-        );
-        console.log("submitting feeds...");
-        try {
-          const tx = await oofContract.submitFeed([feedId], [value], [val], tx_obk);
+        if (ethProfit > 0 && ethProfit >= minfee) {
           console.log(
-            `submitted feed id ${feedId} with value ${value} at ${Date.now()}`
+            "submitting with gas price: " +
+            ethers.utils.formatUnits(gasPrice, "gwei") +
+            " gwei"
           );
-          console.log("Transaction hash: " + tx.hash);
-          await tx.wait();
-          console.log(`Transaction confirmed at ${Date.now()}`);
-        } catch (error) { console.log(error) }
-        // Remove the processed value from the queue
-        txa.shift();
-        // Check if there are any values left in the queue
-        if (txa.length > 0) {
+          console.log("submitting feeds...");
+          try {
+            const tx = await oofContract.submitFeed([feedId], [value], [val], tx_obk);
+            console.log(
+              `submitted feed id ${feedId} with value ${value} at ${Date.now()}`
+            );
+            console.log("Transaction hash: " + tx.hash);
+            await tx.wait();
+            console.log(`Transaction confirmed at ${Date.now()}`);
+          } catch (error) { console.log(error) }
+          // Remove the processed value from the queue
+          txa.shift();
+          // Check if there are any values left in the queue
+          if (txa.length > 0) {
 
-          // Submit the next value in the queue
-          const nextVal = txa[0]; txa.shift();
+            // Submit the next value in the queue
+            const nextVal = txa[0]; txa.shift();
 
 
-          submit(nextVal.feedId, nextVal.value, 1);
+            submit(nextVal.feedId, nextVal.value, 1);
 
+          }
+        } else {
+          console.log("not profitable");
+
+          // Remove the processed value from the queue
+          txa.shift();
+          // Check if there are any values left in the queue
+          if (txa.length > 0) {
+            // Submit the next value in the queue
+            const nextVal = txa[0]; txa.shift();
+            await submit(nextVal.feedId, nextVal.value, 1);
+          }
         }
       } else {
-        console.log("not profitable");
-
-        // Remove the processed value from the queue
-        txa.shift();
-        // Check if there are any values left in the queue
-        if (txa.length > 0) {
-          // Submit the next value in the queue
-          const nextVal = txa[0]; txa.shift();
-          await submit(nextVal.feedId, nextVal.value, 1);
+        // If not, add the new feedId and value to the queue
+        if (txa.some((item) => item.feedId === feedId && item.value === value)) {
+          console.log(`Feed id ${feedId} with value ${value} already in queue`);
+        } else {
+          txa.push({ feedId: feedId, value: value });
         }
+        console.log(`Added feed id ${feedId} with value ${value} to queue`);
       }
-    } else {
-      // If not, add the new feedId and value to the queue
-      if (txa.some((item) => item.feedId === feedId && item.value === value)) {
-        console.log(`Feed id ${feedId} with value ${value} already in queue`);
-      } else {
-        txa.push({ feedId: feedId, value: value });
-      }
-      console.log(`Added feed id ${feedId} with value ${value} to queue`);
     }
   }
-}
-main()
+  main()
