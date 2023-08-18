@@ -2,7 +2,7 @@ const ethers = require('ethers');
 require('dotenv').config()
 let rpc = process.env.RPC
 let contractAddress = process.env.OOFAddress; // replace with your contract address
-const ABI = require('./abi/morph.json')
+const ABI = require('./abi/NostradamusSS.json')
 const { Contract, BigNumber } = require("ethers");
 let pk = process.env.PK
 let contract;
