@@ -26,7 +26,7 @@ const rpcFlag = flags['-r'];
 const aFlag = flags['-a'];
 const pkFlag = flags['-pk']; const pFlag = flags['-p']; const endFlag = flags['-end']; const dFlag = flags['-d']; const bFlag = flags['-b'];
 let p = 'last'
-let b = '10000000000000000'
+let b = '1000000000000000'
 let d = 0
 let end = 'https://api.exchange.coinbase.com/products/ETH-USD/stats/'
 
@@ -67,7 +67,7 @@ async function sub() {
   console.log(`Transaction confirmed at ${Date.now()}`);
   for (let n = 0; n == 0;) {
     await sleep(10000);
-    let t = await oofContract.getFeeds([0])
+    let t = await oofContract.getFeeds([Number(await oofContract.getFeedLength())-1])
     console.log('Feed uint value: ', t[0].toString(), 'string value: ', t[5].toString());
     n = t[0].toString()
   }
