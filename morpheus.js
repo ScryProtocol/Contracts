@@ -538,5 +538,5 @@ async function node() {
       console.log(`Added feed id ${feedId} with value ${value} to queue`);
     }
   }
-}
-main()
+
+  main()
