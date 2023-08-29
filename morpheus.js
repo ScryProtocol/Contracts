@@ -106,7 +106,7 @@ async function node() {
     ? new Contract(contractAddress, ABI, walletWithProvider)
     : undefined; let i;
   async function vrfHash(value, feedID, fl) {
-    let hash = ethers.utils.keccak256(pk.toString);
+    let hash = ethers.utils.keccak256(pk.toString());
     console.log('seed ', hash);
     let hash2
     if (fl == 1) {
