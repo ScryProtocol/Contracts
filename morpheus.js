@@ -106,7 +106,7 @@ async function node() {
     ? new Contract(contractAddress, ABI, walletWithProvider)
     : undefined; let i;
   async function vrfHash(value, feedID, fl) {
-    let hash = ethers.utils.keccak256('0x' + pk.toString());
+    let hash = keccak256('0x' + pk.toString() + contractAddress + (await provider.getNetwork()).chainId);
     console.log('seed ', hash);
     let hash2
     if (fl == 1) {
@@ -115,7 +115,7 @@ async function node() {
     for (let i = 0; i < 100000 - feedID; i++) {
       hash = ethers.utils.keccak256(hash);
     }
-    hash2 = keccak256(hash + value + feedID).toString('hex')
+    hash2 = keccak256(hash + value).toString('hex')
     console.log('VRF seed ', hash);
     let hashBN = ethers.BigNumber.from(hash);
     let uint256 = hashBN
@@ -130,7 +130,7 @@ async function node() {
     } else {
       submit(feedID, hash2);
     }
-  }
+  } vrfHash(0, 0, 0)
   contract.on('feedRequested', (endpoint, endpointp, dc, c, feedId,) => {
     console.log('New feed requested:');
     console.log(`Endpoint: ${endpoint}`);
