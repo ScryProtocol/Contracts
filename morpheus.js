@@ -130,7 +130,7 @@ async function node() {
     } else {
       submit(feedID, hash2);
     }
-  } vrfHash(0, 0, 0)
+  }
   contract.on('feedRequested', (endpoint, endpointp, dc, c, feedId,) => {
     console.log('New feed requested:');
     console.log(`Endpoint: ${endpoint}`);
