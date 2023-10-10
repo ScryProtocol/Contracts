@@ -193,7 +193,7 @@ async function node() {
         toParse = toParse[parsingargs[j]]
       }
       console.log(toParse)
-      let valu = Number('L')
+      let valu = Number(toParse)
       console.log(valu)
 
       if (toParse !== undefined) {
@@ -314,6 +314,8 @@ async function node() {
           toParse = toParse[parsingargs[j]]
         }
         console.log(toParse)
+        let valu = Number(toParse)
+        
         if (toParse !== undefined) {
           if (!isNaN(valu)) {
             if (toParse != "") {
