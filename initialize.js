@@ -8,7 +8,7 @@ const ABI = [
  ];
 const provider = new ethers.providers.JsonRpcProvider(rpc);
 const walletWithProvider = new ethers.Wallet(pk, provider);
-const signers = ['0x00da7a00b4b4D7c537015621dc58381E78b7189D'];
+const signers = [''];
 const threshold = 1
     
 async function init() {

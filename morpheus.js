@@ -136,7 +136,8 @@ async function node() {
     console.log(`Endpoint: ${endpoint}`);
     console.log(`Endpointp: ${endpointp}`);
     console.log(`Decimal: ${c}`);
-    console.log(`Feed ID: ${feedId}`);
+    console.log(`Feed ID: ${feedId}`); fs.appendFileSync('feedrequests.txt', `New feed requested: ${endpoint}, path: ${endpointp}$, Feed ID: {feedId}\n`);
+
     if (endpoint == 'vrf' || endpoint == 'VRF') {
       if (endpointp == 'proof') {
         vrfHash(endpointp, feedId, 1)// code to execute if endpoint is 'vrf' or 'VRF'
@@ -192,39 +193,48 @@ async function node() {
         toParse = toParse[parsingargs[j]]
       }
       console.log(toParse)
-      if (toParse != "") {
-        toParse = parseFloat(toParse) * (10 ** c)
-        console.log(Math.round(toParse).toLocaleString('fullwide', { useGrouping: false }))
-        toParse = Math.round(toParse).toLocaleString('fullwide', { useGrouping: false })
-      }
-      console.log("Submitting " + toParse)
+      let valu = Number('L')
+      console.log(valu)
 
-      // push values
-      feedIdArray.push(feedId)
-      feedValueArray.push(toParse)
+      if (toParse !== undefined) {
+        if (!isNaN(valu)) {
+          try {
+            toParse = parseFloat(toParse) * (10 ** c)
+            console.log(Math.round(toParse).toLocaleString('fullwide', { useGrouping: false }))
+            toParse = Math.round(toParse).toLocaleString('fullwide', { useGrouping: false })
+          } catch {
+            console.log("String " + toParse)
+          }
+        }
+        console.log("Submitting " + toParse)
 
-      // set new update timestamp
-      lastUpdate[feedId] = Date.now()
-      console.log("Time ", lastUpdate[feedId])
+        // push values
+        feedIdArray.push(feedId)
+        feedValueArray.push(toParse)
 
-      const provider = new ethers.providers.JsonRpcProvider(rpc);
-      const oofAddress = process.env.OOFAddress
-      const walletWithProvider = new ethers.Wallet(pk, provider); const oofContract = !!ABI && !!walletWithProvider
-        ? new Contract(oofAddress, ABI, walletWithProvider)
-        : undefined;
-      let nonce = await walletWithProvider.getTransactionCount();
-      let gasPrice = await provider.getGasPrice()
-      let tx_obk = {
+        // set new update timestamp
+        lastUpdate[feedId] = Date.now()
+        console.log("Time ", lastUpdate[feedId])
 
-        gasPrice: gasPrice
-      }
-      async function wait(ms) {
-        return new Promise(resolve => {
-          setTimeout(resolve, ms);
-        });
-      } //if (ethers.utils.formatEther(gF) > 0) {
-      submit(feedId, toParse, 0)
+        const provider = new ethers.providers.JsonRpcProvider(rpc);
+        const oofAddress = contractAddress
+        const walletWithProvider = new ethers.Wallet(pk, provider); const oofContract = !!ABI && !!walletWithProvider
+          ? new Contract(oofAddress, ABI, walletWithProvider)
+          : undefined;
+        let nonce = await walletWithProvider.getTransactionCount();
+        let gasPrice = await provider.getGasPrice()
+        let tx_obk = {
 
+          gasPrice: gasPrice
+        }
+        async function wait(ms) {
+          return new Promise(resolve => {
+            setTimeout(resolve, ms);
+          });
+        } //if (ethers.utils.formatEther(gF) > 0) {
+        submit(feedId, toParse, 0)
+
+      } else { console.log('Could not process feed request API ', endpoint, ' path ', endpointp, ' args ', parsingargs, ' feed request ID ', feedId, ' c ', c) }
     }
     catch (error) { console.log('Could not process feed request API ', endpoint, ' path ', endpointp, ' args ', parsingargs, ' feed request ID ', feedId, ' c ', c, error) }
   }
@@ -269,7 +279,7 @@ async function node() {
     console.log(`Endpoint: ${endpoint}`);
     console.log(`Endpointp: ${endpointp}`);
     console.log(`Decimal: ${c}`);
-    console.log(`Feed ID: ${feedId}`);
+    console.log(`Feed ID: ${feedId}`); fs.appendFileSync('feedrequests.txt', `New feed supported: ${endpoint}, path: ${endpointp}$, Feed ID: {feedId}\n`);
     if (endpoint === 'vrf' || endpoint === 'VRF') {
       if (endpointp == 'proof') {
         vrfHash(endpointp, Number(feedId), 1)// code to execute if endpoint is 'vrf' or 'VRF'
@@ -304,31 +314,35 @@ async function node() {
           toParse = toParse[parsingargs[j]]
         }
         console.log(toParse)
-        if (toParse != "") {
-          toParse = parseFloat(toParse) * (10 ** c)
-          console.log(Math.round(toParse).toLocaleString('fullwide', { useGrouping: false }))
-          toParse = Math.round(toParse).toLocaleString('fullwide', { useGrouping: false })
-        }
-        console.log("Submitting " + toParse)
+        if (toParse !== undefined) {
+          if (!isNaN(valu)) {
+            if (toParse != "") {
+              toParse = parseFloat(toParse) * (10 ** c)
+              console.log(Math.round(toParse).toLocaleString('fullwide', { useGrouping: false }))
+              toParse = Math.round(toParse).toLocaleString('fullwide', { useGrouping: false })
+            }
+          }
+          console.log("Submitting " + toParse)
 
-        // push values
-        feedId = Number(feedId)
-        feedIdArray.push(feedId)
-        feedValueArray.push(toParse)
+          // push values
+          feedId = Number(feedId)
+          feedIdArray.push(feedId)
+          feedValueArray.push(toParse)
 
-        // set new update timestamp
-        lastUpdate[feedId] = Date.now()
-        console.log("Subm")
-        let gasPrice = await provider.getGasPrice()
-        let tx_obk = {
+          // set new update timestamp
+          lastUpdate[feedId] = Date.now()
+          console.log("Subm")
+          let gasPrice = await provider.getGasPrice()
+          let tx_obk = {
 
-          gasPrice: gasPrice
-        }
-        submit(feedId, toParse, 0)
-        // }
-        // else {
-        // console.log('not profitable')
-        // }
+            gasPrice: gasPrice
+          }
+          submit(feedId, toParse, 0)
+          // }
+          // else {
+          // console.log('not profitable')
+          // }
+        } else { console.log('Could not process feed request API ', endpoint, ' path ', endpointp, ' args ', parsingargs, ' feed request ID ', feedId, ' c ', c) }
       }
       catch (error) { console.log(error, 'Could not process feed request API ', endpoint, ' path ', endpointp, ' args ', parsingargs, ' feed request ID ', Number(feedId), ' c ', c) }
     }
@@ -503,6 +517,7 @@ async function node() {
           console.log("Transaction hash: " + tx.hash);
           await tx.wait();
           console.log(`Transaction confirmed at ${Date.now()}`);
+          fs.appendFileSync('feedrequests.txt', `Feed filled: ${feedId}, value ${value}, string ${val}\n`);
         } catch (error) { console.log(error) }
         // Remove the processed value from the queue
         txa.shift();
@@ -538,5 +553,5 @@ async function node() {
       console.log(`Added feed id ${feedId} with value ${value} to queue`);
     }
   }
-
-  main()
+}
+main()
