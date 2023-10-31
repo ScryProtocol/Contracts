@@ -315,7 +315,7 @@ async function node() {
         }
         console.log(toParse)
         let valu = Number(toParse)
-        
+
         if (toParse !== undefined) {
           if (!isNaN(valu)) {
             if (toParse != "") {
@@ -468,7 +468,15 @@ async function node() {
     }
     return (str);
   }
-  async function submit(feedId, value, fl) {
+  let batchFeedIds = [];
+  let batchValues = [];
+  let batchVals = [];
+  async function submit(feedIds, values, flags) {
+    let feedId = feedIds;
+    let value = values;
+    let fl = flags;
+    let val = '';
+
     try {
       let valu = BigNumber.from(value)
       val = ''
@@ -482,77 +490,111 @@ async function node() {
         val = hexToUtf8(val)
       }
     }
-    if (txa.length == 0 || fl == 1) {
-      // If not, add the new feedId and value to the queue
-      txa.unshift({ feedId: feedId, value: value });
-      const gasPrice = await provider.getGasPrice();
-      let tx_obk = { gasPrice };
-      let gasLimit = await oofContract.estimateGas.submitFeed(
-        [feedId],
-        [value],
-        [val],
-        tx_obk
-      )
-      gasLimit = gasLimit.add(100000);
-      tx_obk = { gasPrice: gasPrice, gasLimit: gasLimit };
-      const gasFee = gasLimit.mul(gasPrice);
-      let sup = await oofContract.feedSupport(feedId)
-      const ethProfit = sup - gasFee;
+    const gasPrice = await provider.getGasPrice();
+    let tx_obk = { gasPrice };
+    let gasLimit = await oofContract.estimateGas.submitFeed(
+      [feedId],
+      [value],
+      [val],
+      tx_obk
+    )
+    gasLimit = gasLimit.add(100000);
+    const gasFee = gasLimit.mul(gasPrice);
+    let sup = await oofContract.feedSupport(feedId)
+    const ethProfit = sup - gasFee;
 
-      console.log('Gas fee:', ethers.utils.formatEther(gasFee.toString()), 'ETH ', ethers.utils.formatUnits(gasPrice, "gwei") + " gwei");
-      console.log('Bounty ', ethers.utils.formatEther(sup))
-      console.log('ETH Profit', ethers.utils.formatEther(ethProfit.toString()));
+    console.log('Gas fee:', ethers.utils.formatEther(gasFee.toString()), 'ETH ', ethers.utils.formatUnits(gasPrice, "gwei") + " gwei");
+    console.log('Bounty ', ethers.utils.formatEther(sup))
+    console.log('ETH Profit', ethers.utils.formatEther(ethProfit.toString()));
+    txa.unshift({ feedId: feedId, value: value, val: val, gasLimit: sup.div(gasLimit) });
+  } function wait(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+  sub();
+  async function sub() {
+    await wait(5000); // Wait for 5 seconds
 
+    let gasPrice = BigNumber.from(0); let timeSinceSubmission = 0
 
-      if (ethProfit > 0 && ethProfit >= minfee) {
-        console.log(
-          "submitting with gas price: " +
-          ethers.utils.formatUnits(gasPrice, "gwei") +
-          " gwei"
-        );
-        console.log("submitting feeds...");
+    while (true) {
+      await wait(5000); // Wait for 5 seconds
+
+      while (Object.keys(txa).length > 0) {
+        let batchFeedIds = [];
+        let batchValues = [];
+        let batchVals = [];
+
+        if (gasPrice == 0) {
+          gasPrice = await provider.getGasPrice();
+        }
+
+        for (const tx of txa) {
+          const feedId = tx.feedId;
+          const value = tx.value; const val = tx.val;
+
+          const maxGasPrice = tx.gasLimit; // or however you calculate maxGasPrice
+
+          // If current gas price is less than or equal to max profitable gas price
+          if (gasPrice.lte(maxGasPrice)) {
+            batchFeedIds.push(feedId);
+            batchValues.push(Number(value));
+            // Assuming batchVals should also be filled here, but it's not clear from the given context
+            batchVals.push(val);
+          }
+        }
+
+        // If batch is empty, no profitable transactions at current gas price
+        if (batchFeedIds.length === 0) {
+          console.log("No profitable transactions at current gas price.");
+          return; // Or wait and retry after some time
+        }
+
+        // Submit batch transaction
         try {
-          const tx = await oofContract.submitFeed([feedId], [value], [val], tx_obk);
-          console.log(
-            `submitted feed id ${feedId} with value ${value} at ${Date.now()}`
-          );
-          console.log("Transaction hash: " + tx.hash);
-          await tx.wait();
-          console.log(`Transaction confirmed at ${Date.now()}`);
-          fs.appendFileSync('feedrequests.txt', `Feed filled: ${feedId}, value ${value}, string ${val}\n`);
-        } catch (error) { console.log(error) }
-        // Remove the processed value from the queue
-        txa.shift();
-        // Check if there are any values left in the queue
-        if (txa.length > 0) {
+          const tx_obk = { gasPrice: gasPrice };
+          //console.log(batchFeedIds, batchValues, batchVals,);
 
-          // Submit the next value in the queue
-          const nextVal = txa[0]; txa.shift();
+          const tx = await oofContract.submitFeed(batchFeedIds, batchValues, batchVals, tx_obk);
+          console.log("Submitted batch transaction. Transaction hash:", tx.hash);
+          function delay(time) {
+            return new Promise(resolve => setTimeout(resolve, time));
+          }
+          while (true) {
+            await delay(10000);  // Wait for 10 seconds
 
-
-          submit(nextVal.feedId, nextVal.value, 1);
-
-        }
-      } else {
-        console.log("not profitable");
-
-        // Remove the processed value from the queue
-        txa.shift();
-        // Check if there are any values left in the queue
-        if (txa.length > 0) {
-          // Submit the next value in the queue
-          const nextVal = txa[0]; txa.shift();
-          await submit(nextVal.feedId, nextVal.value, 1);
+            try {
+              const txReceipt = await provider.getTransactionReceipt(tx.hash);
+              if (!txReceipt) {
+                if (timeSinceSubmission <= 60) {
+                  timeSinceSubmission += 10
+                }
+                else {
+                  console.log("Batch transaction not confirmed resubmitting with higher fee.");
+                  gasPrice = gasPrice.mul(102).div(100).gt(gasPrice) ? gasPrice.mul(102).div(100): gasPrice.add(1);
+                  timeSinceSubmission = 0
+                  break
+                }
+              } else {
+                console.log(`Batch transaction confirmed at ${Date.now()}`);
+                // Cleanup txa for confirmed transactions
+                batchFeedIds.forEach(feedId => {
+                  const index = txa.findIndex(item => item.feedId === feedId);
+                  if (index > -1) {
+                    txa.splice(index, 1);
+                  }
+                });
+                gasPrice = 0
+                timeSinceSubmission = 0
+                break
+              }
+            } catch (error) {
+              console.error("Error during batch transaction confirmation:", error);
+            }
+          }
+        } catch (error) {
+          console.error("Error during batch transaction confirmation:", error);
         }
       }
-    } else {
-      // If not, add the new feedId and value to the queue
-      if (txa.some((item) => item.feedId === feedId && item.value === value)) {
-        console.log(`Feed id ${feedId} with value ${value} already in queue`);
-      } else {
-        txa.push({ feedId: feedId, value: value });
-      }
-      console.log(`Added feed id ${feedId} with value ${value} to queue`);
     }
   }
 }
