@@ -476,7 +476,6 @@ async function node() {
     let value = values;
     let fl = flags;
     let val = '';
-    console.log(feedId, value, fl);
 
     try {
       let valu = BigNumber.from(value)
@@ -534,7 +533,6 @@ async function node() {
           const value = tx.value; const val = tx.val;
 
           const maxGasPrice = tx.gasLimit; // or however you calculate maxGasPrice
-          console.log(maxGasPrice);
 
           // If current gas price is less than or equal to max profitable gas price
           if (gasPrice.lte(maxGasPrice)) {
@@ -562,20 +560,18 @@ async function node() {
             return new Promise(resolve => setTimeout(resolve, time));
           }
           while (true) {
-            await delay(1000);  // Wait for 10 seconds
+            await delay(10000);  // Wait for 10 seconds
 
             try {
               const txReceipt = await provider.getTransactionReceipt(tx.hash);
               if (!txReceipt) {
                 if (timeSinceSubmission <= 60) {
-                  console.log(timeSinceSubmission);
                   timeSinceSubmission += 10
                 }
                 else {
                   console.log("Batch transaction not confirmed resubmitting with higher fee.");
                   gasPrice = gasPrice.mul(102).div(100).gt(gasPrice) ? gasPrice.mul(102).div(100): gasPrice.add(1);
                   timeSinceSubmission = 0
-                  console.log(gasPrice);
                   break
                 }
               } else {
