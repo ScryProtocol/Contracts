@@ -8,7 +8,7 @@ const ABI = require('./abi/NostradamusSS.json')
 const { Contract, BigNumber } = require("ethers");
 let feedInventory = [];
 // storage for last update timestamp
-let lastUpdate = {};
+let lastUpdate = {};let balance
 let pk = process.env.PK
 let minfee = process.env.MINFEE
 let contract;
@@ -102,6 +102,7 @@ async function main() {
 async function node() {
   console.log('Watching for requests');
   console.log('address ', contractAddress);
+  balance =await provider.getBalance(walletWithProvider.address);
   const oofContract = !!ABI && !!walletWithProvider
     ? new Contract(contractAddress, ABI, walletWithProvider)
     : undefined; let i;
@@ -545,7 +546,8 @@ async function node() {
 
         // If batch is empty, no profitable transactions at current gas price
         if (batchFeedIds.length === 0) {
-          console.log("No profitable transactions at current gas price.");
+          console.log("No profitable transactions at current gas price.");          gasPrice = 0
+
           return; // Or wait and retry after some time
         }
 
@@ -570,7 +572,7 @@ async function node() {
                 }
                 else {
                   console.log("Batch transaction not confirmed resubmitting with higher fee.");
-                  gasPrice = gasPrice.mul(102).div(100).gt(gasPrice) ? gasPrice.mul(102).div(100): gasPrice.add(1);
+                  gasPrice = gasPrice.mul(102).div(100).gt(gasPrice) ? gasPrice.mul(102).div(100) : gasPrice.add(1);
                   timeSinceSubmission = 0
                   break
                 }
@@ -585,6 +587,7 @@ async function node() {
                 });
                 gasPrice = 0
                 timeSinceSubmission = 0
+                console.log('Total Profit: ', ethers.utils.formatEther((await provider.getBalance(walletWithProvider.address)).sub(balance)),' ETH');
                 break
               }
             } catch (error) {
