@@ -538,7 +538,7 @@ async function node() {
           // If current gas price is less than or equal to max profitable gas price
           if (gasPrice.lte(maxGasPrice)) {
             batchFeedIds.push(feedId);
-            batchValues.push(Number(value));
+            batchValues.push(value);
             // Assuming batchVals should also be filled here, but it's not clear from the given context
             batchVals.push(val);
           }
