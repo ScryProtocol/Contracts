@@ -61,10 +61,8 @@ const oofContract = !!ABI && !!walletWithProvider
   ? new Contract(contractAddress, ABI, walletWithProvider)
   : undefined; let i;
 async function sub() {
- // const tx = await oofContract.requestFeeds(['XCHAIN'], ['XDATA?RPC=https://eth.llamarpc.com&ADDRS=0x4976fb03c32e5b8cfe2b6ccb31c09ba78ebaba41&DATA=0x59d1d43c7543bd7cf594267ba8e2ebaff6a9e00fe0d1f6ea6da5f190f4a5b42902087e160000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000375726c0000000000000000000000000000000000000000000000000000000000&FLAG=0'], d, b, { value: '10000000000000000' });
- const tx = await oofContract.supportFeeds(['235'], ['10000000000000000'], { value: '10000000000000000' });
-
-//  const tx = await oofContract.requestFeeds(end, p, d, b, { value: '10000000000000000' });
+ 
+  const tx = await oofContract.requestFeeds(end, p, d, b, { value: '10000000000000000' });
   function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
