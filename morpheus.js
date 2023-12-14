@@ -481,15 +481,13 @@ async function node() {
     try {
       let valu = BigNumber.from(value)
       val = ''
-      if (ethers.utils.isHexString(value)) {
-        val = hexToUtf8(val)
+      if (valu.gt(BigNumber.from(('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')))) {
+        val = value
+        value = 88888888
       }
     } catch {
       val = value
       value = 88888888
-      if (ethers.utils.isHexString(val)) {
-        val = hexToUtf8(val)
-      }
     }
     const gasPrice = await provider.getGasPrice();
     let tx_obk = { gasPrice };

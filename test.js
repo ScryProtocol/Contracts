@@ -26,10 +26,10 @@ const rpcFlag = flags['-r'];
 const aFlag = flags['-a'];
 const pkFlag = flags['-pk']; const pFlag = flags['-p']; const endFlag = flags['-end']; const dFlag = flags['-d']; const bFlag = flags['-b'];
 let p = 'last'
-let b = '1000000000000000'
+let b = '100000000000000'
 let d = 0
 let end = 'https://api.exchange.coinbase.com/products/ETH-USD/stats/'
-endpoint = new Array(100).fill(end);
+end = new Array(100).fill(end);
 p = new Array(100).fill(p);
 d = new Array(100).fill(d);
 b = new Array(100).fill(b);
@@ -61,7 +61,7 @@ const oofContract = !!ABI && !!walletWithProvider
   ? new Contract(contractAddress, ABI, walletWithProvider)
   : undefined; let i;
 async function sub() {
-  const tx = await oofContract.requestFeeds([end], [p], [d], [b], { value: '100000000000000000' });
+  const tx = await oofContract.requestFeeds(end, p, d, b, { value: '10000000000000000' });
   function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
