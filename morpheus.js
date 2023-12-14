@@ -289,9 +289,9 @@ async function node() {
       }
     } else if (endpoint == 'XCHAIN') {
       if (endpointp.includes('XBALANCE')) {
-        XBALANCE(endpointp, feedId)
+        XBALANCE(endpointp, Number(feedId))
       }
-      Xchain(endpointp, feedId)
+      Xchain(endpointp, Number(feedId))
     } else if (endpoint == 'Jury' || endpoint == 'jury') {
       fs.appendFileSync('requests.txt', `${endpointp},${feedId}\n`);
       webhook(endpoint, endpointp)
