@@ -26,13 +26,13 @@ const rpcFlag = flags['-r'];
 const aFlag = flags['-a'];
 const pkFlag = flags['-pk']; const pFlag = flags['-p']; const endFlag = flags['-end']; const dFlag = flags['-d']; const bFlag = flags['-b'];
 let p = 'last'
-let b = '100000000000000'
+let b = '1000000000000000'
 let d = 0
 let end = 'https://api.exchange.coinbase.com/products/ETH-USD/stats/'
-end = new Array(100).fill(end);
-p = new Array(100).fill(p);
-d = new Array(100).fill(d);
-b = new Array(100).fill(b);
+end = new Array(10).fill(end);
+p = new Array(10).fill(p);
+d = new Array(10).fill(d);
+b = new Array(10).fill(b);
 if (rpcFlag != null) {
   rpc = rpcFlag
 }
