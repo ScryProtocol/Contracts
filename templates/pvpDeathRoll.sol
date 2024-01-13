@@ -22,7 +22,7 @@ interface Morpheus {
     ) external payable returns (uint256[] memory feeds);
 }
 
-contract DeathRollop {
+contract DeathRoll {
     //POC Do Not Use
     struct Game {
         address player1;
