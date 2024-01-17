@@ -541,7 +541,7 @@ async function node() {
           const maxGasPrice = tx.gasLimit; // or however you calculate maxGasPrice
 
           // If current gas price is less than or equal to max profitable gas price
-          if (gasPrice.lte(maxGasPrice)||fb==1) {
+          if (gasPrice.lte(maxGasPrice)||fb=='1') {
             batchFeedIds.push(feedId);
             batchValues.push(value);
             // Assuming batchVals should also be filled here, but it's not clear from the given context
