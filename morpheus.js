@@ -9,7 +9,7 @@ const { Contract, BigNumber } = require("ethers");
 let feedInventory = [];
 // storage for last update timestamp
 let lastUpdate = {}; let balance
-let pk = process.env.PK
+let pk = process.env.PK 
 let minfee = process.env.MINFEE
 let contract;
 // script.js
@@ -31,6 +31,7 @@ console.log('Parsed flags:', flags);
 const rpcFlag = flags['-r'];
 const aFlag = flags['-a'];
 const pkFlag = flags['-pk'];
+let fb = flags['-fb'];
 if (rpcFlag != null) {
   rpc = rpcFlag
 }
@@ -39,6 +40,9 @@ if (aFlag != null) {
 }
 if (pkFlag != null) {
   pk = pkFlag
+}
+if (fb == null) {
+  fb = 0
 }
 const provider = new ethers.providers.JsonRpcProvider(rpc);
 
@@ -268,6 +272,9 @@ async function node() {
     const oofAddress = process.env.OOFAddress
     let feedIdArray = []
     let feedValueArray = []
+    if (feedId>=await oofContract.getFeedLength()) {
+      feedId=['0']
+    }
     const d = await oofContract.getFeeds(feedId)
     let c
     let endpoint
@@ -534,7 +541,7 @@ async function node() {
           const maxGasPrice = tx.gasLimit; // or however you calculate maxGasPrice
 
           // If current gas price is less than or equal to max profitable gas price
-          if (gasPrice.lte(maxGasPrice)) {
+          if (gasPrice.lte(maxGasPrice)||fb==1) {
             batchFeedIds.push(feedId);
             batchValues.push(value);
             // Assuming batchVals should also be filled here, but it's not clear from the given context
