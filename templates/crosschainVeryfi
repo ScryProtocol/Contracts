@@ -47,9 +47,11 @@ contract Veryfi {
         public userBalance;
     mapping(uint => mapping(address => mapping(address => uint256)))
         public userBalanceFeed;
+    mapping(uint => mapping(address => mapping(address => uint256)))
+        public userTimestamp;
     mapping(uint => string) public RPC;
     address public owner;
-    uint public fee = 0.001 ether;
+    uint public fee = 0 ether;
 
     constructor() payable {
         RPC[0] = "https://eth.llamarpc.com";
@@ -199,6 +201,26 @@ contract Veryfi {
         payable(msg.sender).transfer(address(this).balance);
     }
 
+    function checkBalance(
+        address target,
+        address token,
+        uint chainID
+    ) public view returns (uint256 balance, uint256 timestamp) {
+        if (chainID == 0) {
+            chainID = 1;
+        }
+        (uint256 bal, uint256 tstamp, , ) = morpheus.getFeed(
+            userBalanceFeed[chainID][target][token]
+        );
+        if (bal == 0) {
+            return (
+                userBalance[chainID][target][token],
+                userTimestamp[chainID][target][token]
+            );
+        }
+        return (bal, tstamp);
+    }
+
     function setMyBalance(address token, uint chainID) public {
         if (chainID == 0) {
             chainID = 1;
@@ -208,6 +230,7 @@ contract Veryfi {
         );
         require(timestamp >= block.timestamp - 10000, "Data is too old");
         userBalance[chainID][msg.sender][token] = balance;
+        userTimestamp[chainID][msg.sender][token] = timestamp;
     }
 
     function setBalance(address target, address token, uint chainID) public {
@@ -219,5 +242,6 @@ contract Veryfi {
         );
         require(timestamp >= block.timestamp - 10000, "Data is too old");
         userBalance[chainID][target][token] = balance;
+        userTimestamp[chainID][msg.sender][token] = timestamp;
     }
 }
