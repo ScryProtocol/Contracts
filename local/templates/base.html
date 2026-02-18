@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Local AI{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script>document.documentElement.dataset.theme=localStorage.getItem('theme')||'dark';</script>
+    {% block head %}{% endblock %}
+</head>
+<body>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="flash-container">
+        {% for category, message in messages %}
+        <div class="flash flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+    {% block body %}{% endblock %}
+    <script>
+    /* Theme toggle — also called by SPA router after page swap */
+    (function(){
+        const btn = document.getElementById('btn-theme');
+        if (!btn) return;
+        const sun = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';
+        const moon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>';
+        function update() {
+            const t = document.documentElement.dataset.theme;
+            btn.innerHTML = t === 'dark' ? sun : moon;
+            btn.title = t === 'dark' ? 'Switch to light' : 'Switch to dark';
+        }
+        update();
+        btn.addEventListener('click', () => {
+            const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+            document.documentElement.dataset.theme = next;
+            localStorage.setItem('theme', next);
+            update();
+        });
+    })();
+    </script>
+    {% block scripts %}{% endblock %}
+    <script>
+    /* SPA Router — intercept nav clicks, swap content without full reload */
+    (function(){
+        function runScripts(container) {
+            container.querySelectorAll('script').forEach(old => {
+                const s = document.createElement('script');
+                if (old.src) { s.src = old.src; } else { s.textContent = old.textContent; }
+                old.replaceWith(s);
+            });
+        }
+
+        function initThemeBtn() {
+            const btn = document.getElementById('btn-theme');
+            if (!btn) return;
+            const sun = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';
+            const moon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>';
+            function update() {
+                const t = document.documentElement.dataset.theme;
+                btn.innerHTML = t === 'dark' ? sun : moon;
+                btn.title = t === 'dark' ? 'Switch to light' : 'Switch to dark';
+            }
+            update();
+            btn.onclick = () => {
+                const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+                document.documentElement.dataset.theme = next;
+                localStorage.setItem('theme', next);
+                update();
+            };
+        }
+
+        async function navigate(url, pushState) {
+            try {
+                const res = await fetch(url);
+                if (!res.ok || res.redirected) { window.location = url; return; }
+                const html = await res.text();
+                const doc = new DOMParser().parseFromString(html, 'text/html');
+                const newBody = doc.querySelector('.app-layout');
+                if (!newBody) { window.location = url; return; }
+                /* Grab everything after app-layout (modals, lightbox, scripts) */
+                const frag = document.createDocumentFragment();
+                let el = newBody;
+                while (el) {
+                    const next = el.nextElementSibling;
+                    frag.appendChild(el);
+                    el = next;
+                }
+                /* Replace current body content (keep flash container) */
+                const flash = document.querySelector('.flash-container');
+                document.body.innerHTML = '';
+                if (flash) document.body.appendChild(flash);
+                document.body.appendChild(frag);
+                /* Update title */
+                document.title = doc.title || 'Local AI';
+                /* Re-init theme button and run new scripts */
+                initThemeBtn();
+                runScripts(document.body);
+                bindNav();
+                if (pushState) history.pushState({spa: true}, '', url);
+            } catch { window.location = url; }
+        }
+
+        function bindNav() {
+            /* Sidebar nav links */
+            document.querySelectorAll('.sidebar-nav .nav-item').forEach(link => {
+                link.addEventListener('click', function(e) {
+                    if (this.classList.contains('active')) { e.preventDefault(); return; }
+                    const href = this.getAttribute('href');
+                    if (!href || href.includes('logout')) return;
+                    e.preventDefault();
+                    navigate(href, true);
+                });
+            });
+            /* App card links on the Apps hub */
+            document.querySelectorAll('.app-card-link').forEach(link => {
+                link.addEventListener('click', function(e) {
+                    const href = this.getAttribute('href');
+                    if (!href) return;
+                    e.preventDefault();
+                    navigate(href, true);
+                });
+            });
+            /* Conversation links in chat sidebar */
+            document.querySelectorAll('.convo-item').forEach(link => {
+                link.addEventListener('click', function(e) {
+                    if (e.target.closest('.convo-delete')) return; /* let delete buttons work normally */
+                    const href = this.getAttribute('href');
+                    if (!href) return;
+                    e.preventDefault();
+                    navigate(href, true);
+                });
+            });
+        }
+
+        bindNav();
+        window.addEventListener('popstate', (e) => {
+            if (e.state && e.state.spa) { navigate(location.pathname, false); }
+        });
+        /* Mark initial state */
+        history.replaceState({spa: true}, '', location.pathname + location.search);
+    })();
+    </script>
+</body>
+</html>

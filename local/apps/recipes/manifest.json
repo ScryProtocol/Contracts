@@ -1,0 +1,21 @@
+{
+  "id": "recipes",
+  "name": "Recipes & Meal Prep",
+  "icon": "\ud83c\udf73",
+  "version": "1.0.0",
+  "description": "Get recipes from your ingredients with full steps and timing.",
+  "author": "local-ai",
+  "entry": {
+    "backend": "backend.py",
+    "template": "templates/index.html"
+  },
+  "routes": {
+    "page": "/apps/recipes",
+    "api_prefix": "/api/apps/recipes"
+  },
+  "ai": {
+    "output_format": "json",
+    "streaming": true
+  },
+  "permissions": ["ai.stream"]
+}

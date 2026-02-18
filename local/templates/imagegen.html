@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+{% block title %}Image Gen – Local AI{% endblock %}
+{% block body %}
+<div class="app-layout">
+    <!-- Sidebar (minimal for image gen) -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <span class="logo">⚡ Local AI</span>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="{{ url_for('chat') }}" class="nav-item">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                Chat
+            </a>
+            <a href="{{ url_for('imagegen') }}" class="nav-item active">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                Image Gen
+            </a>
+            <a href="{{ url_for('apps_page') }}" class="nav-item">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                Apps
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="user-info">
+                <span class="user-avatar">{{ user.username[0]|upper }}</span>
+                <span class="user-name">{{ user.username }}</span>
+            </div>
+            <div style="display:flex;gap:4px;">
+                <button class="btn-theme" id="btn-theme" title="Toggle theme">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                </button>
+                <a href="{{ url_for('logout') }}" class="btn-icon" title="Logout">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                </a>
+            </div>
+        </div>
+    </aside>
+
+    <button class="sidebar-toggle" id="sidebar-toggle">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+
+    <main class="ig-main">
+        <div class="ig-container">
+            <!-- Controls -->
+            <div class="ig-controls">
+                <h2>Image Generation</h2>
+
+                <div class="ig-field">
+                    <label>Prompt</label>
+                    <textarea id="ig-prompt" rows="3" placeholder="A photo of a cat astronaut on the moon, cinematic lighting..."></textarea>
+                </div>
+
+                <div class="ig-field">
+                    <label>Negative Prompt</label>
+                    <textarea id="ig-negative" rows="2" placeholder="blurry, low quality, deformed..."></textarea>
+                </div>
+
+                <div class="ig-row">
+                    <div class="ig-field">
+                        <label>Model</label>
+                        <select id="ig-model"><option value="">Loading...</option></select>
+                    </div>
+                    <div class="ig-field">
+                        <label>Sampler</label>
+                        <select id="ig-sampler"><option>Euler a</option></select>
+                    </div>
+                </div>
+
+                <div class="ig-row">
+                    <div class="ig-field">
+                        <label>Width</label>
+                        <select id="ig-width">
+                            <option value="512" selected>512</option>
+                            <option value="640">640</option>
+                            <option value="768">768</option>
+                            <option value="1024">1024</option>
+                        </select>
+                    </div>
+                    <div class="ig-field">
+                        <label>Height</label>
+                        <select id="ig-height">
+                            <option value="512" selected>512</option>
+                            <option value="640">640</option>
+                            <option value="768">768</option>
+                            <option value="1024">1024</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="ig-row">
+                    <div class="ig-field">
+                        <label>Steps</label>
+                        <input type="number" id="ig-steps" value="20" min="1" max="150">
+                    </div>
+                    <div class="ig-field">
+                        <label>CFG Scale</label>
+                        <input type="number" id="ig-cfg" value="7" min="1" max="30" step="0.5">
+                    </div>
+                    <div class="ig-field">
+                        <label>Seed</label>
+                        <input type="number" id="ig-seed" value="-1" min="-1">
+                    </div>
+                </div>
+
+                <button class="btn btn-primary btn-full ig-generate" id="ig-generate">Generate</button>
+                <div id="ig-status" class="ig-status hidden"></div>
+            </div>
+
+            <!-- Gallery -->
+            <div class="ig-gallery">
+                <h3>Gallery</h3>
+                <div class="ig-grid" id="ig-grid">
+                    {% for img in images %}
+                    <div class="ig-card" data-id="{{ img.id }}">
+                        <img src="/static/images/{{ img.filename }}" alt="{{ img.prompt }}" loading="lazy">
+                        <div class="ig-card-overlay">
+                            <span class="ig-card-prompt">{{ img.prompt[:80] }}</span>
+                            <button class="ig-card-delete" data-id="{{ img.id }}">Delete</button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% if not images %}
+                    <div class="ig-empty" id="ig-empty">No images yet. Generate one above!</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Lightbox -->
+<div class="lightbox hidden" id="lightbox">
+    <img id="lightbox-img" src="" alt="">
+    <button class="btn-icon lightbox-close" id="lightbox-close">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    loadSDModels();
+    loadSDSamplers();
+
+    document.getElementById('sidebar-toggle')?.addEventListener('click', () => {
+        document.getElementById('sidebar').classList.toggle('open');
+    });
+});
+
+async function loadSDModels() {
+    const sel = document.getElementById('ig-model');
+    try {
+        const res = await fetch('/api/sd/models');
+        const data = await res.json();
+        if (data.models && data.models.length > 0) {
+            sel.innerHTML = data.models.map(m =>
+                `<option value="${m.title}">${m.name}</option>`
+            ).join('');
+        } else {
+            sel.innerHTML = `<option value="">${data.error || 'No models found'}</option>`;
+        }
+    } catch {
+        sel.innerHTML = '<option value="">SD not connected</option>';
+    }
+}
+
+async function loadSDSamplers() {
+    const sel = document.getElementById('ig-sampler');
+    try {
+        const res = await fetch('/api/sd/samplers');
+        const data = await res.json();
+        sel.innerHTML = data.samplers.map(s => `<option value="${s}">${s}</option>`).join('');
+    } catch {}
+}
+
+document.getElementById('ig-generate')?.addEventListener('click', generate);
+document.getElementById('ig-prompt')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.ctrlKey) generate();
+});
+
+async function generate() {
+    const prompt = document.getElementById('ig-prompt').value.trim();
+    if (!prompt) return;
+
+    const btn = document.getElementById('ig-generate');
+    const status = document.getElementById('ig-status');
+    btn.disabled = true;
+    btn.textContent = 'Generating...';
+    status.classList.remove('hidden');
+    status.textContent = 'Sending to Stable Diffusion...';
+    status.className = 'ig-status';
+
+    try {
+        const res = await fetch('/api/sd/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                prompt,
+                negative_prompt: document.getElementById('ig-negative').value,
+                model: document.getElementById('ig-model').value,
+                sampler: document.getElementById('ig-sampler').value,
+                width: parseInt(document.getElementById('ig-width').value),
+                height: parseInt(document.getElementById('ig-height').value),
+                steps: parseInt(document.getElementById('ig-steps').value),
+                cfg_scale: parseFloat(document.getElementById('ig-cfg').value),
+                seed: parseInt(document.getElementById('ig-seed').value),
+            }),
+        });
+
+        const data = await res.json();
+        if (data.error) {
+            status.textContent = data.error;
+            status.className = 'ig-status ig-status-error';
+        } else {
+            status.textContent = 'Done!';
+            status.className = 'ig-status ig-status-ok';
+            // Remove empty state
+            document.getElementById('ig-empty')?.remove();
+            // Prepend new images
+            const grid = document.getElementById('ig-grid');
+            data.images.forEach(img => {
+                const card = document.createElement('div');
+                card.className = 'ig-card';
+                card.dataset.id = img.id;
+                card.innerHTML = `
+                    <img src="${img.url}" alt="${escapeHtml(prompt)}" loading="lazy">
+                    <div class="ig-card-overlay">
+                        <span class="ig-card-prompt">${escapeHtml(prompt.slice(0, 80))}</span>
+                        <button class="ig-card-delete" data-id="${img.id}">Delete</button>
+                    </div>
+                `;
+                grid.prepend(card);
+                bindCardEvents(card);
+            });
+            // Update seed display if it was random
+            if (data.images[0]?.seed && data.images[0].seed !== -1) {
+                document.getElementById('ig-seed').value = data.images[0].seed;
+            }
+            setTimeout(() => { status.classList.add('hidden'); }, 3000);
+        }
+    } catch (err) {
+        status.textContent = 'Error: ' + err.message;
+        status.className = 'ig-status ig-status-error';
+    }
+
+    btn.disabled = false;
+    btn.textContent = 'Generate';
+}
+
+// Card events (click to zoom, delete)
+document.querySelectorAll('.ig-card').forEach(bindCardEvents);
+
+function bindCardEvents(card) {
+    card.querySelector('img')?.addEventListener('click', () => {
+        document.getElementById('lightbox-img').src = card.querySelector('img').src;
+        document.getElementById('lightbox').classList.remove('hidden');
+    });
+    card.querySelector('.ig-card-delete')?.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const id = e.target.dataset.id;
+        if (!confirm('Delete this image?')) return;
+        await fetch(`/api/sd/images/${id}`, { method: 'DELETE' });
+        card.remove();
+    });
+}
+
+document.getElementById('lightbox')?.addEventListener('click', () => {
+    document.getElementById('lightbox').classList.add('hidden');
+});
+document.getElementById('lightbox-close')?.addEventListener('click', () => {
+    document.getElementById('lightbox').classList.add('hidden');
+});
+
+function escapeHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+}
+</script>
+{% endblock %}

@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+{% block title %}Flashcards – Local AI{% endblock %}
+{% block body %}
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header"><span class="logo">⚡ Local AI</span></div>
+        <nav class="sidebar-nav">
+            <a href="{{ url_for('chat') }}" class="nav-item">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                Chat
+                </a>
+            <a href="{{ url_for('imagegen') }}" class="nav-item">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                Image Gen
+                </a>
+            <a href="{{ url_for('apps_page') }}" class="nav-item active">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                Apps
+                </a>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="user-info">
+                <span class="user-avatar">{{ user.username[0]|upper }}</span>
+                <span class="user-name">{{ user.username }}</span>
+            </div>
+            <div style="display:flex;gap:4px;">
+                <button class="btn-theme" id="btn-theme" title="Toggle theme">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                </button>
+                <a href="{{ url_for('logout') }}" class="btn-icon" title="Logout">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                </a>
+            </div>
+        </div>
+    </aside>
+
+    <main class="app-page">
+        <div class="app-topbar">
+            <a href="{{ url_for('apps_page') }}" class="app-back">&larr; Apps</a>
+            <span class="app-title-bar">🎴 Flashcards</span>
+        </div>
+
+        <!-- Generate mode -->
+        <div class="fc-container" id="fc-generate">
+            <div class="fc-form">
+                <h2>Generate Flashcards</h2>
+                <div class="ig-field">
+                    <label>Topic</label>
+                    <input type="text" id="fc-topic" placeholder="e.g. World War 2, Python basics, Organic chemistry...">
+                </div>
+                <div class="ig-field">
+                    <label>Number of cards: <span id="fc-count-label">10</span></label>
+                    <input type="range" id="fc-count" min="5" max="20" value="10" class="fc-slider">
+                </div>
+                <button class="btn btn-primary fc-go" id="fc-go">Generate</button>
+                <div class="fc-status hidden" id="fc-status"></div>
+                <div class="fc-loading hidden" id="fc-loading">
+                    <span class="status-dot"></span> Generating cards...
+                </div>
+            </div>
+        </div>
+
+        <!-- Study mode -->
+        <div class="fc-container hidden" id="fc-study">
+            <div class="fc-progress">
+                <span id="fc-progress-text">Card 1 of 10</span>
+                <div class="fc-progress-bar"><div class="fc-progress-fill" id="fc-progress-fill"></div></div>
+            </div>
+
+            <div class="fc-card-wrap" id="fc-card-wrap">
+                <div class="fc-card" id="fc-card">
+                    <div class="fc-card-face fc-card-front">
+                        <div class="fc-card-label">Question</div>
+                        <div class="fc-card-text" id="fc-front"></div>
+                    </div>
+                    <div class="fc-card-face fc-card-back">
+                        <div class="fc-card-label">Answer</div>
+                        <div class="fc-card-text" id="fc-back"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="fc-hint">Click card to flip</div>
+
+            <div class="fc-controls">
+                <button class="btn fc-btn" id="fc-prev">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+                    Prev
+                </button>
+                <button class="btn fc-btn" id="fc-shuffle">Shuffle</button>
+                <button class="btn fc-btn" id="fc-next">
+                    Next
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
+            </div>
+            <button class="btn fc-btn fc-new" id="fc-new">New Topic</button>
+        </div>
+    </main>
+</div>
+
+<script>
+let cards = [];
+let currentIdx = 0;
+let flipped = false;
+
+const $topic = document.getElementById('fc-topic');
+const $count = document.getElementById('fc-count');
+const $countLabel = document.getElementById('fc-count-label');
+const $go = document.getElementById('fc-go');
+const $status = document.getElementById('fc-status');
+const $loading = document.getElementById('fc-loading');
+const $genView = document.getElementById('fc-generate');
+const $studyView = document.getElementById('fc-study');
+const $card = document.getElementById('fc-card');
+
+$count.addEventListener('input', () => { $countLabel.textContent = $count.value; });
+
+$go.addEventListener('click', generate);
+$topic.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); generate(); }
+});
+
+async function generate() {
+    const topic = $topic.value.trim();
+    if (!topic) return;
+
+    $go.disabled = true;
+    $status.classList.add('hidden');
+    $loading.classList.remove('hidden');
+
+    try {
+        const res = await fetch('/api/apps/flashcards/run', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ topic, count: parseInt($count.value) }),
+        });
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            for (const line of decoder.decode(value).split('\n')) {
+                if (!line.startsWith('data: ')) continue;
+                const data = JSON.parse(line.slice(6));
+                if (data.error) {
+                    $status.textContent = 'Error: ' + data.error;
+                    $status.classList.remove('hidden');
+                    $loading.classList.add('hidden');
+                    $go.disabled = false;
+                    return;
+                }
+                if (data.done && data.cards) {
+                    cards = data.cards;
+                    currentIdx = 0;
+                    flipped = false;
+                    showStudy();
+                }
+            }
+        }
+    } catch (err) {
+        $status.textContent = 'Error: ' + err.message;
+        $status.classList.remove('hidden');
+    }
+
+    $loading.classList.add('hidden');
+    $go.disabled = false;
+}
+
+function showStudy() {
+    $genView.classList.add('hidden');
+    $studyView.classList.remove('hidden');
+    renderCard();
+}
+
+function renderCard() {
+    const c = cards[currentIdx];
+    document.getElementById('fc-front').textContent = c.front;
+    document.getElementById('fc-back').textContent = c.back;
+    document.getElementById('fc-progress-text').textContent = `Card ${currentIdx + 1} of ${cards.length}`;
+    document.getElementById('fc-progress-fill').style.width = `${((currentIdx + 1) / cards.length) * 100}%`;
+    // Reset flip
+    flipped = false;
+    $card.classList.remove('flipped');
+}
+
+// Flip
+document.getElementById('fc-card-wrap').addEventListener('click', () => {
+    flipped = !flipped;
+    $card.classList.toggle('flipped', flipped);
+});
+
+// Nav
+document.getElementById('fc-prev').addEventListener('click', () => {
+    if (currentIdx > 0) { currentIdx--; renderCard(); }
+});
+document.getElementById('fc-next').addEventListener('click', () => {
+    if (currentIdx < cards.length - 1) { currentIdx++; renderCard(); }
+});
+
+// Shuffle
+document.getElementById('fc-shuffle').addEventListener('click', () => {
+    for (let i = cards.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [cards[i], cards[j]] = [cards[j], cards[i]];
+    }
+    currentIdx = 0;
+    renderCard();
+});
+
+// New topic
+document.getElementById('fc-new').addEventListener('click', () => {
+    $studyView.classList.add('hidden');
+    $genView.classList.remove('hidden');
+    $topic.value = '';
+    $topic.focus();
+});
+
+// Keyboard nav
+document.addEventListener('keydown', (e) => {
+    if ($studyView.classList.contains('hidden')) return;
+    if (e.key === 'ArrowLeft') { document.getElementById('fc-prev').click(); }
+    else if (e.key === 'ArrowRight') { document.getElementById('fc-next').click(); }
+    else if (e.key === ' ') { e.preventDefault(); document.getElementById('fc-card-wrap').click(); }
+});
+</script>
+{% endblock %}

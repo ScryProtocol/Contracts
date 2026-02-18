@@ -1,0 +1,21 @@
+{
+  "id": "flashcards",
+  "name": "Flashcards",
+  "icon": "\ud83c\udfb4",
+  "version": "1.0.0",
+  "description": "Generate study flashcards from any topic, then flip through them.",
+  "author": "local-ai",
+  "entry": {
+    "backend": "backend.py",
+    "template": "templates/index.html"
+  },
+  "routes": {
+    "page": "/apps/flashcards",
+    "api_prefix": "/api/apps/flashcards"
+  },
+  "ai": {
+    "output_format": "json",
+    "streaming": true
+  },
+  "permissions": ["ai.stream"]
+}

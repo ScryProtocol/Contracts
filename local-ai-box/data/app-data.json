@@ -1,0 +1,20 @@
+{
+  "users": [
+    {
+      "id": "d8183f4b894cf562d8e3",
+      "username": "demo",
+      "passwordSalt": "c4907d90d15d5f94f34473e314704ae5",
+      "passwordHash": "db318a7042eaba105e372af368ad7d0ee9356b3180d9d0e4d6688d71ff750b618a2f9e8692cc0955b573750a5dfa8ec088eee312bb66c9fcc85deef2444c4f61",
+      "createdAt": "2026-02-17T09:50:47.566Z",
+      "chats": []
+    },
+    {
+      "id": "c665daf7b716ff7a29e0",
+      "username": "pr0",
+      "passwordSalt": "1d0a24bf525b8bda44886890c2ef33dd",
+      "passwordHash": "fc7cab1cb6ff8b353f4b405d0e4e9b22b63d9fe2eae3e06a16fdaafb79f5a2e81fb8c3f38a585d8898b5c7433535f406618285b480d2628f11f6170c7d2ac826",
+      "createdAt": "2026-02-17T10:02:13.030Z",
+      "chats": []
+    }
+  ]
+}

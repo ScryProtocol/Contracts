@@ -1,0 +1,22 @@
+{
+  "id": "translator",
+  "name": "Translator",
+  "icon": "\ud83c\udf0d",
+  "version": "1.0.0",
+  "description": "Translate text between languages with natural phrasing.",
+  "author": "local-ai",
+  "entry": {
+    "backend": "backend.py",
+    "template": "templates/index.html"
+  },
+  "routes": {
+    "page": "/apps/translator",
+    "api_prefix": "/api/apps/translator"
+  },
+  "ai": {
+    "output_format": "text",
+    "streaming": true,
+    "temperature": 0.3
+  },
+  "permissions": ["ai.stream"]
+}

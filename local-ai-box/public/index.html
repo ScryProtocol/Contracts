@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Local AI Box</title>
+    <style>
+      :root {
+        --bg: #212121;
+        --sidebar: #171717;
+        --panel: #2b2b2b;
+        --panel-2: #303030;
+        --text: #ececec;
+        --muted: #a8a8a8;
+        --line: #3f3f3f;
+        --accent: #10a37f;
+        --danger: #b54141;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--bg);
+        color: var(--text);
+        font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      }
+
+      input,
+      select,
+      textarea,
+      button {
+        font: inherit;
+      }
+
+      .app-shell {
+        min-height: 100vh;
+      }
+
+      .auth-wrap {
+        width: min(900px, 92vw);
+        margin: 3rem auto;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 1.25rem;
+      }
+
+      .auth-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 1rem;
+      }
+
+      .auth-box {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 0.9rem;
+        background: var(--panel-2);
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0 0 0.7rem;
+      }
+
+      label {
+        display: block;
+        margin-top: 0.5rem;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      input,
+      select,
+      textarea {
+        width: 100%;
+        margin-top: 0.3rem;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #1f1f1f;
+        color: var(--text);
+        padding: 0.6rem;
+      }
+
+      button {
+        width: 100%;
+        margin-top: 0.6rem;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        background: var(--accent);
+        color: #fff;
+        padding: 0.62rem 0.8rem;
+        cursor: pointer;
+        font-weight: 600;
+      }
+
+      button:hover {
+        filter: brightness(1.04);
+      }
+
+      button:disabled {
+        opacity: 0.65;
+        cursor: not-allowed;
+      }
+
+      .status {
+        color: var(--muted);
+        font-size: 0.9rem;
+        margin-top: 0.6rem;
+      }
+
+      .chat-layout {
+        display: none;
+      }
+
+      .chat-layout.active {
+        display: grid;
+        grid-template-columns: 270px 1fr;
+        min-height: 100vh;
+      }
+
+      .sidebar {
+        background: var(--sidebar);
+        border-right: 1px solid var(--line);
+        padding: 1rem 0.8rem;
+        overflow-y: auto;
+      }
+
+      .brand {
+        font-size: 1rem;
+        font-weight: 700;
+        margin: 0 0 0.8rem;
+      }
+
+      .controls {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 0.8rem;
+        background: #1f1f1f;
+      }
+
+      .check-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 0.9rem;
+      }
+
+      .check-row input {
+        width: auto;
+        margin: 0;
+      }
+
+      .secondary {
+        background: #2d2d2d;
+        border-color: #4a4a4a;
+      }
+
+      .logout {
+        background: transparent;
+        border-color: #575757;
+        color: #d2d2d2;
+      }
+
+      .history {
+        margin-top: 1rem;
+      }
+
+      .history-item {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 0.55rem;
+        margin-bottom: 0.55rem;
+        background: #222;
+        color: #d8d8d8;
+        font-size: 0.84rem;
+        white-space: pre-wrap;
+        cursor: pointer;
+      }
+
+      .history-item:hover {
+        border-color: #5f5f5f;
+      }
+
+      .chat-main {
+        display: grid;
+        grid-template-rows: 1fr auto;
+        min-height: 100vh;
+      }
+
+      .chat-stream {
+        overflow-y: auto;
+        padding: 1.4rem 0;
+      }
+
+      .msg-wrap {
+        border-bottom: 1px solid #2f2f2f;
+      }
+
+      .msg-wrap.user-wrap {
+        background: #2a2a2a;
+      }
+
+      .msg {
+        width: min(760px, 92%);
+        margin: 0 auto;
+        padding: 1.1rem 0.4rem;
+        white-space: pre-wrap;
+        line-height: 1.55;
+      }
+
+      .msg-meta {
+        width: min(760px, 92%);
+        margin: 0.8rem auto 0;
+        font-size: 0.78rem;
+        color: #8f8f8f;
+      }
+
+      .composer-wrap {
+        border-top: 1px solid var(--line);
+        background: var(--bg);
+        padding: 1rem;
+      }
+
+      .composer {
+        width: min(760px, 94%);
+        margin: 0 auto;
+      }
+
+      #messageInput {
+        min-height: 120px;
+        resize: vertical;
+        border-radius: 12px;
+        background: #2a2a2a;
+        border-color: #4a4a4a;
+        padding: 0.75rem;
+      }
+
+      .composer-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.7rem;
+        margin-top: 0.55rem;
+      }
+
+      #sendBtn {
+        width: auto;
+        min-width: 92px;
+      }
+
+      @media (max-width: 900px) {
+        .chat-layout.active {
+          grid-template-columns: 1fr;
+        }
+
+        .sidebar {
+          border-right: none;
+          border-bottom: 1px solid var(--line);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <section class="auth-wrap" id="authSection">
+        <h1>Local AI Box</h1>
+        <p>Local ChatGPT-style box with accounts, personalities, model selection, and optional web search.</p>
+        <div class="auth-grid">
+          <div class="auth-box">
+            <h3>Register</h3>
+            <label>Username
+              <input id="regUser" placeholder="e.g. alex" />
+            </label>
+            <label>Password
+              <input id="regPass" type="password" placeholder="8+ characters" />
+            </label>
+            <button id="registerBtn">Create account</button>
+          </div>
+
+          <div class="auth-box">
+            <h3>Login</h3>
+            <label>Username
+              <input id="loginUser" placeholder="your username" />
+            </label>
+            <label>Password
+              <input id="loginPass" type="password" placeholder="your password" />
+            </label>
+            <button id="loginBtn">Sign in</button>
+          </div>
+        </div>
+        <p class="status" id="authStatus"></p>
+      </section>
+
+      <section class="chat-layout" id="chatSection">
+        <aside class="sidebar">
+          <p class="brand">Local AI Box</p>
+          <div class="controls">
+            <p class="status" id="me"></p>
+            <label>Model
+              <select id="modelSelect"></select>
+            </label>
+            <label>Personality
+              <select id="personalitySelect"></select>
+            </label>
+            <label class="check-row">
+              <input type="checkbox" id="searchToggle" />
+              Use web search context
+            </label>
+
+            <button class="secondary" id="refreshModelsBtn">Refresh models</button>
+            <button class="logout" id="logoutBtn">Logout</button>
+          </div>
+
+          <div class="history">
+            <h3>Recent Chats</h3>
+            <div id="history"></div>
+          </div>
+        </aside>
+
+        <main class="chat-main">
+          <div class="chat-stream" id="chatBox"></div>
+          <div class="composer-wrap">
+            <div class="composer">
+              <textarea id="messageInput" rows="4" placeholder="Message Local AI Box"></textarea>
+              <div class="composer-actions">
+                <p class="status" id="chatStatus"></p>
+                <button id="sendBtn">Send</button>
+              </div>
+            </div>
+          </div>
+        </main>
+      </section>
+    </div>
+
+    <script>
+      const state = {
+        token: localStorage.getItem('lab_token') || '',
+        user: null,
+        models: [],
+        personalities: [],
+      };
+
+      const el = (id) => document.getElementById(id);
+
+      async function api(path, options = {}) {
+        const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+        if (state.token) {
+          headers.Authorization = `Bearer ${state.token}`;
+        }
+
+        const res = await fetch(path, { ...options, headers });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data.error || 'Request failed');
+        }
+        return data;
+      }
+
+      function setStatus(target, message) {
+        el(target).textContent = message || '';
+      }
+
+      function appendMessage(role, text) {
+        const box = el('chatBox');
+        const wrap = document.createElement('div');
+        wrap.className = `msg-wrap ${role === 'user' ? 'user-wrap' : 'ai-wrap'}`;
+
+        const meta = document.createElement('div');
+        meta.className = 'msg-meta';
+        meta.textContent = role === 'user' ? 'You' : 'Assistant';
+
+        const div = document.createElement('div');
+        div.className = `msg ${role}`;
+        div.textContent = text;
+
+        wrap.appendChild(meta);
+        wrap.appendChild(div);
+        box.appendChild(wrap);
+        box.scrollTop = box.scrollHeight;
+      }
+
+      function resetChatArea() {
+        el('chatBox').innerHTML = '';
+      }
+
+      function toggleAuth(loggedIn) {
+        el('authSection').style.display = loggedIn ? 'none' : 'block';
+        el('chatSection').classList.toggle('active', loggedIn);
+      }
+
+      function populateModels(models) {
+        const select = el('modelSelect');
+        select.innerHTML = '';
+        for (const model of models) {
+          const option = document.createElement('option');
+          option.value = model;
+          option.textContent = model;
+          select.appendChild(option);
+        }
+      }
+
+      function populatePersonalities(items) {
+        const select = el('personalitySelect');
+        select.innerHTML = '';
+        for (const p of items) {
+          const option = document.createElement('option');
+          option.value = p.id;
+          option.textContent = p.name;
+          select.appendChild(option);
+        }
+      }
+
+      async function loadHistory() {
+        const data = await api('/api/history');
+        const container = el('history');
+        container.innerHTML = '';
+
+        for (const chat of data.chats) {
+          const item = document.createElement('div');
+          item.className = 'history-item';
+          item.textContent = `[${new Date(chat.createdAt).toLocaleString()}]\n${chat.message.slice(0, 80)}`;
+          item.title = `${chat.model} / ${chat.personalityId}`;
+          item.addEventListener('click', () => {
+            resetChatArea();
+            appendMessage('user', chat.message);
+            appendMessage('ai', chat.answer);
+          });
+          container.appendChild(item);
+        }
+      }
+
+      async function loadSettings() {
+        const [modelData, personalityData] = await Promise.all([
+          api('/api/models'),
+          api('/api/personalities'),
+        ]);
+
+        state.models = modelData.models || [];
+        state.personalities = personalityData.personalities || [];
+
+        populateModels(state.models);
+        populatePersonalities(state.personalities);
+
+        const preferred = localStorage.getItem('lab_model');
+        if (preferred && state.models.includes(preferred)) {
+          el('modelSelect').value = preferred;
+        }
+      }
+
+      async function tryResume() {
+        if (!state.token) {
+          toggleAuth(false);
+          return;
+        }
+
+        try {
+          const data = await api('/api/me');
+          state.user = data.user;
+          toggleAuth(true);
+          el('me').textContent = `Signed in as ${state.user.username}`;
+          await loadSettings();
+          await loadHistory();
+        } catch {
+          localStorage.removeItem('lab_token');
+          state.token = '';
+          toggleAuth(false);
+        }
+      }
+
+      el('registerBtn').addEventListener('click', async () => {
+        setStatus('authStatus', 'Creating account...');
+        try {
+          await api('/api/register', {
+            method: 'POST',
+            body: JSON.stringify({
+              username: el('regUser').value,
+              password: el('regPass').value,
+            }),
+          });
+          setStatus('authStatus', 'Account created. You can now sign in.');
+        } catch (error) {
+          setStatus('authStatus', error.message);
+        }
+      });
+
+      el('loginBtn').addEventListener('click', async () => {
+        setStatus('authStatus', 'Signing in...');
+        try {
+          const data = await api('/api/login', {
+            method: 'POST',
+            body: JSON.stringify({
+              username: el('loginUser').value,
+              password: el('loginPass').value,
+            }),
+          });
+
+          state.token = data.token;
+          state.user = data.user;
+          localStorage.setItem('lab_token', data.token);
+          toggleAuth(true);
+          el('me').textContent = `Signed in as ${state.user.username}`;
+          await loadSettings();
+          await loadHistory();
+          setStatus('authStatus', '');
+          resetChatArea();
+        } catch (error) {
+          setStatus('authStatus', error.message);
+        }
+      });
+
+      el('logoutBtn').addEventListener('click', () => {
+        state.token = '';
+        state.user = null;
+        localStorage.removeItem('lab_token');
+        toggleAuth(false);
+        setStatus('chatStatus', 'Logged out.');
+      });
+
+      el('refreshModelsBtn').addEventListener('click', async () => {
+        setStatus('chatStatus', 'Refreshing model list...');
+        try {
+          const data = await api('/api/models');
+          state.models = data.models || [];
+          populateModels(state.models);
+          setStatus('chatStatus', `Loaded ${state.models.length} model(s).`);
+        } catch (error) {
+          setStatus('chatStatus', error.message);
+        }
+      });
+
+      el('sendBtn').addEventListener('click', async () => {
+        const message = el('messageInput').value.trim();
+        if (!message) {
+          return;
+        }
+
+        const model = el('modelSelect').value;
+        const personalityId = el('personalitySelect').value;
+        const useSearch = el('searchToggle').checked;
+
+        appendMessage('user', message);
+        el('messageInput').value = '';
+        setStatus('chatStatus', 'Thinking...');
+        el('sendBtn').disabled = true;
+
+        try {
+          localStorage.setItem('lab_model', model);
+          const data = await api('/api/chat', {
+            method: 'POST',
+            body: JSON.stringify({ message, model, personalityId, useSearch }),
+          });
+          appendMessage('ai', data.reply || '(No reply)');
+          setStatus('chatStatus', 'Done.');
+          await loadHistory();
+        } catch (error) {
+          appendMessage('ai', `Error: ${error.message}`);
+          setStatus('chatStatus', error.message);
+        } finally {
+          el('sendBtn').disabled = false;
+        }
+      });
+
+      el('messageInput').addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' && !event.shiftKey) {
+          event.preventDefault();
+          el('sendBtn').click();
+        }
+      });
+
+      tryResume();
+    </script>
+  </body>
+</html>

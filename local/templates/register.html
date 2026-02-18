@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Register – Local AI{% endblock %}
+{% block body %}
+<div class="auth-page">
+    <div class="auth-card">
+        <div class="auth-logo">⚡ Local AI</div>
+        <h2>Create account</h2>
+        <form method="POST" action="{{ url_for('register') }}">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required autofocus placeholder="Choose a username" minlength="3">
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required placeholder="Choose a password" minlength="4">
+            </div>
+            <button type="submit" class="btn btn-primary btn-full">Create Account</button>
+        </form>
+        <p class="auth-switch">Already have an account? <a href="{{ url_for('login') }}">Sign in</a></p>
+    </div>
+</div>
+{% endblock %}
