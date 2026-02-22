@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://x402.org/schemas/scp.channel-state.v1.schema.json",
+  "title": "SCP Channel State v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "channelId",
+    "stateNonce",
+    "balA",
+    "balB",
+    "locksRoot",
+    "stateExpiry",
+    "contextHash"
+  ],
+  "properties": {
+    "channelId": { "$ref": "#/$defs/hex32" },
+    "stateNonce": { "type": "integer", "minimum": 0, "maximum": 18446744073709551615 },
+    "balA": { "$ref": "#/$defs/uintString" },
+    "balB": { "$ref": "#/$defs/uintString" },
+    "locksRoot": { "$ref": "#/$defs/hex32" },
+    "stateExpiry": { "type": "integer", "minimum": 1 },
+    "contextHash": { "$ref": "#/$defs/hex32" }
+  },
+  "$defs": {
+    "hex32": {
+      "type": "string",
+      "pattern": "^0x[a-fA-F0-9]{64}$"
+    },
+    "uintString": {
+      "type": "string",
+      "pattern": "^[0-9]+$"
+    }
+  }
+}

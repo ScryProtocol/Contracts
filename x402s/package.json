@@ -1,0 +1,58 @@
+{
+  "name": "x402s",
+  "version": "1.0.0",
+  "description": "x402 State Channel Hub Protocol — contracts, hub, agent, payee, and tooling",
+  "main": "node/scp-hub/server.js",
+  "scripts": {
+    "scp:wizard": "node scripts/startup-wizard.js",
+    "scp:compile": "npx hardhat compile",
+    "scp:test": "npx hardhat test test/test_x402_state_channel.js",
+    "scp:test:deep": "npx mocha test/test_scp_*.js --timeout 30000",
+    "scp:test:all": "npx hardhat test && npx mocha test/test_scp_*.js --timeout 30000",
+    "scp:hub": "node scripts/with-wizard.js node/scp-hub/server.js",
+    "scp:hub:selftest": "node node/scp-hub/http-selftest.js",
+    "scp:payee": "node scripts/with-wizard.js node/scp-demo/payee-server.js",
+    "scp:weather": "node scripts/with-wizard.js node/weather-api/server.js",
+    "scp:meow": "node scripts/with-wizard.js node/meow-api/server.js",
+    "scp:agent": "node scripts/with-wizard.js node/scp-agent/demo-agent.js",
+    "scp:agent:server": "node scripts/with-wizard.js node/scp-agent/server.js",
+    "scp:agent:pay": "node scripts/with-wizard.js node/scp-agent/pay-url.js",
+    "scp:agent:payments": "node node/scp-agent/show-payments.js",
+    "scp:dash": "node node/scp-agent/dashboard.js",
+    "scp:channel:open": "node scripts/with-wizard.js node/scp-agent/channel-cli.js open",
+    "scp:channel:fund": "node scripts/with-wizard.js node/scp-agent/channel-cli.js fund",
+    "scp:channel:close": "node scripts/with-wizard.js node/scp-agent/channel-cli.js close",
+    "scp:channel:list": "node scripts/with-wizard.js node/scp-agent/channel-cli.js list",
+    "scp:demo:e2e": "node node/scp-demo/demo-e2e.js",
+    "scp:demo:direct": "node node/scp-demo/demo-direct.js",
+    "scp:sim": "node node/scp-sim/sim-multi-node.js",
+    "scp:sim:mixed": "node node/scp-sim/sim-mixed.js",
+    "scp:bench:tps": "node scripts/bench-hub-tps.js",
+    "scp:light": "node scripts/with-wizard.js skill/scp-light/scripts/auto_402_hub_pay.js",
+    "scp:watch:agent": "ROLE=agent node node/scp-watch/challenge-watcher.js",
+    "scp:watch:hub": "ROLE=hub node node/scp-watch/challenge-watcher.js",
+    "scp:deploy:sepolia": "npx hardhat run scripts/deploy.js --network sepolia",
+    "scp:deploy:base": "npx hardhat run scripts/deploy.js --network base"
+  },
+  "keywords": [
+    "x402",
+    "state-channel",
+    "evm",
+    "payments",
+    "http-402"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@nomiclabs/hardhat-ethers": "^2.0.1",
+    "@nomiclabs/hardhat-waffle": "^2.0.1",
+    "chai": "^4.2.0",
+    "ethereum-waffle": "^3.2.1",
+    "hardhat": "^2.0.8",
+    "mocha": "^10.2.0"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^3.4.0",
+    "ajv": "^6.12.6",
+    "ethers": "^5.0.26"
+  }
+}

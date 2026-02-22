@@ -239,7 +239,7 @@ Goal: `A` opens one channel to `pay.eth` and can pay any service `B` registered 
 
 - `A`: payer client.
 - `pay.eth`: settlement hub (channel counterparty on-chain).
-- `B`: merchant/service beneficiary inside hub namespace.
+- `B`: payee/service beneficiary inside hub namespace.
 
 ### 11.2 Model
 
@@ -251,7 +251,7 @@ Goal: `A` opens one channel to `pay.eth` and can pay any service `B` registered 
 
 In routed mode, `metadataHash` MUST commit to:
 
-- `beneficiary` (`B` address or canonical merchant id),
+- `beneficiary` (`B` address or canonical payee id),
 - `resource` (optional endpoint/product id),
 - `quoteId` (provider quote commitment),
 - `hubNonce` (anti-replay under hub namespace).

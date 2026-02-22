@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://x402.org/schemas/scp.quote-response.v1.schema.json",
+  "title": "SCP Quote Response v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "invoiceId",
+    "paymentId",
+    "ticketDraft",
+    "fee",
+    "feeBreakdown",
+    "totalDebit",
+    "expiry"
+  ],
+  "properties": {
+    "invoiceId": { "type": "string", "minLength": 6, "maxLength": 128 },
+    "paymentId": { "type": "string", "minLength": 6, "maxLength": 128 },
+    "ticketDraft": { "$ref": "#/$defs/ticketCore" },
+    "fee": { "$ref": "#/$defs/uintString" },
+    "totalDebit": { "$ref": "#/$defs/uintString" },
+    "expiry": { "type": "integer", "minimum": 1 },
+    "feeBreakdown": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base", "bps", "variable", "gasSurcharge"],
+      "properties": {
+        "base": { "$ref": "#/$defs/uintString" },
+        "bps": { "type": "integer", "minimum": 0, "maximum": 100000 },
+        "variable": { "$ref": "#/$defs/uintString" },
+        "gasSurcharge": { "$ref": "#/$defs/uintString" }
+      }
+    }
+  },
+  "$defs": {
+    "evmAddress": {
+      "type": "string",
+      "pattern": "^0x[a-fA-F0-9]{40}$"
+    },
+    "hex32": {
+      "type": "string",
+      "pattern": "^0x[a-fA-F0-9]{64}$"
+    },
+    "uintString": {
+      "type": "string",
+      "pattern": "^[0-9]+$"
+    },
+    "ticketCore": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ticketId",
+        "hub",
+        "payee",
+        "invoiceId",
+        "paymentId",
+        "asset",
+        "amount",
+        "feeCharged",
+        "totalDebit",
+        "expiry",
+        "policyHash"
+      ],
+      "properties": {
+        "ticketId": { "type": "string", "minLength": 6, "maxLength": 128 },
+        "hub": { "$ref": "#/$defs/evmAddress" },
+        "payee": { "$ref": "#/$defs/evmAddress" },
+        "invoiceId": { "type": "string", "minLength": 6, "maxLength": 128 },
+        "paymentId": { "type": "string", "minLength": 6, "maxLength": 128 },
+        "asset": { "$ref": "#/$defs/evmAddress" },
+        "amount": { "$ref": "#/$defs/uintString" },
+        "feeCharged": { "$ref": "#/$defs/uintString" },
+        "totalDebit": { "$ref": "#/$defs/uintString" },
+        "expiry": { "type": "integer", "minimum": 1 },
+        "policyHash": { "$ref": "#/$defs/hex32" }
+      }
+    }
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "offers": [
+    {
+      "network": "base",
+      "asset": ["usdc", "eth"],
+      "maxAmountRequired": ["0.50", "0.005"],
+      "mode": "hub",
+      "hubName": "pay.eth",
+      "hubEndpoint": "http://127.0.0.1:4021"
+    },
+    {
+      "network": "eth",
+      "asset": ["usdc", "eth"],
+      "maxAmountRequired": ["0.50", "0.005"],
+      "mode": "hub,direct",
+      "hubName": "pay.eth",
+      "hubEndpoint": "http://127.0.0.1:4021"
+    }
+  ],
+  "pathPrices": {
+    "/weather": {
+      "usdc": "0.50",
+      "eth": "0.005"
+    },
+    "/boop": {
+      "usdc": "0.20",
+      "eth": "0.002"
+    }
+  }
+}

@@ -1,0 +1,412 @@
+openapi: 3.1.0
+info:
+  title: pay.eth SCP Hub API
+  version: 1.0.0-draft
+  description: >
+    Reference HTTP API for statechannel-hub-v1. This API supports payee
+    and non-payee (peer_simple) ticket flows.
+servers:
+  - url: https://pay.eth
+paths:
+  /.well-known/x402:
+    get:
+      summary: Hub metadata and verification keys
+      responses:
+        "200":
+          description: Hub metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - hubName
+                  - address
+                  - schemes
+                  - supportedAssets
+                  - signature
+                properties:
+                  hubName:
+                    type: string
+                  address:
+                    $ref: "#/components/schemas/EvmAddress"
+                  schemes:
+                    type: array
+                    items:
+                      type: string
+                  supportedAssets:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/EvmAddress"
+                  signature:
+                    type: object
+                    additionalProperties: false
+                    required: [format, keyId, publicKey]
+                    properties:
+                      format:
+                        type: string
+                        enum: [eip712, jws]
+                      keyId:
+                        type: string
+                      publicKey:
+                        type: string
+  /v1/tickets/quote:
+    post:
+      summary: Quote fees and return ticket draft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuoteRequest"
+      responses:
+        "200":
+          description: Quote response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuoteResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+  /v1/tickets/issue:
+    post:
+      summary: Issue signed ticket after signed state submission
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [quote, channelState, sigA]
+              properties:
+                quote:
+                  $ref: "#/components/schemas/QuoteResponse"
+                channelState:
+                  $ref: "#/components/schemas/ChannelState"
+                sigA:
+                  $ref: "#/components/schemas/HexBytes"
+      responses:
+        "200":
+          description: Signed ticket
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ticket"
+        "409":
+          $ref: "#/components/responses/Error"
+  /v1/refunds:
+    post:
+      summary: Request reverse transfer for a prior ticket
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [ticketId, refundAmount, reason]
+              properties:
+                ticketId:
+                  type: string
+                refundAmount:
+                  $ref: "#/components/schemas/UIntString"
+                reason:
+                  type: string
+                  maxLength: 280
+      responses:
+        "200":
+          description: Refund accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [ticketId, stateNonce, receiptId]
+                properties:
+                  ticketId:
+                    type: string
+                  stateNonce:
+                    type: integer
+                    minimum: 0
+                  receiptId:
+                    type: string
+        "400":
+          $ref: "#/components/responses/Error"
+  /v1/payments/{paymentId}:
+    get:
+      summary: Get payment status by idempotency key
+      parameters:
+        - name: paymentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Payment status
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [paymentId, status]
+                properties:
+                  paymentId:
+                    type: string
+                  status:
+                    type: string
+                    enum: [quoted, issued, settled, refunded, expired]
+                  ticketId:
+                    type: string
+                  stateNonce:
+                    type: integer
+                    minimum: 0
+  /v1/channels/{channelId}:
+    get:
+      summary: Get channel summary and latest nonce as seen by hub
+      parameters:
+        - name: channelId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Hex32"
+      responses:
+        "200":
+          description: Channel summary
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [channelId, latestNonce, status]
+                properties:
+                  channelId:
+                    $ref: "#/components/schemas/Hex32"
+                  latestNonce:
+                    type: integer
+                    minimum: 0
+                  status:
+                    type: string
+                    enum: [open, closing, closed]
+  /v1/payee/inbox:
+    get:
+      summary: Get new payee payments since a cursor
+      parameters:
+        - name: payee
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/EvmAddress"
+        - name: since
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 50
+      responses:
+        "200":
+          description: Payee inbox slice
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [payee, since, count, nextCursor, items]
+                properties:
+                  payee:
+                    $ref: "#/components/schemas/EvmAddress"
+                  since:
+                    type: integer
+                    minimum: 0
+                  count:
+                    type: integer
+                    minimum: 0
+                  nextCursor:
+                    type: integer
+                    minimum: 0
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: [seq, createdAt, paymentId, invoiceId, ticketId, amount, asset, status]
+                      properties:
+                        seq:
+                          type: integer
+                          minimum: 1
+                        createdAt:
+                          type: integer
+                          minimum: 1
+                        paymentId:
+                          type: string
+                        invoiceId:
+                          type: string
+                        ticketId:
+                          type: string
+                        amount:
+                          $ref: "#/components/schemas/UIntString"
+                        asset:
+                          $ref: "#/components/schemas/EvmAddress"
+                        status:
+                          type: string
+                          enum: [issued, settled, refunded, expired]
+components:
+  responses:
+    Error:
+      description: Error response
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [errorCode, message]
+            properties:
+              errorCode:
+                type: string
+              message:
+                type: string
+              retryable:
+                type: boolean
+  schemas:
+    Hex32:
+      type: string
+      pattern: "^0x[a-fA-F0-9]{64}$"
+    HexBytes:
+      type: string
+      pattern: "^0x[a-fA-F0-9]{2,4096}$"
+    EvmAddress:
+      type: string
+      pattern: "^0x[a-fA-F0-9]{40}$"
+    UIntString:
+      type: string
+      pattern: "^[0-9]+$"
+    ChannelState:
+      type: object
+      additionalProperties: false
+      required: [channelId, stateNonce, balA, balB, locksRoot, stateExpiry, contextHash]
+      properties:
+        channelId:
+          $ref: "#/components/schemas/Hex32"
+        stateNonce:
+          type: integer
+          minimum: 0
+          maximum: 18446744073709551615
+        balA:
+          $ref: "#/components/schemas/UIntString"
+        balB:
+          $ref: "#/components/schemas/UIntString"
+        locksRoot:
+          $ref: "#/components/schemas/Hex32"
+        stateExpiry:
+          type: integer
+          minimum: 1
+        contextHash:
+          $ref: "#/components/schemas/Hex32"
+    QuoteRequest:
+      type: object
+      additionalProperties: false
+      required: [invoiceId, paymentId, channelId, payee, asset, amount, maxFee, quoteExpiry]
+      properties:
+        invoiceId:
+          type: string
+        paymentId:
+          type: string
+        channelId:
+          $ref: "#/components/schemas/Hex32"
+        payee:
+          $ref: "#/components/schemas/EvmAddress"
+        asset:
+          $ref: "#/components/schemas/EvmAddress"
+        amount:
+          $ref: "#/components/schemas/UIntString"
+        maxFee:
+          $ref: "#/components/schemas/UIntString"
+        quoteExpiry:
+          type: integer
+          minimum: 1
+        contextHash:
+          $ref: "#/components/schemas/Hex32"
+        paymentMemo:
+          type: string
+          maxLength: 280
+    QuoteResponse:
+      type: object
+      additionalProperties: false
+      required: [invoiceId, paymentId, ticketDraft, fee, feeBreakdown, totalDebit, expiry]
+      properties:
+        invoiceId:
+          type: string
+        paymentId:
+          type: string
+        ticketDraft:
+          $ref: "#/components/schemas/TicketDraft"
+        fee:
+          $ref: "#/components/schemas/UIntString"
+        totalDebit:
+          $ref: "#/components/schemas/UIntString"
+        expiry:
+          type: integer
+          minimum: 1
+        feeBreakdown:
+          type: object
+          additionalProperties: false
+          required: [base, bps, variable, gasSurcharge]
+          properties:
+            base:
+              $ref: "#/components/schemas/UIntString"
+            bps:
+              type: integer
+              minimum: 0
+              maximum: 100000
+            variable:
+              $ref: "#/components/schemas/UIntString"
+            gasSurcharge:
+              $ref: "#/components/schemas/UIntString"
+    TicketDraft:
+      type: object
+      additionalProperties: false
+      required:
+        [ticketId, hub, payee, invoiceId, paymentId, asset, amount, feeCharged, totalDebit, expiry, policyHash]
+      properties:
+        ticketId:
+          type: string
+        hub:
+          $ref: "#/components/schemas/EvmAddress"
+        payee:
+          $ref: "#/components/schemas/EvmAddress"
+        invoiceId:
+          type: string
+        paymentId:
+          type: string
+        asset:
+          $ref: "#/components/schemas/EvmAddress"
+        amount:
+          $ref: "#/components/schemas/UIntString"
+        feeCharged:
+          $ref: "#/components/schemas/UIntString"
+        totalDebit:
+          $ref: "#/components/schemas/UIntString"
+        expiry:
+          type: integer
+          minimum: 1
+        policyHash:
+          $ref: "#/components/schemas/Hex32"
+    Ticket:
+      allOf:
+        - $ref: "#/components/schemas/TicketDraft"
+        - type: object
+          additionalProperties: false
+          required: [sig]
+          properties:
+            sig:
+              $ref: "#/components/schemas/HexBytes"

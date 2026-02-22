@@ -1,0 +1,2034 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>x402s | State Channel Payments for the Agentic Web</title>
+<meta name="description" content="Off-chain micropayments for AI agents. State channels replace per-request gas fees. Free, open-source, MIT licensed.">
+<meta property="og:title" content="x402s — State Channel Payments for the Agentic Web">
+<meta property="og:description" content="Zero gas per request. Instant signed-state payment. HTTP-native. Built for autonomous agents.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Instrument+Sans:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,300..800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #050608;
+    --bg-card: #0a0d12;
+    --bg-card-hover: #0f1219;
+    --border: #141820;
+    --border-bright: #1e2430;
+    --text: #e4e7ed;
+    --text-dim: #7a8294;
+    --text-muted: #363d4d;
+    --accent: #00ffab;
+    --accent-mid: #00ffab80;
+    --accent-dim: #00ffab12;
+    --accent-glow: #00ffab30;
+    --blue: #58a6ff;
+    --blue-dim: #58a6ff10;
+    --blue-glow: #58a6ff25;
+    --purple: #c4a1ff;
+    --purple-dim: #c4a1ff10;
+    --orange: #ffb86c;
+    --red: #ff6b81;
+    --font-display: 'Bricolage Grotesque', sans-serif;
+    --font-body: 'Instrument Sans', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--text);
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Grain overlay ── */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.028;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 180px;
+  }
+
+  /* ── Scroll progress ── */
+  .scroll-progress {
+    position: fixed;
+    top: 64px; left: 0; right: 0;
+    height: 2px;
+    z-index: 101;
+    background: transparent;
+  }
+  .scroll-progress-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--blue));
+    box-shadow: 0 0 12px var(--accent-glow);
+    transition: width 0.05s linear;
+  }
+
+  /* ── Grid bg ── */
+  .grid-bg {
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(#ffffff06 1px, transparent 1px),
+      linear-gradient(90deg, #ffffff06 1px, transparent 1px);
+    background-size: 52px 52px;
+    pointer-events: none;
+    z-index: 0;
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 25%, black 0%, transparent 70%);
+    -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 25%, black 0%, transparent 70%);
+  }
+
+  /* ── Glow orbs ── */
+  .glow-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(100px);
+    pointer-events: none;
+    z-index: 0;
+    will-change: transform;
+  }
+  .glow-orb.g1 {
+    width: 700px; height: 700px;
+    background: radial-gradient(circle, #00ffab18 0%, transparent 65%);
+    top: -200px; left: 50%; transform: translateX(-50%);
+    animation: orbFloat1 14s ease-in-out infinite;
+  }
+  .glow-orb.g2 {
+    width: 500px; height: 500px;
+    background: radial-gradient(circle, #58a6ff12 0%, transparent 65%);
+    top: 100px; right: -100px;
+    animation: orbFloat2 18s ease-in-out infinite;
+  }
+  .glow-orb.g3 {
+    width: 500px; height: 500px;
+    background: radial-gradient(circle, #c4a1ff0e 0%, transparent 65%);
+    top: 250px; left: -140px;
+    animation: orbFloat3 16s ease-in-out infinite;
+  }
+  @keyframes orbFloat1 {
+    0%, 100% { transform: translateX(-50%) translateY(0); }
+    50% { transform: translateX(-48%) translateY(20px); }
+  }
+  @keyframes orbFloat2 {
+    0%, 100% { transform: translateY(0) translateX(0); }
+    50% { transform: translateY(-25px) translateX(-15px); }
+  }
+  @keyframes orbFloat3 {
+    0%, 100% { transform: translateY(0) translateX(0); }
+    50% { transform: translateY(15px) translateX(20px); }
+  }
+
+  /* ── Nav ── */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    padding: 0 40px;
+    height: 64px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    backdrop-filter: blur(24px) saturate(1.3);
+    background: #050608c0;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.3s;
+  }
+  nav.scrolled { background: #050608e8; }
+
+  .logo {
+    font-family: var(--font-mono);
+    font-size: 1.05rem;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    text-decoration: none;
+  }
+  .logo .sep { color: var(--text-muted); font-weight: 300; }
+  .logo .sub { color: var(--text-dim); font-weight: 400; font-size: 0.85rem; }
+
+  .nav-links { display: flex; gap: 28px; align-items: center; }
+  .nav-links a {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    text-decoration: none;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    transition: color 0.3s;
+    position: relative;
+  }
+  .nav-links a:not(.btn-nav):hover { color: var(--text); }
+  .nav-links a:not(.btn-nav)::after {
+    content: '';
+    position: absolute;
+    bottom: -4px; left: 0; right: 0;
+    height: 1px;
+    background: var(--accent);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.4s var(--ease-out-expo);
+  }
+  .nav-links a:not(.btn-nav):hover::after { transform: scaleX(1); }
+
+  .btn-nav {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    padding: 7px 18px;
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    border-radius: 6px;
+    cursor: pointer;
+    text-decoration: none;
+    letter-spacing: 0.04em;
+    transition: all 0.35s var(--ease-out-expo);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn-nav:hover {
+    background: var(--accent);
+    color: var(--bg);
+    box-shadow: 0 0 28px var(--accent-glow);
+    transform: translateY(-1px);
+  }
+  .btn-nav svg { width: 14px; height: 14px; }
+
+  /* Mobile nav toggle */
+  .nav-toggle {
+    display: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 6px;
+    color: var(--text-dim);
+  }
+  .nav-toggle svg { width: 22px; height: 22px; }
+
+  /* ── Hero ── */
+  .hero {
+    position: relative;
+    z-index: 1;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 120px 40px 60px;
+    text-align: center;
+  }
+
+  .hero-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--accent);
+    background: var(--accent-dim);
+    border: 1px solid #00ffab20;
+    padding: 6px 16px;
+    border-radius: 100px;
+    margin-bottom: 48px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    animation: fadeUp 0.6s ease both;
+  }
+  .hero-status .pulse {
+    width: 6px; height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+    box-shadow: 0 0 8px var(--accent-glow);
+  }
+
+  .hero h1 {
+    font-family: var(--font-display);
+    font-size: clamp(3.2rem, 8vw, 7.5rem);
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.05em;
+    margin-bottom: 32px;
+    animation: fadeUp 0.7s 0.1s ease both;
+  }
+  .hero h1 .line2 {
+    display: block;
+    background: linear-gradient(135deg, var(--accent) 0%, #4de8c0 30%, var(--blue) 65%, var(--purple) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    background-size: 200% auto;
+    animation: fadeUp 0.7s 0.1s ease both, shimmer 6s ease-in-out infinite;
+  }
+  @keyframes shimmer {
+    0%, 100% { background-position: 0% center; }
+    50% { background-position: 100% center; }
+  }
+
+  .hero-sub {
+    font-size: clamp(1rem, 1.8vw, 1.2rem);
+    font-weight: 400;
+    color: var(--text-dim);
+    max-width: 540px;
+    line-height: 1.7;
+    margin-bottom: 44px;
+    animation: fadeUp 0.7s 0.2s ease both;
+  }
+  .hero-sub strong { color: var(--text); font-weight: 600; }
+
+  .hero-actions {
+    display: flex;
+    gap: 12px;
+    animation: fadeUp 0.7s 0.3s ease both;
+  }
+
+  .btn-primary {
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    padding: 13px 32px;
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    transition: all 0.35s var(--ease-out-expo);
+    text-decoration: none;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-primary::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.2) 50%, transparent 60%);
+    transform: translateX(-100%);
+    transition: transform 0.6s ease;
+  }
+  .btn-primary:hover::before { transform: translateX(100%); }
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 48px var(--accent-glow), 0 4px 24px #00000060;
+  }
+
+  .btn-secondary {
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    padding: 13px 32px;
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid var(--border-bright);
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 400;
+    letter-spacing: 0.01em;
+    transition: all 0.35s var(--ease-out-expo);
+    text-decoration: none;
+  }
+  .btn-secondary:hover {
+    border-color: var(--text-muted);
+    color: var(--text);
+    transform: translateY(-2px);
+    background: #ffffff04;
+  }
+
+  /* ── Flow ── */
+  .flow-visual {
+    margin-top: 72px;
+    width: 100%;
+    max-width: 880px;
+    animation: fadeUp 0.7s 0.45s ease both;
+  }
+  .flow-container {
+    background: linear-gradient(180deg, #0a0d1280 0%, #0a0d12 100%);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 36px 44px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.5s;
+  }
+  .flow-container:hover { border-color: var(--border-bright); }
+  .flow-container::before {
+    content: '';
+    position: absolute;
+    top: -1px; left: 15%; right: 15%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent-mid), transparent);
+  }
+  .flow-container::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 80px;
+    background: linear-gradient(180deg, #00ffab05 0%, transparent 100%);
+    pointer-events: none;
+  }
+  .flow-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 28px;
+    position: relative;
+    z-index: 1;
+    background: #0a0d1280;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 3px;
+    width: fit-content;
+  }
+  .flow-tab {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    background: transparent;
+    border: none;
+    padding: 6px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s var(--ease-out-expo);
+  }
+  .flow-tab:hover { color: var(--text-dim); }
+  .flow-tab.active {
+    background: var(--accent-dim);
+    color: var(--accent);
+    border: 1px solid #00ffab20;
+  }
+  .flow-pane { display: none !important; }
+  .flow-pane.active { display: flex !important; }
+  .flow-annot-pane { display: none !important; }
+  .flow-annot-pane.active { display: grid !important; }
+  .flow-node-icon sub {
+    font-size: 0.55rem;
+    vertical-align: baseline;
+    position: relative;
+    bottom: -2px;
+    opacity: 0.7;
+  }
+  .flow-node-icon.a2a {
+    background: #ff9e6410;
+    border: 1px solid #ff9e6430;
+    color: var(--orange);
+    box-shadow: 0 0 20px #ff9e6408;
+  }
+  .flow-node:hover .flow-node-icon.a2a { box-shadow: 0 0 32px #ff9e6418; }
+  .flow-line.c-purple::after { background: var(--orange); box-shadow: 0 0 14px #ff9e6425; }
+  .flow-mobile .flow-vline.c-purple::after { background: var(--orange); box-shadow: 0 0 10px #ff9e6425; }
+  .flow-header {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    margin-bottom: 28px;
+    position: relative;
+    z-index: 1;
+  }
+  .flow-nodes {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+    z-index: 1;
+  }
+  .flow-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .flow-node-icon {
+    width: 56px; height: 56px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all 0.4s var(--ease-out-expo);
+    position: relative;
+  }
+  .flow-node:hover .flow-node-icon {
+    transform: scale(1.12);
+  }
+  .flow-node-icon.agent {
+    background: #00ffab0c;
+    border: 1px solid #00ffab30;
+    color: var(--accent);
+    box-shadow: 0 0 20px #00ffab08;
+  }
+  .flow-node:hover .flow-node-icon.agent { box-shadow: 0 0 32px #00ffab18; }
+  .flow-node-icon.hub {
+    background: #58a6ff0c;
+    border: 1px solid #58a6ff30;
+    color: var(--blue);
+    box-shadow: 0 0 20px #58a6ff08;
+  }
+  .flow-node:hover .flow-node-icon.hub { box-shadow: 0 0 32px #58a6ff18; }
+  .flow-node-icon.payee {
+    background: #c4a1ff0c;
+    border: 1px solid #c4a1ff30;
+    color: var(--purple);
+    box-shadow: 0 0 20px #c4a1ff08;
+  }
+  .flow-node:hover .flow-node-icon.payee { box-shadow: 0 0 32px #c4a1ff18; }
+  .flow-node-label {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .flow-line {
+    flex: 1;
+    height: 1px;
+    position: relative;
+    background: var(--border-bright);
+    min-width: 30px;
+  }
+  .flow-line::after {
+    content: '';
+    position: absolute;
+    top: -1px; left: 0;
+    height: 3px;
+    width: 32px;
+    border-radius: 3px;
+  }
+  .flow-line.to-right::after { animation: flowRight 3s ease-in-out infinite; }
+  .flow-line.c-green::after { background: var(--accent); box-shadow: 0 0 14px var(--accent-glow); }
+  .flow-line.c-blue::after { background: var(--blue); box-shadow: 0 0 14px var(--blue-glow); }
+  .flow-line.delay2.to-right::after { animation-delay: 0.5s; }
+
+  @keyframes flowRight {
+    0% { left: -5%; opacity: 0; }
+    15% { opacity: 1; }
+    85% { opacity: 1; }
+    100% { left: 85%; opacity: 0; }
+  }
+
+  .flow-annotations {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 24px;
+    position: relative;
+    z-index: 1;
+  }
+  .flow-annot {
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 6px 0;
+    border-top: 1px solid var(--border);
+  }
+  .flow-annot em { font-style: normal; color: var(--text-dim); }
+
+  /* ── Mobile flow (vertical) ── */
+  .flow-mobile {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    position: relative;
+    z-index: 1;
+  }
+  .flow-mobile .flow-node { width: 100%; flex-direction: row; gap: 14px; padding: 0 8px; }
+  .flow-mobile .flow-vline {
+    width: 1px;
+    height: 28px;
+    background: var(--border-bright);
+    position: relative;
+    overflow: hidden;
+  }
+  .flow-mobile .flow-vline::after {
+    content: '';
+    position: absolute;
+    top: -100%;
+    left: -1px;
+    width: 3px;
+    height: 12px;
+    border-radius: 3px;
+    animation: flowDown 2.5s ease-in-out infinite;
+  }
+  .flow-mobile .flow-vline.c-green::after { background: var(--accent); box-shadow: 0 0 10px var(--accent-glow); }
+  .flow-mobile .flow-vline.c-blue::after { background: var(--blue); box-shadow: 0 0 10px var(--blue-glow); }
+  @keyframes flowDown {
+    0% { top: -30%; opacity: 0; }
+    15% { opacity: 1; }
+    85% { opacity: 1; }
+    100% { top: 100%; opacity: 0; }
+  }
+
+  /* ── Metrics ── */
+  .metrics {
+    display: flex;
+    justify-content: center;
+    gap: 1px;
+    margin-top: 64px;
+    animation: fadeUp 0.7s 0.55s ease both;
+    background: var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    max-width: 720px;
+    width: 100%;
+  }
+  .metric {
+    flex: 1;
+    text-align: center;
+    padding: 24px 16px;
+    background: var(--bg-card);
+    transition: background 0.4s;
+    cursor: default;
+  }
+  .metric:hover { background: var(--bg-card-hover); }
+  .metric:first-child { border-radius: 14px 0 0 14px; }
+  .metric:last-child { border-radius: 0 14px 14px 0; }
+  .metric-val {
+    font-family: var(--font-display);
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.03em;
+    line-height: 1;
+  }
+  .metric-val .u {
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--text-muted);
+    margin-left: 2px;
+  }
+  .metric-val.accent { color: var(--accent); }
+  .metric-label {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-top: 6px;
+  }
+
+  /* ── Sections ── */
+  section {
+    position: relative;
+    z-index: 1;
+    padding: 120px 40px;
+  }
+  .section-inner {
+    max-width: 1080px;
+    margin: 0 auto;
+  }
+  .section-label {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--accent);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-label::before {
+    content: '';
+    width: 16px; height: 1px;
+    background: var(--accent);
+  }
+  .section-title {
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 4vw, 3rem);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    margin-bottom: 16px;
+    line-height: 1.1;
+  }
+  .section-desc {
+    font-size: 1.05rem;
+    color: var(--text-dim);
+    font-weight: 400;
+    max-width: 520px;
+    line-height: 1.65;
+    margin-bottom: 56px;
+  }
+
+  /* ── Comparison ── */
+  .comparison {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px;
+    max-width: 740px;
+    background: var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .compare-card { padding: 36px 32px; transition: background 0.4s; }
+  .compare-card.old { background: var(--bg-card); }
+  .compare-card.old:hover { background: #0c0f15; }
+  .compare-card.new {
+    background: linear-gradient(160deg, #00ffab06 0%, var(--bg-card) 60%);
+  }
+  .compare-card.new:hover {
+    background: linear-gradient(160deg, #00ffab0a 0%, #0c0f15 60%);
+  }
+  .compare-card h3 {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .compare-card.old h3 { color: var(--text-muted); }
+  .compare-card.new h3 { color: var(--accent); }
+  .compare-card h3 .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .compare-card.old h3 .dot { background: var(--red); opacity: 0.7; }
+  .compare-card.new h3 .dot {
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent-glow);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  .compare-card ul { list-style: none; display: flex; flex-direction: column; gap: 14px; }
+  .compare-card li {
+    font-size: 0.88rem;
+    color: var(--text-dim);
+    padding-left: 22px;
+    position: relative;
+    font-weight: 400;
+    line-height: 1.4;
+    transition: color 0.3s;
+  }
+  .compare-card li:hover { color: var(--text); }
+  .compare-card.old li::before {
+    content: '';
+    position: absolute;
+    left: 3px; top: 7px;
+    width: 8px; height: 1px;
+    background: var(--text-muted);
+  }
+  .compare-card.new li::before {
+    content: '›';
+    position: absolute;
+    left: 2px; top: -1px;
+    color: var(--accent);
+    font-size: 1.1rem;
+    font-weight: 600;
+  }
+
+  /* ── Features – 3-col grid ── */
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+    background: var(--border);
+    border-radius: 18px;
+    overflow: hidden;
+  }
+  .feature-card {
+    background: var(--bg-card);
+    padding: 32px 24px;
+    transition: all 0.45s var(--ease-out-expo);
+    position: relative;
+    cursor: default;
+  }
+  .feature-card:hover {
+    background: var(--bg-card-hover);
+    z-index: 2;
+  }
+  .feature-num {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    color: var(--text-muted);
+    letter-spacing: 0.06em;
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .feature-num .bar { flex: 1; height: 1px; background: var(--border); }
+  .feature-card h3 {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+    letter-spacing: -0.01em;
+    transition: color 0.3s;
+  }
+  .feature-card:hover h3 { color: var(--accent); }
+  .feature-card p {
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    line-height: 1.55;
+    font-weight: 400;
+  }
+  .feature-accent {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, var(--accent) 50%, transparent 100%);
+    opacity: 0;
+    transition: opacity 0.4s;
+  }
+  .feature-card:hover .feature-accent { opacity: 0.6; }
+
+  /* ── Steps ── */
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    counter-reset: step-counter;
+  }
+  .step {
+    position: relative;
+    padding: 28px 22px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    transition: all 0.4s var(--ease-out-expo);
+  }
+  .step:hover {
+    border-color: var(--border-bright);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 32px #00000030;
+  }
+  .step-num {
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    color: var(--bg);
+    background: var(--accent);
+    width: 22px; height: 22px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 500;
+    margin-bottom: 18px;
+    box-shadow: 0 0 16px var(--accent-glow);
+  }
+  .step h3 {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .step p {
+    font-size: 0.84rem;
+    color: var(--text-dim);
+    line-height: 1.55;
+    font-weight: 400;
+  }
+  .step code {
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+    color: var(--accent);
+    background: var(--accent-dim);
+    padding: 1px 6px;
+    border-radius: 4px;
+    border: 1px solid #00ffab12;
+  }
+
+  /* ── Connector dots between steps ── */
+  .steps-wrapper { position: relative; }
+  .step-connectors {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 1px;
+    display: flex;
+    justify-content: space-around;
+    pointer-events: none;
+  }
+
+  /* ── Code ── */
+  .code-section {
+    display: grid;
+    grid-template-columns: 1fr 1.15fr;
+    gap: 48px;
+    align-items: center;
+  }
+  .code-block {
+    background: #08090d;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    position: relative;
+    transition: border-color 0.4s;
+  }
+  .code-block:hover { border-color: var(--border-bright); }
+  .code-block::before {
+    content: '';
+    position: absolute;
+    top: -1px; left: 20%; right: 20%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #58a6ff40, transparent);
+  }
+  .code-header {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+    background: #0a0b1040;
+  }
+  .code-dot { width: 9px; height: 9px; border-radius: 50%; }
+  .code-dot.r { background: #ff5f57; }
+  .code-dot.y { background: #febc2e; }
+  .code-dot.g { background: #28c840; }
+  .code-tab {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    margin-left: 10px;
+  }
+  .code-body {
+    padding: 22px 24px;
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+    line-height: 1.85;
+    color: var(--text-dim);
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .code-body .kw { color: var(--purple); }
+  .code-body .fn { color: var(--blue); }
+  .code-body .str { color: var(--accent); }
+  .code-body .cmt { color: var(--text-muted); font-style: italic; }
+  .code-body .flag { color: var(--orange); }
+  .code-body .num { color: var(--orange); }
+
+  /* Copy button */
+  .code-copy {
+    position: absolute;
+    top: 10px; right: 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 8px;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    z-index: 2;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .code-copy:hover {
+    color: var(--text-dim);
+    border-color: var(--border-bright);
+  }
+  .code-copy.copied {
+    color: var(--accent);
+    border-color: #00ffab30;
+  }
+
+  .code-text h3 {
+    font-family: var(--font-display);
+    font-size: 1.8rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    margin-bottom: 14px;
+    line-height: 1.15;
+  }
+  .code-text p {
+    font-size: 1rem;
+    color: var(--text-dim);
+    line-height: 1.65;
+    font-weight: 400;
+    margin-bottom: 24px;
+  }
+  .tags { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tag {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    padding: 4px 12px;
+    border-radius: 6px;
+    display: inline-block;
+    letter-spacing: 0.02em;
+    transition: transform 0.3s var(--ease-spring);
+  }
+  .tag:hover { transform: translateY(-2px); }
+  .tag.green { background: var(--accent-dim); color: var(--accent); border: 1px solid #00ffab20; }
+  .tag.blue { background: var(--blue-dim); color: var(--blue); border: 1px solid #58a6ff20; }
+
+  /* ── Roles ── */
+  .roles-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .role-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 30px 26px;
+    transition: all 0.4s var(--ease-out-expo);
+    overflow: hidden;
+    position: relative;
+  }
+  .role-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.5s var(--ease-out-expo);
+  }
+  .role-card:nth-child(1)::before { background: var(--accent); }
+  .role-card:nth-child(2)::before { background: var(--blue); }
+  .role-card:nth-child(3)::before { background: var(--purple); }
+  .role-card:hover::before { transform: scaleX(1); }
+  .role-card:hover {
+    border-color: var(--border-bright);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 32px #00000030;
+  }
+  .role-badge {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    padding: 3px 10px;
+    border-radius: 5px;
+    display: inline-block;
+    margin-bottom: 18px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .role-badge.most { background: var(--accent-dim); color: var(--accent); border: 1px solid #00ffab20; }
+  .role-badge.dev { background: var(--blue-dim); color: var(--blue); border: 1px solid #58a6ff20; }
+  .role-badge.infra { background: var(--purple-dim); color: var(--purple); border: 1px solid #c4a1ff20; }
+  .role-card h3 {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .role-card p {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    line-height: 1.55;
+    font-weight: 400;
+    margin-bottom: 18px;
+  }
+  .role-cmd {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--accent);
+    background: #00ffab06;
+    padding: 9px 14px;
+    border-radius: 8px;
+    border: 1px solid #00ffab12;
+    display: block;
+    transition: all 0.3s;
+  }
+  .role-card:hover .role-cmd { border-color: #00ffab25; background: #00ffab08; }
+
+  /* ── Agent-to-Agent ── */
+  .a2a-scenarios {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-bottom: 48px;
+  }
+  .a2a-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 28px 24px;
+    transition: all 0.4s var(--ease-out-expo);
+    position: relative;
+    overflow: hidden;
+  }
+  .a2a-card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #ff9e6440, transparent);
+    opacity: 0;
+    transition: opacity 0.4s;
+  }
+  .a2a-card:hover::after { opacity: 1; }
+  .a2a-card:hover {
+    border-color: var(--border-bright);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 28px #00000030;
+  }
+  .a2a-icon {
+    font-size: 1.4rem;
+    margin-bottom: 14px;
+    display: block;
+    line-height: 1;
+  }
+  .a2a-card h3 {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+    letter-spacing: -0.01em;
+  }
+  .a2a-card:hover h3 { color: var(--orange); }
+  .a2a-card p {
+    font-size: 0.84rem;
+    color: var(--text-dim);
+    line-height: 1.55;
+    font-weight: 400;
+  }
+
+  .a2a-how {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 24px 28px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+  }
+  .a2a-how-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    font-size: 0.84rem;
+    color: var(--text-dim);
+    line-height: 1.4;
+  }
+  .a2a-num {
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    color: var(--bg);
+    background: var(--orange);
+    width: 20px; height: 20px;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 500;
+    flex-shrink: 0;
+    box-shadow: 0 0 12px #ff9e6420;
+  }
+  .a2a-how-sep {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  /* ── Divider ── */
+  .section-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, var(--border-bright) 50%, transparent 100%);
+    max-width: 800px;
+    margin: 0 auto;
+  }
+
+  /* ── CTA ── */
+  .cta-section {
+    text-align: center;
+    padding: 160px 40px;
+    position: relative;
+  }
+  .cta-section::before {
+    content: '';
+    position: absolute;
+    bottom: 30%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 700px; height: 700px;
+    background: radial-gradient(circle, #00ffab0a 0%, transparent 55%);
+    filter: blur(80px);
+    pointer-events: none;
+    animation: orbFloat1 12s ease-in-out infinite;
+  }
+  .cta-section h2 {
+    font-family: var(--font-display);
+    font-size: clamp(2.5rem, 5vw, 4rem);
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    margin-bottom: 16px;
+    position: relative;
+    z-index: 1;
+    line-height: 1.08;
+  }
+  .cta-section p {
+    font-size: 1.05rem;
+    color: var(--text-dim);
+    font-weight: 400;
+    max-width: 540px;
+    margin: 0 auto 40px;
+    line-height: 1.65;
+    position: relative;
+    z-index: 1;
+  }
+  .cta-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    position: relative;
+    z-index: 1;
+  }
+  .cta-cmd {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 11px 24px;
+    border-radius: 8px;
+    margin-top: 28px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+    z-index: 1;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+  .cta-cmd:hover { border-color: var(--border-bright); color: var(--text); }
+  .cta-cmd .prompt { color: var(--accent); }
+  .cta-cursor {
+    width: 7px; height: 16px;
+    background: var(--accent);
+    opacity: 0.7;
+    animation: blink 1.1s step-end infinite;
+    border-radius: 1px;
+  }
+
+  /* ── Footer ── */
+  footer {
+    position: relative;
+    z-index: 1;
+    border-top: 1px solid var(--border);
+    padding: 32px 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  footer .logo-foot {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--text-muted);
+  }
+  footer .foot-links { display: flex; gap: 24px; }
+  footer .foot-links a {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: color 0.3s;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  footer .foot-links a:hover { color: var(--text-dim); }
+
+  /* ── Back to top ── */
+  .back-to-top {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 90;
+    opacity: 0;
+    transform: translateY(12px);
+    transition: all 0.35s var(--ease-out-expo);
+    text-decoration: none;
+    backdrop-filter: blur(12px);
+  }
+  .back-to-top.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .back-to-top:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px #00000040;
+  }
+  .back-to-top svg { width: 16px; height: 16px; }
+
+  /* ── Animations ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.85); }
+  }
+  @keyframes blink {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 0; }
+  }
+
+  .reveal {
+    opacity: 0;
+    transform: translateY(32px);
+    transition: all 0.9s var(--ease-out-expo);
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Stagger children in reveal */
+  .reveal.visible .stagger { animation: fadeUp 0.6s ease both; }
+  .reveal.visible .stagger:nth-child(1) { animation-delay: 0s; }
+  .reveal.visible .stagger:nth-child(2) { animation-delay: 0.06s; }
+  .reveal.visible .stagger:nth-child(3) { animation-delay: 0.12s; }
+  .reveal.visible .stagger:nth-child(4) { animation-delay: 0.18s; }
+  .reveal.visible .stagger:nth-child(5) { animation-delay: 0.24s; }
+  .reveal.visible .stagger:nth-child(6) { animation-delay: 0.30s; }
+  .reveal.visible .stagger:nth-child(7) { animation-delay: 0.36s; }
+  .reveal.visible .stagger:nth-child(8) { animation-delay: 0.42s; }
+  .reveal.visible .stagger:nth-child(9) { animation-delay: 0.48s; }
+
+  /* ── Responsive ── */
+  @media (max-width: 1100px) {
+    .features-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 900px) {
+    .features-grid { grid-template-columns: 1fr; }
+    .roles-grid { grid-template-columns: 1fr; }
+    .steps { grid-template-columns: repeat(2, 1fr); }
+    .code-section { grid-template-columns: 1fr; gap: 32px; }
+    .comparison { grid-template-columns: 1fr; }
+    .a2a-scenarios { grid-template-columns: 1fr; }
+    .a2a-how { flex-direction: column; gap: 8px; }
+    .a2a-how-sep { transform: rotate(90deg); }
+    .flow-pane { display: none !important; }
+    .flow-annot-pane { display: none !important; }
+    .flow-pane-m.active { display: flex !important; }
+    .metrics { flex-wrap: wrap; }
+    .metric { min-width: 140px; }
+    nav { padding: 0 20px; }
+    .nav-links .nav-link-text { display: none; }
+    .nav-toggle { display: block; }
+    section { padding: 80px 20px; }
+    .hero { padding: 100px 20px 60px; }
+  }
+  @media (max-width: 600px) {
+    .hero-actions { flex-direction: column; width: 100%; max-width: 280px; }
+    .btn-primary, .btn-secondary { width: 100%; text-align: center; }
+    .steps { grid-template-columns: 1fr; }
+    .metrics { flex-direction: column; border-radius: 14px; }
+    .metric { border-radius: 0 !important; }
+    .metric:first-child { border-radius: 14px 14px 0 0 !important; }
+    .metric:last-child { border-radius: 0 0 14px 14px !important; }
+    .cta-actions { flex-direction: column; align-items: center; }
+    .cta-section { padding: 100px 20px; }
+    footer { flex-direction: column; gap: 16px; text-align: center; }
+  }
+
+  /* ── Mobile nav drawer ── */
+  .mobile-nav {
+    position: fixed;
+    top: 64px; left: 0; right: 0;
+    background: #070a0ee8;
+    backdrop-filter: blur(24px);
+    border-bottom: 1px solid var(--border);
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    z-index: 99;
+    transform: translateY(-100%);
+    opacity: 0;
+    transition: all 0.4s var(--ease-out-expo);
+    pointer-events: none;
+  }
+  .mobile-nav.open {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: all;
+  }
+  .mobile-nav a {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    text-decoration: none;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    transition: color 0.3s;
+  }
+  .mobile-nav a:last-child { border-bottom: none; }
+  .mobile-nav a:hover { color: var(--accent); }
+
+  /* ── Selection color ── */
+  ::selection {
+    background: #00ffab30;
+    color: var(--text);
+  }
+</style>
+</head>
+<body>
+
+<div class="grid-bg"></div>
+
+<!-- Scroll progress -->
+<div class="scroll-progress">
+  <div class="scroll-progress-bar" id="scrollBar"></div>
+</div>
+
+<nav id="mainNav">
+  <a href="#" class="logo">x402s <span class="sep">/</span> <span class="sub">scp</span></a>
+  <div class="nav-links">
+    <a href="#features" class="nav-link-text">Features</a>
+    <a href="#how" class="nav-link-text">Protocol</a>
+    <a href="#api" class="nav-link-text">API</a>
+    <a href="#a2a" class="nav-link-text">A2A</a>
+    <a href="#roles" class="nav-link-text">Roles</a>
+    <a href="https://github.com" class="btn-nav" target="_blank" rel="noopener">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      GitHub
+    </a>
+    <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+  </div>
+</nav>
+
+<!-- Mobile nav drawer -->
+<div class="mobile-nav" id="mobileNav">
+  <a href="#features">Features</a>
+  <a href="#how">Protocol</a>
+  <a href="#api">API</a>
+  <a href="#a2a">Agent ↔ Agent</a>
+  <a href="#roles">Roles</a>
+  <a href="https://github.com" target="_blank" rel="noopener">GitHub ↗</a>
+</div>
+
+<div class="hero">
+  <div class="glow-orb g1"></div>
+  <div class="glow-orb g2"></div>
+  <div class="glow-orb g3"></div>
+
+  <div class="hero-status">
+    <span class="pulse"></span>
+    Free &amp; Open Source · MIT Licensed · HTTP 402
+  </div>
+
+  <h1>
+    Agents pay agents.<br>
+    <span class="line2">No gas. No wait.</span>
+  </h1>
+
+  <p class="hero-sub">
+    <strong>x402s</strong> brings off-chain micropayments to the agentic web.
+    Agent-to-API. Agent-to-agent. State channels replace on-chain transactions — pay with signed state, not gas.
+  </p>
+
+  <div class="hero-actions">
+    <a href="#start" class="btn-primary">Quick Start →</a>
+    <a href="#how" class="btn-secondary">How It Works</a>
+  </div>
+
+  <div class="flow-visual">
+    <div class="flow-container">
+      <div class="flow-tabs">
+        <button class="flow-tab active" data-flow="hub">Hub Route</button>
+        <button class="flow-tab" data-flow="a2a">Agent ↔ Agent</button>
+      </div>
+
+      <!-- Hub Route (desktop) -->
+      <div class="flow-nodes flow-pane active" id="flow-hub">
+        <div class="flow-node">
+          <div class="flow-node-icon agent">A</div>
+          <span class="flow-node-label">Agent</span>
+        </div>
+        <div class="flow-line c-green to-right"></div>
+        <div class="flow-node">
+          <div class="flow-node-icon hub">H</div>
+          <span class="flow-node-label">Hub</span>
+        </div>
+        <div class="flow-line c-blue to-right delay2"></div>
+        <div class="flow-node">
+          <div class="flow-node-icon payee">P</div>
+          <span class="flow-node-label">Payee</span>
+        </div>
+      </div>
+
+      <!-- Agent-to-Agent (desktop) -->
+      <div class="flow-nodes flow-pane" id="flow-a2a">
+        <div class="flow-node">
+          <div class="flow-node-icon agent">A<sub>1</sub></div>
+          <span class="flow-node-label">Agent 1</span>
+        </div>
+        <div class="flow-line c-green to-right"></div>
+        <div class="flow-node">
+          <div class="flow-node-icon hub">H</div>
+          <span class="flow-node-label">Hub</span>
+        </div>
+        <div class="flow-line c-purple to-right delay2"></div>
+        <div class="flow-node">
+          <div class="flow-node-icon a2a">A<sub>2</sub></div>
+          <span class="flow-node-label">Agent 2</span>
+        </div>
+      </div>
+
+      <!-- Hub Route (mobile) -->
+      <div class="flow-mobile flow-pane-m active" id="flow-hub-m">
+        <div class="flow-node">
+          <div class="flow-node-icon agent">A</div>
+          <span class="flow-node-label">Agent</span>
+        </div>
+        <div class="flow-vline c-green"></div>
+        <div class="flow-node">
+          <div class="flow-node-icon hub">H</div>
+          <span class="flow-node-label">Hub</span>
+        </div>
+        <div class="flow-vline c-blue"></div>
+        <div class="flow-node">
+          <div class="flow-node-icon payee">P</div>
+          <span class="flow-node-label">Payee</span>
+        </div>
+      </div>
+
+      <!-- Agent-to-Agent (mobile) -->
+      <div class="flow-mobile flow-pane-m" id="flow-a2a-m">
+        <div class="flow-node">
+          <div class="flow-node-icon agent">A<sub>1</sub></div>
+          <span class="flow-node-label">Agent 1</span>
+        </div>
+        <div class="flow-vline c-green"></div>
+        <div class="flow-node">
+          <div class="flow-node-icon hub">H</div>
+          <span class="flow-node-label">Hub</span>
+        </div>
+        <div class="flow-vline c-purple"></div>
+        <div class="flow-node">
+          <div class="flow-node-icon a2a">A<sub>2</sub></div>
+          <span class="flow-node-label">Agent 2</span>
+        </div>
+      </div>
+
+      <div class="flow-annotations flow-annot-pane active" id="annot-hub">
+        <div class="flow-annot"><em>402 + offers</em> → <em>quote → ticket</em></div>
+        <div class="flow-annot"><em>PAYMENT-SIGNATURE</em> → <em>200 + receipt</em></div>
+      </div>
+      <div class="flow-annotations flow-annot-pane" id="annot-a2a">
+        <div class="flow-annot"><em>A₁ signs state</em> → <em>hub forwards</em></div>
+        <div class="flow-annot"><em>A₂ delivers data</em> → <em>receipt + proof</em></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="metrics">
+    <div class="metric">
+      <div class="metric-val accent">Free</div>
+      <div class="metric-label">No platform fees</div>
+    </div>
+    <div class="metric">
+      <div class="metric-val">0<span class="u"> gas</span></div>
+      <div class="metric-label">Per request</div>
+    </div>
+    <div class="metric">
+      <div class="metric-val">&lt;50<span class="u">ms</span></div>
+      <div class="metric-label">Latency</div>
+    </div>
+    <div class="metric">
+      <div class="metric-val">ERC-20</div>
+      <div class="metric-label">Any asset</div>
+    </div>
+  </div>
+</div>
+
+<!-- Why -->
+<section id="features">
+  <div class="section-inner reveal">
+    <div class="section-label">Why x402s</div>
+    <h2 class="section-title">Agent payments<br>without the friction</h2>
+    <p class="section-desc">Every on-chain tx costs gas, time, and complexity. State channels move payment off-chain. Settle only when you need to.</p>
+    <div class="comparison">
+      <div class="compare-card old">
+        <h3><span class="dot"></span> On-chain per call</h3>
+        <ul>
+          <li>Gas fee every request</li>
+          <li>Block confirmation latency</li>
+          <li>Chain congestion risk</li>
+          <li>Public spending graph</li>
+        </ul>
+      </div>
+      <div class="compare-card new">
+        <h3><span class="dot"></span> x402s State Channels</h3>
+        <ul>
+          <li>Zero gas per request</li>
+          <li>Instant signed-state payment</li>
+          <li>Private tx flow off-chain</li>
+          <li>On-chain only at open / close</li>
+          <li>Settle only when needed</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- Features -->
+<section>
+  <div class="section-inner reveal">
+    <div class="features-grid">
+      <div class="feature-card stagger">
+        <div class="feature-accent"></div>
+        <div class="feature-num">01 <span class="bar"></span></div>
+        <h3>Off-chain speed</h3>
+        <p>Payments are signed channel state updates. No blocks to wait for. Pay and respond in one round-trip.</p>
+      </div>
+      <div class="feature-card stagger">
+        <div class="feature-accent"></div>
+        <div class="feature-num">02 <span class="bar"></span></div>
+        <h3>On-chain safety</h3>
+        <p>Dispute contract enforces honest settlement. Challenge watcher catches stale closes. Funds always recoverable.</p>
+      </div>
+      <div class="feature-card stagger">
+        <div class="feature-accent"></div>
+        <div class="feature-num">03 <span class="bar"></span></div>
+        <h3>HTTP-native</h3>
+        <p>APIs return 402 with offers. Agents retry with payment proof. Standard headers, no custom transport.</p>
+      </div>
+      <div class="feature-card stagger">
+        <div class="feature-accent"></div>
+        <div class="feature-num">04 <span class="bar"></span></div>
+        <h3>Private transactions</h3>
+        <p>Payment state stays off-chain between participants. No public transaction leakage during API traffic.</p>
+      </div>
+      <div class="feature-card stagger">
+        <div class="feature-accent"></div>
+        <div class="feature-num">05 <span class="bar"></span></div>
+        <h3>Hub routing</h3>
+        <p>One channel to a hub unlocks every connected payee. Pay many APIs from a single funded channel.</p>
+      </div>
+      <div class="feature-card stagger">
+        <div class="feature-accent"></div>
+        <div class="feature-num">06 <span class="bar"></span></div>
+        <h3>Multi-asset</h3>
+        <p>USDC, ETH, any ERC-20. Per-path pricing in human units. Payees set offers, agents pick what they hold.</p>
+      </div>
+      <div class="feature-card stagger">
+        <div class="feature-accent"></div>
+        <div class="feature-num">07 <span class="bar"></span></div>
+        <h3>Agent-first</h3>
+        <p>Built for autonomous agents. Auto, per-payment, or per-API approval modes. CLI + SDK + HTTP server.</p>
+      </div>
+      <div class="feature-card stagger">
+        <div class="feature-accent"></div>
+        <div class="feature-num">08 <span class="bar"></span></div>
+        <h3>Agent skill included</h3>
+        <p>Ships a ready-made skill folder. Drop it into Claude or any LLM agent for automatic 402 handling.</p>
+      </div>
+      <div class="feature-card stagger">
+        <div class="feature-accent"></div>
+        <div class="feature-num">09 <span class="bar"></span></div>
+        <h3>Free &amp; open</h3>
+        <p>MIT licensed. No transaction fees, no lock-in. Run your own hub or use a public one. Fork it, ship it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- How It Works -->
+<section id="how">
+  <div class="section-inner reveal">
+    <div class="section-label">Protocol</div>
+    <h2 class="section-title">Four steps to pay</h2>
+    <p class="section-desc">From 402 response to 200. The full payment lifecycle.</p>
+    <div class="steps">
+      <div class="step stagger">
+        <div class="step-num">1</div>
+        <h3>Discover</h3>
+        <p>Agent GETs a resource. Payee returns <code>402</code> with accepted payment offers: networks, assets, prices, route modes.</p>
+      </div>
+      <div class="step stagger">
+        <div class="step-num">2</div>
+        <h3>Quote</h3>
+        <p>Agent sends offer to hub. Hub calculates fee, returns a quote with a payment draft ready to sign.</p>
+      </div>
+      <div class="step stagger">
+        <div class="step-num">3</div>
+        <h3>Issue</h3>
+        <p>Agent signs channel state update. Hub validates, co-signs, returns a ticket: the payment proof.</p>
+      </div>
+      <div class="step stagger">
+        <div class="step-num">4</div>
+        <h3>Pay + Verify</h3>
+        <p>Agent retries with <code>PAYMENT-SIGNATURE</code> header. Payee verifies ticket, returns <code>200</code> + receipt.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- Agent-to-Agent -->
+<section id="a2a">
+  <div class="section-inner reveal">
+    <div class="section-label">Agent ↔ Agent</div>
+    <h2 class="section-title">Agents paying agents,<br>through the hub</h2>
+    <p class="section-desc">Any agent can be both payer and payee. The hub routes payments between them — no direct channel required.</p>
+
+    <div class="a2a-scenarios">
+      <div class="a2a-card stagger">
+        <div class="a2a-icon">🔍</div>
+        <h3>Research agent buys data</h3>
+        <p>Agent 1 needs market data. Agent 2 has a crawl pipeline. A₁ pays A₂ per-query through the hub. No API registration — just a 402 endpoint.</p>
+      </div>
+      <div class="a2a-card stagger">
+        <div class="a2a-icon">🧠</div>
+        <h3>Inference on demand</h3>
+        <p>A coding agent hits a limit. It discovers a specialized model agent advertising inference via 402. Pay per call, get structured output back.</p>
+      </div>
+      <div class="a2a-card stagger">
+        <div class="a2a-icon">🔗</div>
+        <h3>Multi-agent orchestration</h3>
+        <p>An orchestrator fans out tasks to specialist agents. Each sub-agent bills for its work. The hub settles all flows from one channel.</p>
+      </div>
+      <div class="a2a-card stagger">
+        <div class="a2a-icon">⚡</div>
+        <h3>Micro-bounties</h3>
+        <p>An agent posts a task with a price. The first agent to return a valid result gets paid instantly — verified by the hub, no escrow contract needed.</p>
+      </div>
+    </div>
+
+    <div class="a2a-how">
+      <div class="a2a-how-item">
+        <span class="a2a-num">1</span>
+        <span>Both agents open channels to the same hub</span>
+      </div>
+      <div class="a2a-how-sep">→</div>
+      <div class="a2a-how-item">
+        <span class="a2a-num">2</span>
+        <span>Agent 1 pays Agent 2 via the hub — one state update each side</span>
+      </div>
+      <div class="a2a-how-sep">→</div>
+      <div class="a2a-how-item">
+        <span class="a2a-num">3</span>
+        <span>Settle on-chain only when a channel closes</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- Quickstart -->
+<section id="start">
+  <div class="section-inner reveal">
+    <div class="code-section">
+      <div class="code-text">
+        <div class="section-label">Quickstart</div>
+        <h3>Five minutes to<br>first payment</h3>
+        <p>Install, configure, open a channel, and pay. The wizard handles setup; you handle the API calls.</p>
+        <div class="tags">
+          <span class="tag green">CLI</span>
+          <span class="tag green">SDK</span>
+          <span class="tag blue">HTTP Server</span>
+          <span class="tag blue">Dashboard</span>
+        </div>
+      </div>
+      <div class="code-block">
+        <div class="code-header">
+          <div class="code-dot r"></div>
+          <div class="code-dot y"></div>
+          <div class="code-dot g"></div>
+          <span class="code-tab">terminal</span>
+        </div>
+        <button class="code-copy" onclick="copyCode(this)" data-code="npm install&#10;npm run scp:wizard&#10;&#10;npm run scp:channel:open -- \&#10;  0xHubAddr base usdc 20&#10;&#10;npm run scp:agent:pay -- \&#10;  https://api.example/v1/data">Copy</button>
+        <div class="code-body">
+<span class="cmt"># setup</span>
+<span class="fn">npm</span> install
+<span class="fn">npm</span> run <span class="str">scp:wizard</span>
+
+<span class="cmt"># open a channel</span>
+<span class="fn">npm</span> run <span class="str">scp:channel:open</span> <span class="flag">--</span> \
+  <span class="num">0xHubAddr</span> base usdc <span class="num">20</span>
+
+<span class="cmt"># pay an API</span>
+<span class="fn">npm</span> run <span class="str">scp:agent:pay</span> <span class="flag">--</span> \
+  https://api.example/v1/data
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- API -->
+<section id="api">
+  <div class="section-inner reveal">
+    <div class="code-section">
+      <div class="code-text">
+        <div class="section-label">Payee API</div>
+        <h3>Protect an<br>endpoint</h3>
+        <p>Return HTTP 402 with offers when unpaid, then verify the payment signature and serve data with a receipt.</p>
+        <div class="tags">
+          <span class="tag green">402</span>
+          <span class="tag green">accepts[]</span>
+          <span class="tag blue">verify</span>
+          <span class="tag blue">receipt</span>
+        </div>
+      </div>
+      <div class="code-block">
+        <div class="code-header">
+          <div class="code-dot r"></div>
+          <div class="code-dot y"></div>
+          <div class="code-dot g"></div>
+          <span class="code-tab">payee-api.js</span>
+        </div>
+        <button class="code-copy" onclick="copyCode(this)" data-code="const sig = req.headers[&quot;payment-signature&quot;];&#10;&#10;if (!sig) {&#10;  const accepts = buildAccepts({&#10;    file: process.env.OFFERS_FILE,&#10;    path: req.path,&#10;    host: req.headers.host&#10;  });&#10;  return res.status(402).json({&#10;    error: &quot;payment required&quot;,&#10;    accepts&#10;  });&#10;}&#10;&#10;const result = await verify(sig, store);&#10;&#10;if (result.replayed)&#10;  return res.json(result.response);&#10;if (!result.ok)&#10;  return res.status(402).json({ error: result.error });&#10;&#10;const resp = {&#10;  ok: true, data,&#10;  receipt: { paymentId: result.paymentId }&#10;};&#10;verify.seen.set(result.paymentId, resp);&#10;return res.json(resp);">Copy</button>
+        <div class="code-body">
+<span class="kw">const</span> sig = req.headers[<span class="str">"payment-signature"</span>];
+
+<span class="kw">if</span> (!sig) {
+  <span class="kw">const</span> accepts = <span class="fn">buildAccepts</span>({
+    file: process.env.<span class="str">OFFERS_FILE</span>,
+    path: req.path,
+    host: req.headers.host
+  });
+  <span class="kw">return</span> res.status(<span class="num">402</span>).json({
+    error: <span class="str">"payment required"</span>,
+    accepts
+  });
+}
+
+<span class="kw">const</span> result = <span class="kw">await</span> <span class="fn">verify</span>(sig, store);
+
+<span class="kw">if</span> (result.replayed)
+  <span class="kw">return</span> res.json(result.response);
+<span class="kw">if</span> (!result.ok)
+  <span class="kw">return</span> res.status(<span class="num">402</span>).json({ error: result.error });
+
+<span class="kw">const</span> resp = {
+  ok: <span class="kw">true</span>, data,
+  receipt: { paymentId: result.paymentId }
+};
+verify.seen.set(result.paymentId, resp);
+<span class="kw">return</span> res.json(resp);
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- Roles -->
+<section id="roles">
+  <div class="section-inner reveal">
+    <div class="section-label">Roles</div>
+    <h2 class="section-title">Run what you need</h2>
+    <p class="section-desc">Most users only need the agent. Build paid APIs or run hub infra when you're ready.</p>
+    <div class="roles-grid">
+      <div class="role-card stagger">
+        <span class="role-badge most">Most users</span>
+        <h3>Agent (Payer)</h3>
+        <p>Discover offers, open channels, pay APIs. Auto-mode handles everything; manual mode gives you control.</p>
+        <code class="role-cmd">npm run scp:agent:pay -- &lt;url&gt;</code>
+      </div>
+      <div class="role-card stagger">
+        <span class="role-badge dev">API devs</span>
+        <h3>Payee API</h3>
+        <p>Protect routes with 402, define per-path pricing in JSON, validate tickets. Template included.</p>
+        <code class="role-cmd">npm run scp:payee</code>
+      </div>
+      <div class="role-card stagger">
+        <span class="role-badge infra">Infra ops</span>
+        <h3>Hub Operator</h3>
+        <p>Quote fees, issue tickets, track settlements. Scale with Redis + cluster mode for production.</p>
+        <code class="role-cmd">npm run scp:hub</code>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div class="reveal">
+    <h2>Build paid APIs and agents.</h2>
+    <p>Install, open a channel, pay. The wizard handles setup — deploy on Sepolia, Base, or any EVM chain.</p>
+    <div class="cta-actions">
+      <a href="https://github.com" class="btn-primary" target="_blank" rel="noopener">View on GitHub</a>
+      <a href="#" class="btn-secondary">Read the Spec</a>
+    </div>
+    <div class="cta-cmd" onclick="copyCmdLine(this)">
+      <span class="prompt">$</span> npm run scp:wizard
+      <span class="cta-cursor"></span>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="logo-foot">x402s © 2025</div>
+  <div class="foot-links">
+    <a href="#">Docs</a>
+    <a href="https://github.com" target="_blank" rel="noopener">GitHub</a>
+    <a href="#">Spec</a>
+    <a href="#">OpenAPI</a>
+  </div>
+</footer>
+
+<!-- Back to top -->
+<a href="#" class="back-to-top" id="backToTop" aria-label="Back to top">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
+</a>
+
+<script>
+  // Reveal on scroll
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) e.target.classList.add('visible');
+    });
+  }, { threshold: 0.06, rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+
+  // Scroll progress bar
+  const scrollBar = document.getElementById('scrollBar');
+  const mainNav = document.getElementById('mainNav');
+  const backToTop = document.getElementById('backToTop');
+
+  function onScroll() {
+    const scrollTop = window.scrollY;
+    const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+    const pct = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
+    scrollBar.style.width = pct + '%';
+
+    // Nav background
+    if (scrollTop > 40) {
+      mainNav.classList.add('scrolled');
+    } else {
+      mainNav.classList.remove('scrolled');
+    }
+
+    // Back to top
+    if (scrollTop > 600) {
+      backToTop.classList.add('visible');
+    } else {
+      backToTop.classList.remove('visible');
+    }
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  // Mobile nav toggle
+  const navToggle = document.getElementById('navToggle');
+  const mobileNav = document.getElementById('mobileNav');
+  let navOpen = false;
+
+  navToggle.addEventListener('click', () => {
+    navOpen = !navOpen;
+    mobileNav.classList.toggle('open', navOpen);
+  });
+
+  // Close mobile nav on link click
+  mobileNav.querySelectorAll('a').forEach(a => {
+    a.addEventListener('click', () => {
+      navOpen = false;
+      mobileNav.classList.remove('open');
+    });
+  });
+
+  // Copy code
+  function copyCode(btn) {
+    const code = btn.getAttribute('data-code');
+    navigator.clipboard.writeText(code).then(() => {
+      btn.textContent = '✓ Copied';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = 'Copy';
+        btn.classList.remove('copied');
+      }, 2000);
+    });
+  }
+
+  // Copy command line
+  function copyCmdLine(el) {
+    navigator.clipboard.writeText('npm run scp:wizard').then(() => {
+      const orig = el.innerHTML;
+      el.innerHTML = '<span class="prompt">$</span> copied!';
+      el.style.borderColor = '#00ffab30';
+      setTimeout(() => {
+        el.innerHTML = orig;
+        el.style.borderColor = '';
+      }, 1800);
+    });
+  }
+
+  // Flow tab switching
+  document.querySelectorAll('.flow-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const flow = tab.dataset.flow;
+      document.querySelectorAll('.flow-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+
+      // Desktop panes
+      document.querySelectorAll('.flow-pane').forEach(p => p.classList.remove('active'));
+      const desktopPane = document.getElementById('flow-' + flow);
+      if (desktopPane) desktopPane.classList.add('active');
+
+      // Mobile panes
+      document.querySelectorAll('.flow-pane-m').forEach(p => p.classList.remove('active'));
+      const mobilePane = document.getElementById('flow-' + flow + '-m');
+      if (mobilePane) mobilePane.classList.add('active');
+
+      // Annotations
+      document.querySelectorAll('.flow-annot-pane').forEach(p => p.classList.remove('active'));
+      const annotPane = document.getElementById('annot-' + flow);
+      if (annotPane) annotPane.classList.add('active');
+    });
+  });
+
+  // Smooth anchor scrolling (offset for fixed nav)
+  document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+    anchor.addEventListener('click', function(e) {
+      const target = this.getAttribute('href');
+      if (target === '#') return;
+      const el = document.querySelector(target);
+      if (el) {
+        e.preventDefault();
+        const y = el.getBoundingClientRect().top + window.scrollY - 80;
+        window.scrollTo({ top: y, behavior: 'smooth' });
+      }
+    });
+  });
+</script>
+</body>
+</html>

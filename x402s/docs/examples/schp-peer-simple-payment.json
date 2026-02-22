@@ -1,0 +1,87 @@
+{
+  "quoteRequest": {
+    "invoiceId": "inv_01JXYZP2F8NT4M44RRFV78MNVW",
+    "paymentId": "pay_01JXYZP5A3GQ3T6WXPXJQW3HSA",
+    "channelId": "0x7a0de7b4f53d675f6fc0f21a32c6b957f8e477e2acbe92d2ab36ef0f7d5e57a0",
+    "payee": "0x8ba1f109551bD432803012645Ac136ddd64DBA72",
+    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bDa02913",
+    "amount": "1000000",
+    "maxFee": "5000",
+    "quoteExpiry": 1770000200,
+    "paymentMemo": "agent subscription week 1"
+  },
+  "quoteResponse": {
+    "invoiceId": "inv_01JXYZP2F8NT4M44RRFV78MNVW",
+    "paymentId": "pay_01JXYZP5A3GQ3T6WXPXJQW3HSA",
+    "ticketDraft": {
+      "ticketId": "tkt_01JXYZPB3X88P9GMY9GG8J7JQ3",
+      "hub": "0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "payee": "0x8ba1f109551bD432803012645Ac136ddd64DBA72",
+      "invoiceId": "inv_01JXYZP2F8NT4M44RRFV78MNVW",
+      "paymentId": "pay_01JXYZP5A3GQ3T6WXPXJQW3HSA",
+      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bDa02913",
+      "amount": "1000000",
+      "feeCharged": "3010",
+      "totalDebit": "1003010",
+      "expiry": 1770000300,
+      "policyHash": "0x7f2c4ac68a2527a4e9b51629a0bfa47e5163c807f686ca7b3d3eab0f93f84235"
+    },
+    "fee": "3010",
+    "totalDebit": "1003010",
+    "expiry": 1770000300,
+    "feeBreakdown": {
+      "base": "10",
+      "bps": 30,
+      "variable": "3000",
+      "gasSurcharge": "0"
+    }
+  },
+  "channelState": {
+    "channelId": "0x7a0de7b4f53d675f6fc0f21a32c6b957f8e477e2acbe92d2ab36ef0f7d5e57a0",
+    "stateNonce": 42,
+    "balA": "998996990",
+    "balB": "1003010",
+    "locksRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "stateExpiry": 1770000320,
+    "contextHash": "0x5f4cf45e4c1533216f69fcf4f6864db7a0b1f14f9788c61f2604961e59fb745f"
+  },
+  "ticket": {
+    "ticketId": "tkt_01JXYZPB3X88P9GMY9GG8J7JQ3",
+    "hub": "0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+    "payee": "0x8ba1f109551bD432803012645Ac136ddd64DBA72",
+    "invoiceId": "inv_01JXYZP2F8NT4M44RRFV78MNVW",
+    "paymentId": "pay_01JXYZP5A3GQ3T6WXPXJQW3HSA",
+    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bDa02913",
+    "amount": "1000000",
+    "feeCharged": "3010",
+    "totalDebit": "1003010",
+    "expiry": 1770000300,
+    "policyHash": "0x7f2c4ac68a2527a4e9b51629a0bfa47e5163c807f686ca7b3d3eab0f93f84235",
+    "sig": "0x1234"
+  },
+  "paymentPayloadForPayeeOrPeerEndpoint": {
+    "scheme": "statechannel-hub-v1",
+    "paymentId": "pay_01JXYZP5A3GQ3T6WXPXJQW3HSA",
+    "invoiceId": "inv_01JXYZP2F8NT4M44RRFV78MNVW",
+    "ticket": {
+      "ticketId": "tkt_01JXYZPB3X88P9GMY9GG8J7JQ3",
+      "hub": "0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "payee": "0x8ba1f109551bD432803012645Ac136ddd64DBA72",
+      "invoiceId": "inv_01JXYZP2F8NT4M44RRFV78MNVW",
+      "paymentId": "pay_01JXYZP5A3GQ3T6WXPXJQW3HSA",
+      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bDa02913",
+      "amount": "1000000",
+      "feeCharged": "3010",
+      "totalDebit": "1003010",
+      "expiry": 1770000300,
+      "policyHash": "0x7f2c4ac68a2527a4e9b51629a0bfa47e5163c807f686ca7b3d3eab0f93f84235",
+      "sig": "0x1234"
+    },
+    "channelProof": {
+      "channelId": "0x7a0de7b4f53d675f6fc0f21a32c6b957f8e477e2acbe92d2ab36ef0f7d5e57a0",
+      "stateNonce": 42,
+      "stateHash": "0x7607fdbf1de8c64be0f1e13ef74872305ed66ea4702e8859fddad1a8e503f9d8",
+      "sigA": "0xabcd"
+    }
+  }
+}

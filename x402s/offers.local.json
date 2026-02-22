@@ -1,0 +1,21 @@
+{
+  "offers": [
+    {
+      "network": "sepolia",
+      "mode": "hub,direct",
+      "assets": [
+        "usdc"
+      ],
+      "prices": [
+        "0.5"
+      ],
+      "hubName": "pay.eth",
+      "hubEndpoint": "http://127.0.0.1:4021"
+    }
+  ],
+  "pathPrices": {
+    "/v1/data": {
+      "USDC": "0.5"
+    }
+  }
+}

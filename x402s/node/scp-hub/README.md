@@ -1,0 +1,73 @@
+# SCP Node Hub (Reference)
+
+Minimal Node.js reference service for `statechannel-hub-v1`.
+
+## Run
+
+```bash
+node node/scp-hub/server.js
+```
+
+Optional env vars:
+
+- `HOST` (default `127.0.0.1`)
+- `PORT` (default `4021`)
+- `HUB_NAME` (default `pay.eth`)
+- `NETWORK` (`sepolia|base|mainnet|eip155:<id>`, recommended over `CHAIN_ID`)
+- `CHAIN_ID` (default `11155111` when `NETWORK` is unset)
+- `HUB_PRIVATE_KEY` (required, no default)
+- `DEFAULT_ASSET` (default Base USDC)
+- `FEE_BASE` (default `10`)
+- `FEE_BPS` (default `30`)
+- `GAS_SURCHARGE` (default `0`)
+- `STORE_PATH` (default `node/scp-hub/data/store.json`)
+- `REDIS_URL` (optional; if set, hub storage uses Redis instead of `STORE_PATH`, requires `npm install redis`)
+- `HUB_ADMIN_TOKEN` (optional; required for `POST /v1/events/emit` when set)
+- `PAYEE_AUTH_MAX_SKEW_SEC` (default `300`, allowed timestamp skew for payee-signed admin routes)
+
+## Endpoints
+
+- `GET /.well-known/x402`
+- `POST /v1/tickets/quote`
+- `POST /v1/tickets/issue`
+- `POST /v1/refunds`
+- `GET /v1/payments/:paymentId`
+- `GET /v1/channels/:channelId`
+
+### Protected Routes
+
+- `POST /v1/hub/open-payee-channel`
+- `POST /v1/hub/register-payee-channel`
+- `POST /v1/payee/settle`
+
+These require payee-signed headers:
+
+- `x-scp-payee-signature`
+- `x-scp-payee-timestamp`
+
+Signature must recover to the `payee` address in request body and is bound to method + path + canonical JSON body.
+
+- When `HUB_ADMIN_TOKEN` is configured, admin routes require `Authorization: Bearer <HUB_ADMIN_TOKEN>` (or `x-scp-admin-token`):
+  - `POST /v1/events/emit`
+  - `GET /v1/events`
+  - `POST /v1/webhooks`
+  - `GET|PATCH|DELETE /v1/webhooks/:id`
+
+## No-Bind Self Test
+
+In environments that block socket binding (EPERM), run:
+
+```bash
+node node/scp-hub/http-selftest.js
+```
+
+## Notes
+
+- Persistent JSON store on disk (`STORE_PATH`) or shared Redis store (`REDIS_URL`).
+- Strict JSON Schema validation via Ajv using:
+  - `docs/schemas/scp.quote-request.v1.schema.json`
+  - `docs/schemas/scp.quote-response.v1.schema.json`
+  - `docs/schemas/scp.ticket.v1.schema.json`
+  - `docs/schemas/scp.channel-state.v1.schema.json`
+- Signature format is `eth_sign` over JSON digest for ticket draft.
+- Uses artifacts from `docs/openapi/pay-eth-scp-v1.yaml` and `docs/schemas/*`.

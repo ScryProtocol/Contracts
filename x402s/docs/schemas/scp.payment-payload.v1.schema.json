@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://x402.org/schemas/scp.payment-payload.v1.schema.json",
+  "title": "SCP Payment Retry Payload v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "scheme",
+    "paymentId",
+    "invoiceId",
+    "ticket",
+    "channelProof"
+  ],
+  "properties": {
+    "scheme": {
+      "type": "string",
+      "const": "statechannel-hub-v1"
+    },
+    "paymentId": { "type": "string", "minLength": 6, "maxLength": 128 },
+    "invoiceId": { "type": "string", "minLength": 6, "maxLength": 128 },
+    "ticket": {
+      "$ref": "scp.ticket.v1.schema.json"
+    },
+    "channelProof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["channelId", "stateNonce", "stateHash", "sigA"],
+      "properties": {
+        "channelId": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{64}$"
+        },
+        "stateNonce": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "stateHash": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{64}$"
+        },
+        "sigA": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{2,4096}$"
+        },
+        "channelState": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "channelId",
+            "stateNonce",
+            "balA",
+            "balB",
+            "locksRoot",
+            "stateExpiry",
+            "contextHash"
+          ],
+          "properties": {
+            "channelId": {
+              "type": "string",
+              "pattern": "^0x[a-fA-F0-9]{64}$"
+            },
+            "stateNonce": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615
+            },
+            "balA": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "balB": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "locksRoot": {
+              "type": "string",
+              "pattern": "^0x[a-fA-F0-9]{64}$"
+            },
+            "stateExpiry": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "contextHash": {
+              "type": "string",
+              "pattern": "^0x[a-fA-F0-9]{64}$"
+            }
+          }
+        }
+      }
+    }
+  }
+}

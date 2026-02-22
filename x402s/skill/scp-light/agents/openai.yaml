@@ -1,0 +1,4 @@
+interface:
+  display_name: "SCP Light"
+  short_description: "Auto-handle 402 payments via SCP hub channels"
+  default_prompt: "Use $scp-light to pay a 402 URL by checking/funding channels automatically."

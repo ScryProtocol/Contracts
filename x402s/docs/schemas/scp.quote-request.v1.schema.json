@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://x402.org/schemas/scp.quote-request.v1.schema.json",
+  "title": "SCP Quote Request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "invoiceId",
+    "paymentId",
+    "channelId",
+    "payee",
+    "asset",
+    "amount",
+    "maxFee",
+    "quoteExpiry"
+  ],
+  "properties": {
+    "invoiceId": { "type": "string", "minLength": 6, "maxLength": 128 },
+    "paymentId": { "type": "string", "minLength": 6, "maxLength": 128 },
+    "channelId": { "$ref": "#/$defs/hex32" },
+    "payee": { "$ref": "#/$defs/evmAddress" },
+    "asset": { "$ref": "#/$defs/evmAddress" },
+    "amount": { "$ref": "#/$defs/uintString" },
+    "maxFee": { "$ref": "#/$defs/uintString" },
+    "quoteExpiry": { "type": "integer", "minimum": 1 },
+    "contextHash": { "$ref": "#/$defs/hex32" },
+    "paymentMemo": { "type": "string", "maxLength": 280 }
+  },
+  "$defs": {
+    "evmAddress": {
+      "type": "string",
+      "pattern": "^0x[a-fA-F0-9]{40}$"
+    },
+    "hex32": {
+      "type": "string",
+      "pattern": "^0x[a-fA-F0-9]{64}$"
+    },
+    "uintString": {
+      "type": "string",
+      "pattern": "^[0-9]+$"
+    }
+  }
+}
