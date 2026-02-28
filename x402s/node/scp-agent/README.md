@@ -35,3 +35,13 @@ Contains:
 ```bash
 node node/scp-agent/demo-agent.js
 ```
+
+## Stream Client
+
+```bash
+npm run scp:agent:stream -- <url> --route hub
+```
+
+This keeps a live paid connection by repeating paid calls on cadence. For hub offers, cadence is read from:
+
+`accepts[].extensions["statechannel-hub-v1"].stream.t` (fallback `5s`).

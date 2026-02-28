@@ -4,6 +4,7 @@
       "network": "base",
       "asset": ["usdc", "eth"],
       "maxAmountRequired": ["0.50", "0.005"],
+      "stream": { "t": 5 },
       "mode": "hub",
       "hubName": "pay.eth",
       "hubEndpoint": "http://127.0.0.1:4021"
@@ -12,6 +13,7 @@
       "network": "eth",
       "asset": ["usdc", "eth"],
       "maxAmountRequired": ["0.50", "0.005"],
+      "stream": { "t": 5 },
       "mode": "hub,direct",
       "hubName": "pay.eth",
       "hubEndpoint": "http://127.0.0.1:4021"
@@ -22,9 +24,22 @@
       "usdc": "0.50",
       "eth": "0.005"
     },
+    "/meow": {
+      "usdc": "0.30",
+      "eth": "0.003"
+    },
     "/boop": {
       "usdc": "0.20",
       "eth": "0.002"
     }
+  },
+  "pathPaymentModes": {
+    "/weather": "per_request",
+    "/meow": "pay_once",
+    "/boop": "pay_once"
+  },
+  "pathPayOnceTtls": {
+    "/meow": 86400,
+    "/boop": 3600
   }
 }

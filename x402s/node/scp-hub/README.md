@@ -22,8 +22,10 @@ Optional env vars:
 - `GAS_SURCHARGE` (default `0`)
 - `STORE_PATH` (default `node/scp-hub/data/store.json`)
 - `REDIS_URL` (optional; if set, hub storage uses Redis instead of `STORE_PATH`, requires `npm install redis`)
+- `ALLOW_UNSAFE_PROD_STORAGE` (default unset; set `1` to allow non-Redis storage when `NODE_ENV=production`)
 - `HUB_ADMIN_TOKEN` (optional; required for `POST /v1/events/emit` when set)
 - `PAYEE_AUTH_MAX_SKEW_SEC` (default `300`, allowed timestamp skew for payee-signed admin routes)
+- `SETTLEMENT_MODE` (default `cooperative_close`; one of `cooperative_close|direct`)
 
 ## Endpoints
 
@@ -47,6 +49,30 @@ These require payee-signed headers:
 
 Signature must recover to the `payee` address in request body and is bound to method + path + canonical JSON body.
 
+`POST /v1/payee/settle` supports two settlement modes:
+
+- `cooperative_close` (default): closes hub↔payee channel on-chain with `cooperativeClose`
+- `direct`: sends ETH/ERC20 directly from hub wallet to payee
+
+For `cooperative_close`, include `sigB` in request body:
+
+- Body: `{ "payee":"0x...", "asset":"0x...", "sigB":"0x...", "mode":"cooperative_close" }`
+- `sigB` must be payee signature over the latest `GET /v1/payee/channel-state` `latestState`.
+- Hub validates `sigB` signer and requires channel `balB == unsettled ledger amount` to avoid over/under payout.
+
+`POST /v1/payee/settle` also supports idempotency keys to prevent duplicate payouts on retries:
+
+- Header: `Idempotency-Key: <key>`
+- Body: `{ "idempotencyKey": "<key>" }`
+- Key format: `[A-Za-z0-9:_-]{6,128}`
+
+When an idempotency key is reused for the same `(payee, asset, mode)` scope:
+
+- completed settlement returns the original settlement response (`idempotentReplay: true`)
+- pending or failed settlement returns `409`
+
+Settlement transactions wait for 1 confirmation and require successful receipt status.
+
 - When `HUB_ADMIN_TOKEN` is configured, admin routes require `Authorization: Bearer <HUB_ADMIN_TOKEN>` (or `x-scp-admin-token`):
   - `POST /v1/events/emit`
   - `GET /v1/events`
@@ -64,6 +90,7 @@ node node/scp-hub/http-selftest.js
 ## Notes
 
 - Persistent JSON store on disk (`STORE_PATH`) or shared Redis store (`REDIS_URL`).
+- In production (`NODE_ENV=production`), hub requires `REDIS_URL` by default. Override only with `ALLOW_UNSAFE_PROD_STORAGE=1`.
 - Strict JSON Schema validation via Ajv using:
   - `docs/schemas/scp.quote-request.v1.schema.json`
   - `docs/schemas/scp.quote-response.v1.schema.json`

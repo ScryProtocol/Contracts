@@ -116,8 +116,18 @@ async function signChannelState(state, signer, opts = {}) {
     const sig = signingKey.signDigest(digest);
     return ethers.utils.joinSignature(sig);
   }
-  // Fallback for non-Wallet signers
-  return signer.signMessage(ethers.utils.arrayify(digest));
+  // Fallback for RPC/remote signers: use eth_sign which signs the raw digest
+  // without adding the personal_sign prefix. signMessage() would add
+  // "\x19Ethereum Signed Message:\n32" which breaks EIP-712 verification.
+  if (signer.provider && signer.provider.send) {
+    const address = await signer.getAddress();
+    const rawSig = await signer.provider.send("eth_sign", [address, digest]);
+    return rawSig;
+  }
+  throw new Error(
+    "signChannelState: signer has no _signingKey() and no RPC provider. " +
+    "Cannot produce valid EIP-712 signatures with signMessage (personal_sign prefix mismatch)."
+  );
 }
 
 function recoverChannelStateSigner(state, signature, opts = {}) {

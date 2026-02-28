@@ -66,4 +66,5 @@ Optional:
 - Use `--topup-payments` to control channel buffer size.
 - In interactive TTY sessions, the script asks at startup how many payments top-up should cover (unless `--topup-payments` is set).
 - Use `--rpc-url` or `--rpc-urls` to force preferred RPCs.
+- If the payee is configured with `PAYMENT_MODE=pay_once`, this script still performs the first paid call; follow-up calls can reuse payee-issued access grant (`x-scp-access-token` or `scp_access` cookie).
 - Read `references/env-and-flags.md` for full flag/env details and troubleshooting.

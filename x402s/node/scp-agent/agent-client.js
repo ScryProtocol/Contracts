@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { ethers } = require("ethers");
-const { hashChannelState, signChannelState } = require("../scp-hub/state-signing");
+const { hashChannelState, signChannelState, recoverChannelStateSigner } = require("../scp-hub/state-signing");
 const { HttpJsonClient } = require("../scp-common/http-client");
 const { resolveAsset, resolveNetwork, resolveHubEndpointForNetwork, toCaip2, ASSETS } = require("../scp-common/networks");
 
@@ -18,13 +18,16 @@ const RPC_PRESETS = {
 };
 
 const CHANNEL_ABI = [
-  "function openChannel(address participantB, address asset, uint256 amount, uint64 challengePeriodSec, uint64 channelExpiry, bytes32 salt) external payable returns (bytes32 channelId)",
+  "function openChannel(address participantB, address asset, uint256 amount, uint64 challengePeriodSec, uint64 channelExpiry, bytes32 salt, uint8 hubFlags) external payable returns (bytes32 channelId)",
   "function deposit(bytes32 channelId, uint256 amount) external payable",
   "function cooperativeClose(tuple(bytes32 channelId, uint256 stateNonce, uint256 balA, uint256 balB, bytes32 locksRoot, uint256 stateExpiry, bytes32 contextHash) st, bytes sigA, bytes sigB) external",
   "function startClose(tuple(bytes32 channelId, uint256 stateNonce, uint256 balA, uint256 balB, bytes32 locksRoot, uint256 stateExpiry, bytes32 contextHash) st, bytes sigFromCounterparty) external",
-  "function getChannel(bytes32 channelId) external view returns (tuple(address participantA, address participantB, address asset, uint64 challengePeriodSec, uint64 channelExpiry, uint256 totalBalance, bool isClosing, uint64 closeDeadline, uint64 latestNonce))",
+  "function rebalance(tuple(bytes32 channelId, uint256 stateNonce, uint256 balA, uint256 balB, bytes32 locksRoot, uint256 stateExpiry, bytes32 contextHash) state, bytes32 toChannelId, uint256 amount, bytes sigCounterparty) external",
+  "function balance(bytes32 channelId) external view returns (tuple(uint256 totalBalance, uint256 balA, uint256 balB, uint64 latestNonce, bool isClosing))",
+  "function getChannel(bytes32 channelId) external view returns (tuple(address participantA, address participantB, address asset, uint64 challengePeriodSec, uint64 channelExpiry, uint256 totalBalance, bool isClosing, uint64 closeDeadline, uint64 latestNonce, uint8 hubFlags))",
   "event ChannelOpened(bytes32 indexed channelId, address indexed participantA, address indexed participantB, address asset, uint64 challengePeriodSec, uint64 channelExpiry)",
   "event Deposited(bytes32 indexed channelId, address indexed sender, uint256 amount, uint256 newTotalBalance)",
+  "event Rebalanced(bytes32 indexed fromChannelId, bytes32 indexed toChannelId, uint256 amount, uint256 fromNewTotal, uint256 toNewTotal)",
   "event ChannelClosed(bytes32 indexed channelId, uint256 stateNonce, uint256 payoutA, uint256 payoutB)"
 ];
 
@@ -187,6 +190,15 @@ function capKeysForOffer(offer) {
   return [...new Set(out)];
 }
 
+function offerDebitAmount(offer) {
+  const fallback = String((offer || {}).maxAmountRequired || "0");
+  if (!offer || offer.scheme !== "statechannel-hub-v1") return fallback;
+  const ext = ((offer.extensions || {})["statechannel-hub-v1"] || {});
+  const raw = String(((ext.stream || {}).amount ?? "") || "").trim();
+  if (/^[0-9]+$/.test(raw)) return raw;
+  return fallback;
+}
+
 function resolveOfferCap({ explicit, offer, byAsset, fallback }) {
   if (explicit !== undefined && explicit !== null && String(explicit).trim() !== "") {
     return String(explicit).trim();
@@ -267,7 +279,16 @@ class ScpAgentClient {
       ...envCapMap("MAX_AMOUNT"),
       ...normalizeCapMap(options.maxAmountByAsset, "maxAmountByAsset")
     };
-    this.devMode = options.devMode !== undefined ? options.devMode : !options.privateKey;
+    // SECURITY: devMode must be explicitly enabled. Previously it was implicitly
+    // enabled when no privateKey was provided, which could silently create virtual
+    // channels with fabricated balances — creating real hub liability (see audit Finding #1).
+    this.devMode = options.devMode === true || process.env.DEV_MODE === "1";
+    if (this.devMode && options.privateKey) {
+      console.warn("[agent] WARNING: devMode is enabled WITH a real private key. Virtual channels may be created.");
+    }
+    if (!options.privateKey && !this.devMode) {
+      console.warn("[agent] No privateKey provided and devMode is off. Set DEV_MODE=1 to use virtual channels.");
+    }
     this.persistEnabled = options.persistEnabled !== false;
     this.http = new HttpJsonClient({
       timeoutMs: options.timeoutMs || 8000,
@@ -378,19 +399,33 @@ class ScpAgentClient {
       );
     }
 
-    ch.nonce += 1;
-    ch.balA = (balA - debit).toString();
-    ch.balB = (balB + debit).toString();
-    this.persist();
+    const nextNonce = Number(ch.nonce) + 1;
+    const nextBalA = (balA - debit).toString();
+    const nextBalB = (balB + debit).toString();
     return {
       channelId: ch.channelId,
-      stateNonce: ch.nonce,
-      balA: ch.balA,
-      balB: ch.balB,
+      stateNonce: nextNonce,
+      balA: nextBalA,
+      balB: nextBalB,
       locksRoot: ZERO32,
       stateExpiry: now() + 120,
       contextHash
     };
+  }
+
+  commitChannelState(channelKey, state) {
+    const ch = this.channelForKey(channelKey);
+    if (!ch) throw new Error(`Channel ${channelKey} not found`);
+    if (String(ch.channelId).toLowerCase() !== String(state.channelId).toLowerCase()) {
+      throw new Error("channel state channelId mismatch");
+    }
+    const expectedNonce = Number(ch.nonce) + 1;
+    if (Number(state.stateNonce) !== expectedNonce) {
+      throw new Error(`channel nonce mismatch (expected ${expectedNonce}, got ${state.stateNonce})`);
+    }
+    ch.nonce = Number(state.stateNonce);
+    ch.balA = String(state.balA);
+    ch.balB = String(state.balB);
   }
 
   async discoverOffers(resourceUrl) {
@@ -448,7 +483,7 @@ class ScpAgentClient {
   }
 
   computeHubFundingPlan(offer, options = {}, hubInfo = null) {
-    const amount = BigInt(offer.maxAmountRequired || "0");
+    const amount = BigInt(offerDebitAmount(offer));
     const fee = hubInfo ? this.computeFee(amount, hubInfo.feePolicy) : 0n;
     const perPaymentDebit = amount + fee;
 
@@ -625,7 +660,7 @@ class ScpAgentClient {
     const directs = filtered.filter((o) => o.scheme === "statechannel-direct-v1");
 
     const offerAmount = (o) => {
-      try { return BigInt(o.maxAmountRequired || "0"); } catch (_e) { return 0n; }
+      try { return BigInt(offerDebitAmount(o)); } catch (_e) { return 0n; }
     };
 
     const rankHub = (o) => {
@@ -699,7 +734,17 @@ class ScpAgentClient {
 
   ensureHubChannel(hubEndpoint, amount) {
     const ch = this.channelForHub(hubEndpoint);
-    if (ch) return ch;
+    if (ch) {
+      // SECURITY: refuse to pay via hub with a virtual channel — the hub will
+      // reject it anyway after Finding #1 fix, but fail early with a clear error.
+      if (ch.virtual) {
+        throw new Error(
+          "Cannot pay via hub with a virtual channel (devMode). " +
+          "Open a real on-chain channel first: npm run scp:channel:open -- <hubAddress> <deposit>"
+        );
+      }
+      return ch;
+    }
     return this.queryHubInfo(hubEndpoint).catch(() => null).then((hubInfo) => {
       if (hubInfo) throw new Error(this.formatSetupHint(hubInfo, amount));
       throw new Error(`No channel open with hub at ${hubEndpoint}. Open one with: npm run scp:channel:open -- <hubAddress> <deposit>`);
@@ -712,7 +757,8 @@ class ScpAgentClient {
       throw new Error(`quote failed: ${quote.statusCode} ${JSON.stringify(quote.body)}`);
     }
 
-    const state = this.nextChannelState(`hub:${hubEndpoint}`, quote.body.totalDebit, contextHash);
+    const channelKey = `hub:${hubEndpoint}`;
+    const state = this.nextChannelState(channelKey, quote.body.totalDebit, contextHash);
     const sigA = await signChannelState(state, this.wallet);
     const issueReq = { quote: quote.body, channelState: state, sigA };
     const issued = await this.http.request("POST", `${hubEndpoint}/v1/tickets/issue`, issueReq);
@@ -723,10 +769,39 @@ class ScpAgentClient {
     const issuedTicket = { ...issued.body };
     const channelAck = issuedTicket.channelAck || {};
     delete issuedTicket.channelAck;
+    if (!channelAck || !channelAck.sigB) {
+      throw new Error("issue failed: missing channelAck.sigB");
+    }
+    if (Number(channelAck.stateNonce) !== Number(state.stateNonce)) {
+      throw new Error(
+        `issue failed: channelAck nonce mismatch (${channelAck.stateNonce} != ${state.stateNonce})`
+      );
+    }
+    const localStateHash = hashChannelState(state);
+    if (String(channelAck.stateHash || "").toLowerCase() !== localStateHash.toLowerCase()) {
+      throw new Error("issue failed: channelAck stateHash mismatch");
+    }
+    let recoveredHub;
+    try {
+      recoveredHub = recoverChannelStateSigner(state, channelAck.sigB);
+    } catch (_e) {
+      throw new Error("issue failed: invalid hub signature on channelAck");
+    }
+    const expectedHub = String(quote.body.ticketDraft?.hub || issuedTicket.hub || "").toLowerCase();
+    if (!expectedHub) {
+      throw new Error("issue failed: missing expected hub signer");
+    }
+    if (recoveredHub.toLowerCase() !== expectedHub) {
+      throw new Error(
+        `issue failed: channelAck signer mismatch (${recoveredHub} != ${expectedHub})`
+      );
+    }
+    this.commitChannelState(channelKey, state);
+    this.persist();
     return {
       quote: quote.body,
       state,
-      stateHash: hashChannelState(state),
+      stateHash: localStateHash,
       sigA,
       issuedTicket,
       channelAck
@@ -781,7 +856,7 @@ class ScpAgentClient {
     const paymentId = options.paymentId || randomId("pay");
     const { method, requestHeaders, requestBody } = this.resolveHttpCallOptions(options);
 
-    const amount = offer.maxAmountRequired;
+    const amount = offerDebitAmount(offer);
     const maxFee = resolveOfferCap({
       explicit: options.maxFee,
       offer,
@@ -867,7 +942,7 @@ class ScpAgentClient {
     const invoiceId = ext.invoiceId || randomId("inv");
     const paymentId = options.paymentId || randomId("pay");
     const { method, requestHeaders, requestBody } = this.resolveHttpCallOptions(options);
-    const amount = offer.maxAmountRequired;
+    const amount = offerDebitAmount(offer);
     this.enforceMaxAmount(amount, offer, options);
 
     const ch = this.channelForDirect(ext.payeeAddress, resourceUrl);
@@ -921,6 +996,7 @@ class ScpAgentClient {
       rejectionPrefix: "payee rejected direct payment"
     });
 
+    this.commitChannelState(`direct:${ext.payeeAddress.toLowerCase()}`, state);
     this.persistDirectPayment(paymentId, {
       resourceUrl: targetUrl,
       invoiceId,
@@ -1212,6 +1288,7 @@ class ScpAgentClient {
         paymentPayload,
         rejectionPrefix: "direct payment failed"
       });
+      this.commitChannelState(ch.key, state);
       this.persistDirectPayment(paymentId, { payee: payeeAddress, amount });
       return { route: "direct", payee: payeeAddress, amount, response };
     }

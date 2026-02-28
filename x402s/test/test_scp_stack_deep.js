@@ -95,11 +95,15 @@ describe("SCP Deep Stack", function () {
     const quote = await reqJson("POST", `${HUB_URL}/v1/tickets/quote`, quoteReq);
     expect(quote.statusCode).to.eq(200);
 
+    const startingTotal = 1000000000n;
+    const totalDebit = BigInt(quote.body.totalDebit);
+    expect(totalDebit > 0n).to.eq(true);
+    expect(totalDebit < startingTotal).to.eq(true);
     const state = {
       channelId: quoteReq.channelId,
       stateNonce: 1,
-      balA: "999000000",
-      balB: "1000",
+      balA: (startingTotal - totalDebit).toString(),
+      balB: totalDebit.toString(),
       locksRoot: "0x0000000000000000000000000000000000000000000000000000000000000000",
       stateExpiry: Math.floor(Date.now() / 1000) + 120,
       contextHash: "0x5f4cf45e4c1533216f69fcf4f6864db7a0b1f14f9788c61f2604961e59fb745f"
@@ -190,6 +194,159 @@ describe("SCP Deep Stack", function () {
     const result = await agent.payResource(PAYEE_URL);
     expect(result.response.ok).to.eq(true);
     expect(result.response.receipt).to.have.property("paymentId");
+  });
+
+  it("hub API returns CORS headers for preflight, success, and error responses", async function () {
+    const origin = "http://example.local";
+    const preflight = await reqJson("OPTIONS", `${HUB_URL}/v1/tickets/quote`, null, {
+      origin,
+      "access-control-request-method": "POST",
+      "access-control-request-headers": "content-type,payment-signature,x-scp-payee-signature"
+    });
+    expect(preflight.statusCode).to.eq(204);
+    expect(preflight.headers["access-control-allow-origin"]).to.eq("*");
+    expect(String(preflight.headers["access-control-allow-methods"] || "")).to.include("OPTIONS");
+    expect(String(preflight.headers["access-control-allow-headers"] || "").toLowerCase()).to.include("payment-signature");
+    expect(String(preflight.headers["access-control-expose-headers"] || "").toLowerCase()).to.include("retry-after");
+
+    const okRes = await reqJson("GET", `${HUB_URL}/.well-known/x402`, null, { origin });
+    expect(okRes.statusCode).to.eq(200);
+    expect(okRes.headers["access-control-allow-origin"]).to.eq("*");
+    expect(String(okRes.headers["access-control-allow-methods"] || "")).to.include("GET");
+
+    const errRes = await reqJson("POST", `${HUB_URL}/v1/tickets/quote`, {}, { origin });
+    expect(errRes.statusCode).to.eq(400);
+    expect(errRes.headers["access-control-allow-origin"]).to.eq("*");
+    expect(String(errRes.headers["access-control-allow-headers"] || "").toLowerCase()).to.include("content-type");
+  });
+
+  it("agent keeps local hub state unchanged if ticket issue fails", async function () {
+    const isolatedStateDir = path.resolve(
+      __dirname,
+      `../node/scp-agent/state/deep-test-issue-fail-${Date.now()}-${Math.random().toString(16).slice(2)}`
+    );
+    fs.mkdirSync(isolatedStateDir, { recursive: true });
+    const agent = new ScpAgentClient({
+      privateKey: ethers.Wallet.createRandom().privateKey,
+      devMode: true,
+      stateDir: isolatedStateDir,
+      networkAllowlist: ["eip155:8453"],
+      maxFeeDefault: "5000",
+      maxAmountDefault: "5000000"
+    });
+    try {
+      const first = await reqJson("GET", PAYEE_URL);
+      expect(first.statusCode).to.eq(402);
+      const offer = first.body.accepts.find((o) => o.scheme === "statechannel-hub-v1");
+      const ext = offer.extensions["statechannel-hub-v1"];
+
+      const channel = agent.channelForHub(HUB_URL);
+      const before = { nonce: channel.nonce, balA: channel.balA, balB: channel.balB };
+      const contextHash = "0x5f4cf45e4c1533216f69fcf4f6864db7a0b1f14f9788c61f2604961e59fb745f";
+      const quoteReq = {
+        invoiceId: ext.invoiceId,
+        paymentId: `pay_issue_fail_${Date.now()}`,
+        // Intentionally mismatch quote channelId with local channel to force /issue rejection.
+        channelId: ethers.utils.hexlify(crypto.randomBytes(32)),
+        payee: ext.payeeAddress,
+        asset: offer.asset,
+        amount: offer.maxAmountRequired,
+        maxFee: "5000",
+        quoteExpiry: Math.floor(Date.now() / 1000) + 120,
+        contextHash
+      };
+
+      let failed = false;
+      try {
+        await agent.quoteAndIssueHubTicket(HUB_URL, contextHash, quoteReq);
+      } catch (err) {
+        failed = true;
+        expect(String(err.message || err)).to.contain("issue failed");
+      }
+      expect(failed).to.eq(true);
+
+      const after = agent.channelForHub(HUB_URL);
+      expect(after.nonce).to.eq(before.nonce);
+      expect(after.balA).to.eq(before.balA);
+      expect(after.balB).to.eq(before.balB);
+    } finally {
+      agent.close();
+      fs.rmSync(isolatedStateDir, { recursive: true, force: true });
+    }
+  });
+
+  it("agent rejects hub issue ack signed by wrong key", async function () {
+    const isolatedStateDir = path.resolve(
+      __dirname,
+      `../node/scp-agent/state/deep-test-bad-sigb-${Date.now()}-${Math.random().toString(16).slice(2)}`
+    );
+    fs.mkdirSync(isolatedStateDir, { recursive: true });
+    const agent = new ScpAgentClient({
+      privateKey: ethers.Wallet.createRandom().privateKey,
+      devMode: true,
+      stateDir: isolatedStateDir,
+      networkAllowlist: ["eip155:8453"],
+      maxFeeDefault: "5000",
+      maxAmountDefault: "5000000"
+    });
+    try {
+      const first = await reqJson("GET", PAYEE_URL);
+      expect(first.statusCode).to.eq(402);
+      const offer = first.body.accepts.find((o) => o.scheme === "statechannel-hub-v1");
+      const ext = offer.extensions["statechannel-hub-v1"];
+
+      const channel = agent.channelForHub(HUB_URL);
+      const before = { nonce: channel.nonce, balA: channel.balA, balB: channel.balB };
+      const contextHash = "0x5f4cf45e4c1533216f69fcf4f6864db7a0b1f14f9788c61f2604961e59fb745f";
+      const quoteReq = {
+        invoiceId: ext.invoiceId,
+        paymentId: `pay_bad_sigb_${Date.now()}`,
+        channelId: channel.channelId,
+        payee: ext.payeeAddress,
+        asset: offer.asset,
+        amount: offer.maxAmountRequired,
+        maxFee: "5000",
+        quoteExpiry: Math.floor(Date.now() / 1000) + 120,
+        contextHash
+      };
+
+      const badHubWallet = ethers.Wallet.createRandom();
+      const originalRequest = agent.http.request.bind(agent.http);
+      agent.http.request = async (method, endpoint, body, headers) => {
+        const res = await originalRequest(method, endpoint, body, headers);
+        if (method === "POST" && endpoint === `${HUB_URL}/v1/tickets/issue` && res.statusCode === 200) {
+          const forgedSigB = await signChannelState(body.channelState, badHubWallet);
+          return {
+            ...res,
+            body: {
+              ...res.body,
+              channelAck: {
+                ...(res.body.channelAck || {}),
+                sigB: forgedSigB
+              }
+            }
+          };
+        }
+        return res;
+      };
+
+      let failed = false;
+      try {
+        await agent.quoteAndIssueHubTicket(HUB_URL, contextHash, quoteReq);
+      } catch (err) {
+        failed = true;
+        expect(String(err.message || err)).to.contain("channelAck signer mismatch");
+      }
+      expect(failed).to.eq(true);
+
+      const after = agent.channelForHub(HUB_URL);
+      expect(after.nonce).to.eq(before.nonce);
+      expect(after.balA).to.eq(before.balA);
+      expect(after.balB).to.eq(before.balB);
+    } finally {
+      agent.close();
+      fs.rmSync(isolatedStateDir, { recursive: true, force: true });
+    }
   });
 
   it("enforces maxFee policy at agent", async function () {
@@ -740,6 +897,7 @@ describe("SCP Deep Stack", function () {
     // C4: refund now requires a real issued ticket — create one first
     const bundle = await makeValidPaymentBundle(`pay_refund_${Date.now()}`);
     const ticketId = bundle.issue.ticketId;
+    const totalDebit = BigInt(bundle.quote.totalDebit);
     const refund = await reqJson("POST", `${HUB_URL}/v1/refunds`, {
       ticketId,
       refundAmount: bundle.quote.ticketDraft.amount,
@@ -747,6 +905,21 @@ describe("SCP Deep Stack", function () {
     });
     expect(refund.statusCode).to.eq(200);
     expect(refund.body.amount).to.eq(bundle.quote.ticketDraft.amount);
+    expect(refund.body.refundedTotalDebit).to.eq(bundle.quote.totalDebit);
+    expect(refund.body.channelState).to.be.an("object");
+    expect(refund.body.channelAck).to.be.an("object");
+
+    const hubInfo = await reqJson("GET", `${HUB_URL}/.well-known/x402`);
+    expect(hubInfo.statusCode).to.eq(200);
+    const refundSigner = recoverChannelStateSigner(refund.body.channelState, refund.body.channelAck.sigB);
+    expect(refundSigner.toLowerCase()).to.eq(hubInfo.body.address.toLowerCase());
+    expect(refund.body.channelAck.stateHash).to.eq(hashChannelState(refund.body.channelState));
+
+    const ch = await reqJson("GET", `${HUB_URL}/v1/channels/${encodeURIComponent(bundle.state.channelId)}`);
+    expect(ch.statusCode).to.eq(200);
+    expect(Number(ch.body.latestNonce)).to.eq(Number(bundle.state.stateNonce) + 1);
+    expect(ch.body.latestState.balA).to.eq((BigInt(bundle.state.balA) + totalDebit).toString());
+    expect(ch.body.latestState.balB).to.eq((BigInt(bundle.state.balB) - totalDebit).toString());
 
     const events = await reqJson("GET", `${HUB_URL}/v1/events?since=0&limit=100`);
     expect(events.statusCode).to.eq(200);

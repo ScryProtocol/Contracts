@@ -219,6 +219,15 @@ async function handleDash(_req, res) {
 }
 
 const server = http.createServer((req, res) => {
+  if (req.method === "OPTIONS") {
+    res.writeHead(204, {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Max-Age": "86400"
+    });
+    return res.end();
+  }
   const handler = req.url === "/api" ? handleApi : handleDash;
   handler(req, res).catch((err) => {
     res.writeHead(500, { "Content-Type": "text/plain" });

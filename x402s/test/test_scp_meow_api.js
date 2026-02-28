@@ -138,4 +138,68 @@ describe("SCP Meow API", function () {
     expect(paid.body.meow).to.eq("meow");
     expect(paid.body.receipt.paymentId).to.eq(paymentId);
   });
+
+  it("supports pay_once mode using access token after initial payment", async function () {
+    const PAY_ONCE_PORT = 4192;
+    process.env.PORT = String(PAY_ONCE_PORT);
+    process.env.MEOW_PAYMENT_MODE = "pay_once";
+
+    delete require.cache[require.resolve("../node/meow-api/server")];
+    const { createMeowServer: createPayOnceServer } = require("../node/meow-api/server");
+    const payOnceServer = createPayOnceServer();
+    await new Promise((resolve) => payOnceServer.listen(PAY_ONCE_PORT, API_HOST, resolve));
+
+    try {
+      const first = await reqJson("GET", `http://${API_HOST}:${PAY_ONCE_PORT}/meow`);
+      expect(first.statusCode).to.eq(402);
+
+      const offer = first.body.accepts[0];
+      const invoiceId = offer.extensions["statechannel-hub-v1"].invoiceId;
+      const paymentId = `pay_${Date.now()}`;
+      const amount = offer.maxAmountRequired;
+
+      const draft = {
+        ticketId: `tkt_${Date.now()}`,
+        hub: hubWallet.address,
+        payee: payeeWallet.address,
+        invoiceId,
+        paymentId,
+        asset: ethers.constants.AddressZero,
+        amount,
+        feeCharged: "10",
+        totalDebit: (BigInt(amount) + 10n).toString(),
+        expiry: Math.floor(Date.now() / 1000) + 120,
+        policyHash: ethers.utils.hexlify(ethers.utils.randomBytes(32))
+      };
+      const sig = await signTicketDraft(draft, hubWallet);
+      const paymentHeader = {
+        scheme: "statechannel-hub-v1",
+        invoiceId,
+        paymentId,
+        ticket: { ...draft, sig }
+      };
+
+      const paid = await reqJson("GET", `http://${API_HOST}:${PAY_ONCE_PORT}/meow`, {
+        "payment-signature": JSON.stringify(paymentHeader)
+      });
+      expect(paid.statusCode).to.eq(200);
+      expect(paid.body.ok).to.eq(true);
+      expect(paid.body.access.mode).to.eq("pay_once");
+      expect(paid.body.access.token).to.be.a("string");
+
+      const unlocked = await reqJson("GET", `http://${API_HOST}:${PAY_ONCE_PORT}/meow`, {
+        "x-scp-access-token": paid.body.access.token
+      });
+      expect(unlocked.statusCode).to.eq(200);
+      expect(unlocked.body.ok).to.eq(true);
+      expect(unlocked.body.meow).to.eq("meow");
+      expect(unlocked.body.access.mode).to.eq("pay_once");
+    } finally {
+      await new Promise((resolve) => payOnceServer.close(resolve));
+      delete process.env.MEOW_PAYMENT_MODE;
+      process.env.PORT = String(API_PORT);
+      delete require.cache[require.resolve("../node/meow-api/server")];
+      ({ createMeowServer } = require("../node/meow-api/server"));
+    }
+  });
 });

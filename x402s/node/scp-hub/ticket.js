@@ -62,6 +62,13 @@ function verifyPayment(header, expect) {
   if (expect.amount && payload.ticket.amount !== expect.amount) return { ok: false, error: "wrong amount", signer };
   if (payload.ticket.expiry && payload.ticket.expiry < nowSec()) return { ok: false, error: "expired", signer };
 
+  // SECURITY: ensure wrapper paymentId matches signed ticket paymentId
+  // Without this, a client could tamper the wrapper paymentId to confuse replay caches.
+  if (payload.paymentId && payload.ticket.paymentId &&
+      payload.paymentId !== payload.ticket.paymentId) {
+    return { ok: false, error: "paymentId mismatch between wrapper and ticket", signer };
+  }
+
   // Channel proof verification
   const cp = payload.channelProof;
   if (cp) {
@@ -132,6 +139,56 @@ function verifyDirectPayment(header, expect, state) {
   }
 
   return { ok: true, paymentId: payload.paymentId, direct: dp };
+}
+
+/**
+ * Async wrapper for verifyDirectPayment that adds optional on-chain channel checks.
+ * Without on-chain verification, direct payments may be "uncollectible" — the signed
+ * state is valid cryptographically but the channel may not exist, may have wrong
+ * participants, or may have insufficient funded balance on-chain.
+ *
+ * @param {string} header - PAYMENT-SIGNATURE header value
+ * @param {object} expect - { payee, asset, amount }
+ * @param {Map} state - per-channel nonce/balance tracker
+ * @param {object} [opts] - { getChannel: async (channelId) => onChainData }
+ * @returns {Promise<object>} verification result
+ */
+async function verifyDirectPaymentAsync(header, expect, state, opts = {}) {
+  const result = verifyDirectPayment(header, expect, state);
+  if (!result.ok) return result;
+
+  // On-chain verification (recommended for production)
+  if (opts.getChannel && result.direct && result.direct.channelState) {
+    const channelId = result.direct.channelState.channelId;
+    try {
+      const ch = await opts.getChannel(channelId);
+      if (!ch || !ch.participantA || ch.participantA === "0x0000000000000000000000000000000000000000") {
+        return { ok: false, error: "channel does not exist on-chain" };
+      }
+      const pA = ch.participantA.toLowerCase();
+      const pB = ch.participantB.toLowerCase();
+      const payerAddr = result.direct.payer.toLowerCase();
+      const payeeAddr = result.direct.payee.toLowerCase();
+      if (pA !== payerAddr && pB !== payerAddr) {
+        return { ok: false, error: "payer is not a channel participant" };
+      }
+      if (pA !== payeeAddr && pB !== payeeAddr) {
+        return { ok: false, error: "payee is not a channel participant (uncollectible)" };
+      }
+      if (ch.isClosing) {
+        return { ok: false, error: "channel is closing" };
+      }
+      const onChainTotal = BigInt(ch.totalBalance.toString());
+      const stateTotal = BigInt(result.direct.channelState.balA) + BigInt(result.direct.channelState.balB);
+      if (stateTotal !== onChainTotal) {
+        return { ok: false, error: "state total != on-chain totalBalance" };
+      }
+    } catch (e) {
+      return { ok: false, error: "on-chain check failed: " + (e.message || "unknown") };
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -310,13 +367,26 @@ function createVerifier({
     // Fallback: single hub path (backward compat)
     const fallbackUrl = hubUrls[0];
     const fallbackAddr = hubMap.size === 1 ? [...hubMap.keys()][0] : null;
+
+    if (!fallbackUrl && !fallbackAddr && !hub) {
+      return { ok: false, error: "no hub verification source configured" };
+    }
+    if (!confirmHub && !fallbackAddr && !hub) {
+      return { ok: false, error: "hub signer unknown while confirmHub=false" };
+    }
+
     return verifyPaymentFull(header, {
       payee, hub: fallbackAddr, hubUrl: confirmHub ? fallbackUrl : null,
       httpClient, invoiceStore, seenPayments, directChannels
     });
   };
 
-  verify.close = () => httpClient.close();
+  verify.close = () => {
+    httpClient.close();
+    if (seenPayments && typeof seenPayments.close === "function") {
+      seenPayments.close();
+    }
+  };
   verify.seenPayments = seenPayments;
   verify.directChannels = directChannels;
   verify.hubMap = hubMap;
@@ -329,6 +399,7 @@ module.exports = {
   verifyTicket,
   verifyPayment,
   verifyDirectPayment,
+  verifyDirectPaymentAsync,
   verifyPaymentFull,
   verifyPaymentSimple,
   createVerifier

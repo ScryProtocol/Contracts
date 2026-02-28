@@ -115,6 +115,20 @@ function guessAssetSym(o) {
   for (const assets of Object.values(ASSETS)) for (const [s,addr] of Object.entries(assets)) if (addr.toLowerCase()===a) return s.toUpperCase();
   return "TOKEN";
 }
+function parseHubStream(offer) {
+  const hub = offer?.extensions?.["statechannel-hub-v1"];
+  const stream = hub && typeof hub.stream === "object" ? hub.stream : null;
+  const rawFallback = String(offer?.maxAmountRequired ?? "0").trim();
+  const fallbackAmount = /^[0-9]+$/.test(rawFallback) ? rawFallback : "0";
+  const rawAmount = String(stream?.amount ?? "").trim();
+  const amount = /^[0-9]+$/.test(rawAmount) ? rawAmount : fallbackAmount;
+  const rawT = Number(stream?.t);
+  const t = Number.isInteger(rawT) && rawT > 0 ? rawT : 5;
+  return { amount, t, declared: !!stream };
+}
+function offerDebitAmountRaw(offer) {
+  return parseHubStream(offer).amount;
+}
 function humanToRaw(human, dec) {
   const h = String(human).trim();
   if (!h) return "";
@@ -131,6 +145,69 @@ function withTimeout(promise, ms) {
     promise,
     new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`Timed out after ${ms}ms`)), ms); })
   ]).finally(() => clearTimeout(timer));
+}
+
+const MUSIC_EQUIV_HOSTS = new Set(["pogchamp.tv", "www.pogchamp.tv", "159.223.150.70"]);
+const MUSIC_CANONICAL_HTTPS_HOST = "pogchamp.tv";
+function makeMusicSessionId() {
+  return `sess_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+function normalizeMusicSessionId(value) {
+  const v = String(value || "").trim();
+  if (/^[a-zA-Z0-9_-]{6,120}$/.test(v)) return v;
+  return makeMusicSessionId();
+}
+function hostOnly(h) {
+  return String(h || "").trim().toLowerCase().split(":")[0];
+}
+function isEquivalentMusicHost(a, b) {
+  const aa = hostOnly(a);
+  const bb = hostOnly(b);
+  if (!aa || !bb) return false;
+  if (aa === bb) return true;
+  return MUSIC_EQUIV_HOSTS.has(aa) && MUSIC_EQUIV_HOSTS.has(bb);
+}
+function canonicalMusicHttpsHost(pageHost) {
+  const h = hostOnly(pageHost);
+  if (h === "159.223.150.70") return MUSIC_CANONICAL_HTTPS_HOST;
+  if (h === "www.pogchamp.tv") return MUSIC_CANONICAL_HTTPS_HOST;
+  return h || MUSIC_CANONICAL_HTTPS_HOST;
+}
+function canonicalizeMusicHttpsOrigin(origin) {
+  const raw = String(origin || "").trim();
+  if (!raw.startsWith("https://")) return raw;
+  let u;
+  try {
+    u = new URL(raw);
+  } catch (_e) {
+    return raw;
+  }
+  if (!isEquivalentMusicHost(u.host, MUSIC_CANONICAL_HTTPS_HOST)) return raw;
+  u.host = MUSIC_CANONICAL_HTTPS_HOST;
+  return u.origin;
+}
+function normalizeHubEndpointForPage(endpoint) {
+  const ep = normalizeEndpoint(endpoint || "");
+  if (!ep) return ep;
+  let u;
+  try {
+    u = new URL(ep);
+  } catch (_e) {
+    return ep;
+  }
+  if (typeof window === "undefined") return ep;
+  let page;
+  try {
+    page = new URL(window.location.href);
+  } catch (_e) {
+    return ep;
+  }
+  if (page.protocol === "https:" && u.protocol === "http:" && isEquivalentMusicHost(u.host, page.host)) {
+    u.protocol = "https:";
+    u.host = canonicalMusicHttpsHost(page.host);
+    return normalizeEndpoint(u.toString());
+  }
+  return ep;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -249,9 +326,12 @@ class SCPAgent {
     offers = offers.map(o => {
       const ext = o.extensions||{};
       const hub = ext["statechannel-hub-v1"], dir = ext["statechannel-direct-v1"];
+      const streamMeta = parseHubStream(o);
       return { ...o, scheme: hub?"statechannel-hub-v1":dir?"statechannel-direct-v1":o.scheme||"unknown",
-        hubEndpoint: normalizeEndpoint(hub?.hubEndpoint||null), payeeAddress: hub?.payeeAddress||dir?.payeeAddress||o.payeeAddress||null,
-        invoiceId: hub?.invoiceId||o.invoiceId||null };
+        hubEndpoint: normalizeHubEndpointForPage(hub?.hubEndpoint||null), payeeAddress: hub?.payeeAddress||dir?.payeeAddress||o.payeeAddress||null,
+        invoiceId: hub?.invoiceId||o.invoiceId||null,
+        streamAmount: hub ? streamMeta.amount : null,
+        streamT: hub ? streamMeta.t : null };
     });
     return { status: 402, offers, raw: body };
   }
@@ -265,14 +345,14 @@ class SCPAgent {
       if (isHub && o.hubEndpoint) {
         chKey = `hub:${normalizeEndpoint(o.hubEndpoint)}`;
         const ch = this.state.channels[chKey];
-        if (ch) { chBal = ch.balA||"0"; try { score = BigInt(chBal) >= BigInt(o.maxAmountRequired||"0") ? 2 : 1; } catch { score=1; } }
+        if (ch) { chBal = ch.balA||"0"; try { score = BigInt(chBal) >= BigInt(offerDebitAmountRaw(o)) ? 2 : 1; } catch { score=1; } }
       } else if (isDir && o.payeeAddress) {
         chKey = `direct:${o.payeeAddress.toLowerCase()}`;
         const ch = this.state.channels[chKey];
         if (ch) { chBal = ch.balA||"0"; try { score = BigInt(chBal) >= BigInt(o.maxAmountRequired||"0") ? 2 : 1; } catch { score=1; } }
       }
       return { idx, offer: o, matchNet, route: isHub?"hub":isDir?"direct":"?", score, chKey, chBal,
-        status: score===2?"ready":score===1?"underfunded":"no-channel", amount: o.maxAmountRequired||"0" };
+        status: score===2?"ready":score===1?"underfunded":"no-channel", amount: offerDebitAmountRaw(o) };
     });
   }
 
@@ -281,7 +361,7 @@ class SCPAgent {
     const filtered = offers.filter(o => { const oc = toCaip2(o.network); return !nc || !oc || oc === nc; });
     const hubs = filtered.filter(o => o.scheme === "statechannel-hub-v1");
     const dirs = filtered.filter(o => o.scheme === "statechannel-direct-v1");
-    const amt = o => { try { return BigInt(o.maxAmountRequired||"0"); } catch { return 0n; } };
+    const amt = o => { try { return BigInt(offerDebitAmountRaw(o)); } catch { return 0n; } };
     const rankHub = o => { const ep = normalizeEndpoint(o.hubEndpoint); if(!ep)return 0; const ch=this.state.channels[`hub:${ep}`]; if(!ch)return 0; try{return BigInt(ch.balA||"0")>=amt(o)?2:1;}catch{return 1;} };
     const rankDir = o => { const pa = o.payeeAddress; if(!pa)return 0; const ch=this.state.channels[`direct:${pa.toLowerCase()}`]; if(!ch)return 0; try{return BigInt(ch.balA||"0")>=amt(o)?2:1;}catch{return 1;} };
     const pick = (list, fn) => { if(!list.length)return null; const s=list.map((o,i)=>({o,i,r:fn(o),a:amt(o)})); s.sort((a,b)=>a.r!==b.r?b.r-a.r:a.a!==b.a?(a.a<b.a?-1:1):a.i-b.i); return s[0].o; };
@@ -410,7 +490,7 @@ class SCPAgent {
     const net = this.getNetInfo(), cid = net?.chainId||11155111;
     let hubInfo = null;
     if (ep) try { const r = await withTimeout(fetch(`${ep}/.well-known/x402`), 10000); if(r.ok) hubInfo = await r.json(); } catch {}
-    const amount = BigInt(offer.maxAmountRequired||"0");
+    const amount = BigInt(offerDebitAmountRaw(offer));
     const fp = hubInfo?.fee||hubInfo?.feePolicy;
     const fee = fp ? BigInt(fp.base||"0") + (amount*BigInt(fp.bps||"0")/10000n) + BigInt(fp.gasSurcharge||"0") : 0n;
     const topupRaw = Number(opts.topupPayments);
@@ -432,7 +512,7 @@ class SCPAgent {
       hasChannel: !!ch, chKey, channelId: ch?.channelId, hubEndpoint: ep,
       hubAddress: hubInfo?.address, hubName: hubInfo?.hubName||hubInfo?.name,
       feePolicy: fp,
-      offer: { network: offer.network, asset: offer.asset, sym: resolved.symbol, amount: amount.toString(), fee: fee.toString(), perPay: perPay.toString() },
+      offer: { network: offer.network, asset: offer.asset, sym: resolved.symbol, amount: amount.toString(), fee: fee.toString(), perPay: perPay.toString(), streamT: parseHubStream(offer).t },
       funding: { curBal: curBal.toString(), target: target.toString(), needed: needed.toString(), topup,
         lowWater: refillThreshold, refillAt: refillAt.toString(),
         needsOpen, needsFund, ready: !needsOpen && !needsFund },
@@ -571,6 +651,7 @@ class SCPAgent {
     }
     const payId = `pay_${Date.now().toString(36)}`;
     const invoiceId = offer.invoiceId || `inv_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}`;
+    const debitAmount = offerDebitAmountRaw(offer);
     const ctxHash = this.ethers.utils.keccak256(this.ethers.utils.defaultAbiCoder.encode(
       ["address","string","string","string"],
       [offer.payeeAddress||ZERO_ADDR, "GET", payId, invoiceId]
@@ -585,7 +666,7 @@ class SCPAgent {
         channelId: ch.channelId,
         payee: offer.payeeAddress,
         asset: offer.asset,
-        amount: offer.maxAmountRequired,
+        amount: debitAmount,
         maxFee: this.maxFee,
         quoteExpiry,
         contextHash: ctxHash
@@ -595,7 +676,7 @@ class SCPAgent {
       throw new Error(err.error || err.message || `Quote failed: ${qRes.status}`);
     }
     const quote = await qRes.json();
-    const totalDebit = quote.totalDebit || quote.ticketDraft?.totalDebit || quote.amount || offer.maxAmountRequired;
+    const totalDebit = quote.totalDebit || quote.ticketDraft?.totalDebit || quote.amount || debitAmount;
 
     // Build state
     let curA = BigInt(ch.balA||"0");
@@ -973,10 +1054,12 @@ function ChannelsTab({ agent, notify }) {
           const chs = data.channels || data;
           if (Array.isArray(chs) && chs.length) {
             const ch = chs[0];
+            const asset = ch.asset || ZERO_ADDR;
             imported = {
               channelId: ch.channelId,
               participantB: info.address,
-              asset: ch.asset || ZERO_ADDR,
+              asset,
+              assetSymbol: guessAssetSym({ asset }).toLowerCase(),
               nonce: ch.stateNonce || 0,
               balA: ch.balA || "0",
               balB: ch.balB || "0",
@@ -1050,10 +1133,23 @@ function ChannelsTab({ agent, notify }) {
       {channels.length === 0 && <Empty icon="⚡" text="No channels. Open one or import from hub." />}
       {channels.map(ch => (
         <div key={ch.key} style={S.card}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span style={{...S.mono,fontSize:11,maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ch.key}</span>
-            <span style={{fontWeight:700,color:"#10b981",fontSize:14}}>{ch.balA||"0"} <span style={{fontSize:10,color:"#71717a"}}>{ch.assetSymbol?.toUpperCase()||"?"}</span></span>
-          </div>
+          {(() => {
+            const sym = getChannelSym(ch);
+            const prettyBal = fmtToken(ch.balA || "0", sym);
+            return (
+              <>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span style={{...S.mono,fontSize:11,maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ch.key}</span>
+                  <span style={{fontWeight:700,color:"#10b981",fontSize:14}}>
+                    {prettyBal} <span style={{fontSize:10,color:"#71717a"}}>{sym.toUpperCase()}</span>
+                  </span>
+                </div>
+                <div style={{fontSize:10,color:"#6d7890",fontFamily:"monospace",marginTop:3}}>
+                  raw {ch.balA || "0"} wei
+                </div>
+              </>
+            );
+          })()}
           <div style={{fontSize:10,color:"#52525b",fontFamily:"monospace",marginTop:4}}>
             nonce {ch.nonce||0} · {ch.channelId ? shortHash(ch.channelId) : "—"}{ch.txHash ? ` · tx:${shortHash(ch.txHash)}` : ""}
           </div>
@@ -1243,12 +1339,13 @@ function DiscoverTab({ agent, notify }) {
           <div style={{fontSize:12,color:"#71717a",margin:"12px 0 6px"}}>
             {scored.length} offer{scored.length!==1?"s":""} · {scored.filter(s=>s.status==="ready").length} ready · {scored.filter(s=>s.route==="hub").length} hub · {scored.filter(s=>s.route==="direct").length} direct
           </div>
-          {scored.map(s => {
-            const o = s.offer;
-            const sym = guessAssetSym(o);
-            const isSel = s.idx === selIdx;
-            const isBest = s.idx === bestIdx;
-            return (
+	          {scored.map(s => {
+	            const o = s.offer;
+	            const sym = guessAssetSym(o);
+	            const stream = parseHubStream(o);
+	            const isSel = s.idx === selIdx;
+	            const isBest = s.idx === bestIdx;
+	            return (
               <div key={s.idx} onClick={()=>setSelIdx(s.idx)} style={{...S.card, cursor:"pointer",
                 borderColor: isSel ? "rgba(99,102,241,.5)" : "rgba(255,255,255,.04)",
                 background: isSel ? "rgba(99,102,241,.06)" : "rgba(255,255,255,.015)",
@@ -1260,11 +1357,16 @@ function DiscoverTab({ agent, notify }) {
                     <Badge color={s.status==="ready"?"#10b981":s.status==="underfunded"?"#f59e0b":"#ef4444"}>{s.status==="ready"?"Ready":s.status==="underfunded"?"Low":"No Ch"}</Badge>
                     {isBest && <Badge color="#eab308">★ Best</Badge>}
                   </div>
-                  <div style={{fontSize:18,fontWeight:700,letterSpacing:"-.03em"}}>{fmtToken(o.maxAmountRequired, sym)} <span style={{fontSize:11,color:"#71717a"}}>{sym}</span></div>
-                </div>
-                {s.score > 0 && <div style={{fontSize:10,color:"#52525b",fontFamily:"monospace",marginTop:4}}>Channel bal: {s.chBal}</div>}
-                {!s.matchNet && <div style={{fontSize:10,color:"#f59e0b",marginTop:3}}>⚠ Network mismatch</div>}
-              </div>
+	                  <div style={{fontSize:18,fontWeight:700,letterSpacing:"-.03em"}}>{fmtToken(s.amount, sym)} <span style={{fontSize:11,color:"#71717a"}}>{sym}</span></div>
+	                </div>
+	                {s.route === "hub" && (
+	                  <div style={{fontSize:10,color:"#52525b",marginTop:3}}>
+	                    stream: {fmtToken(stream.amount, sym)} every {stream.t}s
+	                  </div>
+	                )}
+	                {s.score > 0 && <div style={{fontSize:10,color:"#52525b",fontFamily:"monospace",marginTop:4}}>Channel bal: {s.chBal}</div>}
+	                {!s.matchNet && <div style={{fontSize:10,color:"#f59e0b",marginTop:3}}>⚠ Network mismatch</div>}
+	              </div>
             );
           })}
           <button style={{...S.btn,marginTop:8}} onClick={analyze} disabled={selIdx<0||!agent}>Analyze Selected Offer</button>
@@ -1283,14 +1385,372 @@ function PayTab({ agent, notify, setAgent }) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [result, setResult] = useState(null);
+  const [streamCfg, setStreamCfg] = useState(null);
+  const [streamOn, setStreamOn] = useState(false);
+  const [streamStats, setStreamStats] = useState({ ticks: 0, ok: 0, fail: 0, lastAt: 0 });
+  const [musicWsEnabled, setMusicWsEnabled] = useState(true);
+  const [musicSession, setMusicSession] = useState(`sess_${Date.now().toString(36)}`);
+  const [musicWsState, setMusicWsState] = useState("disconnected");
+  const [musicWsLastEvent, setMusicWsLastEvent] = useState("");
+  const [musicWsDebug, setMusicWsDebug] = useState("");
   const [, forceRender] = useState(0);
+  const streamTimerRef = useRef(null);
+  const streamTickBusyRef = useRef(false);
+  const streamUrlRef = useRef("");
+  const streamCtxRef = useRef({ mode: "generic", music: null, intervalSec: 5 });
+  const wsRef = useRef(null);
+  const wsWaitersRef = useRef([]);
+  const wsEventsRef = useRef([]);
+
+  const resolveMusicTarget = useCallback((targetUrl) => {
+    let u;
+    try {
+      u = new URL(targetUrl);
+    } catch (_e) {
+      return null;
+    }
+    const p = String(u.pathname || "");
+    const isMusic = p === "/music" || p === "/music/chunk" || p === "/v1/music/chunk";
+    if (!isMusic) return null;
+    const chunkPath = p === "/music" ? "/music/chunk" : p;
+    const cursorRaw = Number(u.searchParams.get("cursor") || "0");
+    const cursor = Number.isFinite(cursorRaw) && cursorRaw >= 0 ? Math.floor(cursorRaw) : 0;
+    const track = String(u.searchParams.get("track") || "neon-sky").trim() || "neon-sky";
+    const requestedSession = String(u.searchParams.get("session") || "").trim();
+    const sessionId = normalizeMusicSessionId(requestedSession || musicSession);
+    if (sessionId !== musicSession) setMusicSession(sessionId);
+    return {
+      origin: u.origin,
+      host: u.host,
+      chunkPath,
+      track,
+      cursor,
+      sessionId
+    };
+  }, [musicSession]);
+
+  const normalizeTargetUrl = useCallback((inputUrl) => {
+    let u;
+    try {
+      u = new URL(String(inputUrl || "").trim(), window.location.origin);
+    } catch (_e) {
+      throw new Error("Invalid URL");
+    }
+    const page = new URL(window.location.href);
+    const p = String(u.pathname || "");
+    const isMusic = p === "/music" || p === "/music/chunk" || p === "/v1/music/chunk";
+    let normalized = false;
+
+    if (page.protocol === "https:" && u.protocol === "http:") {
+      if (isMusic && isEquivalentMusicHost(u.host, page.host)) {
+        u.protocol = "https:";
+        u.host = canonicalMusicHttpsHost(page.host);
+        normalized = true;
+      } else if (isMusic) {
+        u.protocol = "https:";
+        normalized = true;
+      }
+    }
+    if (isMusic && u.protocol === "https:" && isEquivalentMusicHost(u.host, MUSIC_CANONICAL_HTTPS_HOST)) {
+      const canonical = canonicalMusicHttpsHost(MUSIC_CANONICAL_HTTPS_HOST);
+      if (u.host !== canonical) {
+        u.host = canonical;
+        normalized = true;
+      }
+    }
+
+    return { url: u.toString(), normalized };
+  }, []);
+
+  const settleWsEvent = useCallback((msg) => {
+    setMusicWsLastEvent(String(msg?.type || ""));
+    wsEventsRef.current.push(msg);
+    if (wsEventsRef.current.length > 100) wsEventsRef.current.shift();
+    const pending = wsWaitersRef.current;
+    if (!pending.length) return;
+    const keep = [];
+    for (const waiter of pending) {
+      if (waiter.type === msg?.type) {
+        waiter.resolve(msg);
+      } else {
+        keep.push(waiter);
+      }
+    }
+    wsWaitersRef.current = keep;
+  }, []);
+
+  const waitWsType = useCallback((type, timeoutMs = 5000) => {
+    return new Promise((resolve, reject) => {
+      const idx = wsEventsRef.current.findIndex((m) => m && m.type === type);
+      if (idx >= 0) {
+        const [msg] = wsEventsRef.current.splice(idx, 1);
+        resolve(msg);
+        return;
+      }
+      const timer = setTimeout(() => {
+        wsWaitersRef.current = wsWaitersRef.current.filter((w) => w !== waiter);
+        reject(new Error(`Timeout waiting for ${type}`));
+      }, timeoutMs);
+      const waiter = {
+        type,
+        resolve: (msg) => {
+          clearTimeout(timer);
+          resolve(msg);
+        },
+        reject
+      };
+      wsWaitersRef.current.push(waiter);
+    });
+  }, []);
+
+  const closeMusicWs = useCallback((nextState = "disconnected") => {
+    for (const waiter of wsWaitersRef.current) {
+      waiter.reject(new Error("WebSocket disconnected"));
+    }
+    wsWaitersRef.current = [];
+    wsEventsRef.current = [];
+    const ws = wsRef.current;
+    wsRef.current = null;
+    if (ws) {
+      try { ws.onopen = null; ws.onmessage = null; ws.onclose = null; ws.onerror = null; } catch {}
+      try { if (ws.readyState === 0 || ws.readyState === 1) ws.close(); } catch {}
+    }
+    setMusicWsState(nextState);
+  }, []);
+
+  const sendWs = useCallback((payload) => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== 1) throw new Error("Music websocket is not connected");
+    ws.send(JSON.stringify(payload));
+  }, []);
+
+  const ensureMusicWs = useCallback(async (targetUrl) => {
+    const rawMusic = resolveMusicTarget(targetUrl);
+    if (!rawMusic) throw new Error("URL is not a music endpoint (/music or /music/chunk)");
+    const page = new URL(window.location.href);
+    const music = { ...rawMusic };
+    const sameService = isEquivalentMusicHost(rawMusic.host, page.host);
+    const canonicalHttpsHost = canonicalMusicHttpsHost(page.host);
+
+    // Keep stream/pay calls on secure same-origin when user mixes IP/domain.
+    if (sameService) {
+      if (page.protocol === "https:") {
+        music.origin = `https://${canonicalHttpsHost}`;
+        music.host = canonicalHttpsHost;
+      } else {
+        music.origin = page.origin;
+        music.host = page.host;
+      }
+    } else if (page.protocol === "https:" && rawMusic.origin.startsWith("http://")) {
+      music.origin = rawMusic.origin.replace(/^http:\/\//, "https://");
+    }
+    if (music.origin.startsWith("https://") && isEquivalentMusicHost(music.host, MUSIC_CANONICAL_HTTPS_HOST)) {
+      music.origin = canonicalizeMusicHttpsOrigin(music.origin);
+      music.host = new URL(music.origin).host;
+    }
+
+    if (wsRef.current && wsRef.current.readyState === 1) {
+      return music;
+    }
+
+    closeMusicWs("connecting");
+    const wsOrigin = sameService
+      ? (page.protocol === "https:" ? `https://${canonicalHttpsHost}` : page.origin)
+      : music.origin;
+    const wsProto = wsOrigin.startsWith("https://") ? "wss://" : "ws://";
+    let wsHost = wsOrigin.replace(/^https?:\/\//, "");
+    if (wsProto === "wss://" && isEquivalentMusicHost(wsHost, MUSIC_CANONICAL_HTTPS_HOST)) {
+      wsHost = MUSIC_CANONICAL_HTTPS_HOST;
+    }
+    const wsUrl = `${wsProto}${wsHost}/music/ws?session=${encodeURIComponent(music.sessionId)}`;
+    setMusicWsDebug(wsUrl);
+
+    await new Promise((resolve, reject) => {
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+      let done = false;
+      const timeout = setTimeout(() => {
+        if (done) return;
+        done = true;
+        closeMusicWs("timeout");
+        reject(new Error("Music websocket connection timed out"));
+      }, 6000);
+
+      ws.onopen = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(timeout);
+        setMusicWsState("connected");
+        resolve();
+      };
+      ws.onmessage = (ev) => {
+        let msg;
+        try {
+          msg = JSON.parse(String(ev.data || "{}"));
+        } catch (_e) {
+          return;
+        }
+        if (msg?.type === "error") setStatus(msg.error || "music ws error");
+        if (msg?.type === "stream.stop" && streamOn) {
+          setStreamOn(false);
+          if (streamTimerRef.current) {
+            clearInterval(streamTimerRef.current);
+            streamTimerRef.current = null;
+          }
+        }
+        settleWsEvent(msg);
+      };
+      ws.onclose = (ev) => {
+        const code = Number(ev?.code || 0);
+        closeMusicWs(`closed:${code}`);
+        if (!done) {
+          done = true;
+          clearTimeout(timeout);
+          reject(new Error(`Music websocket closed (${code})`));
+        }
+      };
+      ws.onerror = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(timeout);
+        closeMusicWs("error");
+        if (wsProto === "wss://" && hostOnly(wsHost) === "159.223.150.70") {
+          reject(new Error("Music websocket error (IP TLS cert expired). Use https://pogchamp.tv/music"));
+          return;
+        }
+        reject(new Error(`Music websocket error (${wsHost})`));
+      };
+    });
+
+    return music;
+  }, [closeMusicWs, resolveMusicTarget, settleWsEvent, streamOn]);
+
+  const stopStream = useCallback((msg) => {
+    if (streamTimerRef.current) {
+      clearInterval(streamTimerRef.current);
+      streamTimerRef.current = null;
+    }
+    try {
+      if (streamCtxRef.current.mode === "music" && wsRef.current && wsRef.current.readyState === 1) {
+        sendWs({ type: "control.stop" });
+      }
+    } catch (_e) {}
+    streamTickBusyRef.current = false;
+    streamCtxRef.current = { mode: "generic", music: null, intervalSec: 5 };
+    setStreamOn(false);
+    if (msg) setStatus(msg);
+  }, [sendWs]);
+
+  useEffect(() => () => {
+    if (streamTimerRef.current) clearInterval(streamTimerRef.current);
+    closeMusicWs("disconnected");
+  }, [closeMusicWs]);
+
+  const resolveStreamPlan = useCallback(async (targetUrl) => {
+    const disc = await agent.discoverOffers(targetUrl);
+    if (disc.status !== 402) throw new Error(`Expected 402 offers, got ${disc.status}`);
+    if (!disc.offers.length) throw new Error("No offers found");
+    const offer = agent.chooseOffer(disc.offers, "auto");
+    if (!offer) throw new Error("No compatible offer");
+    const stream = parseHubStream(offer);
+    const sym = guessAssetSym(offer);
+    return { offer, amount: stream.amount, t: stream.t, sym };
+  }, [agent]);
+
+  const runTick = useCallback(async (targetUrl) => {
+    if (streamTickBusyRef.current) return;
+    streamTickBusyRef.current = true;
+    setStatus("Streaming tick: paying current interval…");
+    try {
+      let payTarget = targetUrl;
+      if (streamCtxRef.current.mode === "music" && streamCtxRef.current.music) {
+        const m = streamCtxRef.current.music;
+        const u = new URL(`${m.origin}${m.chunkPath}`);
+        u.searchParams.set("track", m.track);
+        u.searchParams.set("cursor", String(m.cursor));
+        u.searchParams.set("session", m.sessionId);
+        payTarget = u.toString();
+      }
+
+      const payTickOnce = () => agent.payUrl(payTarget, {
+        route: "auto",
+        topupPayments: 100,
+        lowWaterPayments: 10,
+        onStatus: setStatus
+      });
+      let res;
+      try {
+        res = await payTickOnce();
+      } catch (e) {
+        const msg = String(e?.message || "");
+        if (/failed to fetch/i.test(msg)) {
+          setStatus("Transient network error; retrying tick…");
+          await new Promise((r) => setTimeout(r, 900));
+          res = await payTickOnce();
+        } else {
+          throw e;
+        }
+      }
+      if (!res.ok && streamCtxRef.current.mode === "music" && streamCtxRef.current.music) {
+        const errText = String(res?.response?.error || res?.response?.message || "").toLowerCase();
+        if (errText.includes("stream not approved")) {
+          setStatus("Music session not approved; reconnecting control…");
+          try {
+            await ensureMusicWs(payTarget);
+            sendWs({ type: "control.start" });
+            await waitWsType("stream.start", 2000).catch(() => null);
+          } catch (_e) {}
+          res = await payTickOnce();
+        }
+      }
+      setResult(res);
+      setStreamStats(prev => ({
+        ticks: prev.ticks + 1,
+        ok: prev.ok + (res.ok ? 1 : 0),
+        fail: prev.fail + (res.ok ? 0 : 1),
+        lastAt: Date.now()
+      }));
+      forceRender(n => n + 1);
+      if (!res.ok) {
+        const tickErr = String(res?.response?.error || res?.response?.message || `HTTP ${res?.status || "?"}`);
+        notify(`Stream tick payment failed: ${tickErr}`, "error");
+      }
+
+      if (streamCtxRef.current.mode === "music" && streamCtxRef.current.music) {
+        const m = streamCtxRef.current.music;
+        const s = res?.response?.stream || {};
+        const nextCursor = Number(s.nextCursor);
+        if (Number.isFinite(nextCursor) && nextCursor >= 0) {
+          m.cursor = Math.floor(nextCursor);
+        }
+        const hasMore = s.hasMore !== false;
+        if (!hasMore) {
+          stopStream("Track complete");
+          notify("Music stream complete", "ok");
+        }
+      }
+    } catch (e) {
+      setStreamStats(prev => ({ ...prev, ticks: prev.ticks + 1, fail: prev.fail + 1, lastAt: Date.now() }));
+      notify(e.message, "error");
+    } finally {
+      streamTickBusyRef.current = false;
+      if (!streamTimerRef.current) setStatus("");
+    }
+  }, [agent, ensureMusicWs, notify, sendWs, waitWsType]);
 
   const pay = async () => {
     if (!agent || !url.trim()) return;
+    stopStream();
     setBusy(true); setResult(null); setStatus("Discovering offers…");
     try {
-      const res = await agent.payUrl(url.trim(), { route: "auto", topupPayments: 100, lowWaterPayments: 10, onStatus: setStatus });
+      const norm = normalizeTargetUrl(url.trim());
+      if (norm.normalized) setUrl(norm.url);
+      const res = await agent.payUrl(norm.url, { route: "auto", topupPayments: 100, lowWaterPayments: 10, onStatus: setStatus });
       setResult(res);
+      try {
+        const plan = await resolveStreamPlan(norm.url);
+        setStreamCfg({ amount: plan.amount, t: plan.t, sym: plan.sym });
+      } catch {}
       setStatus("");
       notify(res.ok ? "Payment successful!" : "Payment failed","ok");
       forceRender(n=>n+1);
@@ -1298,26 +1758,129 @@ function PayTab({ agent, notify, setAgent }) {
     setBusy(false);
   };
 
+  const startStream = async () => {
+    if (!agent || !url.trim() || streamOn) return;
+    setBusy(true);
+    setResult(null);
+    setStatus("Resolving stream plan from offer…");
+    try {
+      const norm = normalizeTargetUrl(url.trim());
+      if (norm.normalized) setUrl(norm.url);
+      const targetUrl = norm.url;
+      const plan = await resolveStreamPlan(targetUrl);
+      let cfg = { amount: plan.amount, t: plan.t, sym: plan.sym };
+      setStreamCfg(cfg);
+      setStreamStats({ ticks: 0, ok: 0, fail: 0, lastAt: 0 });
+      streamUrlRef.current = targetUrl;
+      streamCtxRef.current = { mode: "generic", music: null, intervalSec: cfg.t };
+
+      let music = resolveMusicTarget(targetUrl);
+      if (musicWsEnabled && music) {
+        setStatus("Connecting music session websocket…");
+        music = await ensureMusicWs(targetUrl);
+
+        sendWs({ type: "offer.get", track: music.track, cursor: music.cursor });
+        const offerMsg = await waitWsType("offer", 5000);
+        const offer = Array.isArray(offerMsg?.offer?.accepts) ? offerMsg.offer.accepts[0] : null;
+        if (offer) {
+          const wsStream = parseHubStream(offer);
+          cfg = { amount: wsStream.amount, t: wsStream.t, sym: guessAssetSym(offer) };
+          setStreamCfg(cfg);
+        }
+
+        setStatus("Starting music stream control…");
+        sendWs({ type: "control.start" });
+        await waitWsType("stream.start", 3000).catch(() => null);
+
+        streamCtxRef.current = {
+          mode: "music",
+          music: {
+            origin: music.origin,
+            chunkPath: music.chunkPath,
+            track: music.track,
+            cursor: music.cursor,
+            sessionId: music.sessionId
+          },
+          intervalSec: cfg.t
+        };
+      }
+
+      setStreamOn(true);
+      notify(`Stream started: ${fmtToken(cfg.amount, cfg.sym)} ${cfg.sym} every ${cfg.t}s`, "ok");
+
+      await runTick(targetUrl);
+      streamTimerRef.current = setInterval(() => {
+        runTick(streamUrlRef.current);
+      }, cfg.t * 1000);
+      setStatus(`Stream active: ${fmtToken(cfg.amount, cfg.sym)} ${cfg.sym} every ${cfg.t}s`);
+    } catch (e) {
+      stopStream();
+      setStatus("");
+      notify(e.message, "error");
+    }
+    setBusy(false);
+  };
+
+  const stopStreamClick = () => {
+    if (!streamOn) return;
+    stopStream("Stream stopped");
+    notify("Stream stopped", "ok");
+  };
+
+  const amountSym = streamCfg?.sym || "USDC";
+
   return (
     <div>
       <SectionHead title="Pay 402 URL" sub="Full flow: discover → channel setup → sign → pay" />
       <div style={S.card}>
         <Field label="402-Protected URL" value={url} onChange={setUrl} placeholder="http://159.223.150.70/meow" />
+        <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:8}}>
+          <label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"#9ca3af"}}>
+            <input type="checkbox" checked={musicWsEnabled} onChange={(e)=>setMusicWsEnabled(!!e.target.checked)} />
+            Use Music WS Control
+          </label>
+          <div style={{fontSize:11,color:"#71717a"}}>ws: {musicWsState}{musicWsLastEvent ? ` · last ${musicWsLastEvent}` : ""}</div>
+        </div>
+        {musicWsDebug && <div style={{fontSize:10,color:"#6b7280",fontFamily:"monospace",marginTop:-4,marginBottom:8,wordBreak:"break-all"}}>ws url: {musicWsDebug}</div>}
+        {musicWsEnabled && (
+          <Field label="Music Session ID" value={musicSession} onChange={setMusicSession} placeholder="sess_..." />
+        )}
         {status && <Progress text={status} />}
+        {streamCfg && (
+          <div style={{...S.infoBox, marginBottom: 8, borderColor: streamOn ? "rgba(16,185,129,.22)" : "rgba(59,130,246,.18)"}}>
+            <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:".05em",color: streamOn ? "#10b981" : "#60a5fa",fontWeight:600,marginBottom:4}}>
+              {streamOn ? "Stream Connection Active" : "Stream Cadence"}
+            </div>
+            <Row label="Debit / interval" value={`${fmtToken(streamCfg.amount, streamCfg.sym)} ${streamCfg.sym}`} />
+            <Row label="Interval" value={`${streamCfg.t}s`} />
+            <Row label="Ticks" value={`${streamStats.ticks} (ok ${streamStats.ok} · fail ${streamStats.fail})`} />
+            {streamStats.lastAt ? <Row label="Last tick" value={ago(streamStats.lastAt)} /> : null}
+          </div>
+        )}
         {result && (
           <div style={{...S.resultBox, borderColor: result.ok ? "rgba(16,185,129,.2)" : "rgba(239,68,68,.2)"}}>
             <div style={{color: result.ok ? "#10b981" : "#ef4444", fontWeight: 600, marginBottom: 4}}>{result.ok ? "✓ Payment Complete" : "✕ Payment Failed"}</div>
-            <Row label="Amount" value={fmtToken(result.amount, "usdc")} />
+            <Row label="Amount" value={fmtToken(result.amount, amountSym)} />
             <Row label="Fee" value={result.fee||"0"} />
             <Row label="Route" value={result.route} />
             {result.ticket && <Row label="Ticket" value={shortHash(result.ticket.id || result.ticket.ticketId || "—")} mono />}
             <Row label="Status" value={result.status} />
           </div>
         )}
-        <button style={S.btnP} onClick={pay} disabled={busy||!agent||!url.trim()}>{busy?"Paying…":"Pay URL"}</button>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          <button style={{...S.btnP,flex:"1 1 180px"}} onClick={pay} disabled={busy||!agent||!url.trim()}>{busy?"Paying…":"Pay URL"}</button>
+          <button style={{...S.btn,flex:"1 1 180px",background: streamOn ? "rgba(16,185,129,.15)" : "rgba(59,130,246,.08)",border:"1px solid rgba(59,130,246,.2)",color: streamOn ? "#34d399" : "#93c5fd"}} onClick={startStream} disabled={busy||streamOn||!agent||!url.trim()}>{streamOn ? "Streaming…" : "Start Stream"}</button>
+          <button style={{...S.btn,flex:"1 1 180px",background:"rgba(239,68,68,.08)",border:"1px solid rgba(239,68,68,.2)",color:"#fca5a5"}} onClick={stopStreamClick} disabled={!streamOn}>Stop Stream</button>
+        </div>
       </div>
       <div style={{fontSize:11,color:"#52525b",marginTop:8,lineHeight:1.5}}>
-        This executes the full SCP light agent flow: discover offers → score & pick best → auto-open/fund channel if needed → EIP-712 sign state → get hub ticket → retry with payment header.
+        Stream mode keeps a connection by repeating paid calls on the offer cadence.
+        With Music WS enabled it also runs:
+        <code style={{marginLeft:4}}>offer.get → control.start/control.stop</code>.
+      </div>
+      <div style={{fontSize:11,color:"#52525b",marginTop:6,lineHeight:1.5}}>
+        Cadence metadata source:
+        <code style={{marginLeft:4}}>extensions["statechannel-hub-v1"].stream = &#123; amount, t &#125;</code>.
       </div>
     </div>
   );
@@ -1423,6 +1986,7 @@ function AnalysisCard({ a }) {
       <Row label="Network" value={o.network||"?"} />
       <Row label="Asset" value={o.sym?.toUpperCase()||"?"} />
       <Row label="Per-payment" value={`${fmtToken(o.perPay,o.sym)} (amt ${fmtToken(o.amount,o.sym)} + fee ${fmtToken(o.fee,o.sym)})`} />
+      <Row label="Cadence" value={`every ${o.streamT || 5}s`} />
       <Row label="Prepay for" value={`${f.topup} payments`} />
       <Row label="Refill when below" value={`${f.lowWater||10} payments (${fmtToken(f.refillAt||"0", o.sym)})`} />
       <Row label="Channel bal" value={fmtToken(f.curBal, o.sym)} />

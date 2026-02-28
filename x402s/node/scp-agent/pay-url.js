@@ -32,6 +32,7 @@ const arg2 = positional[1];
 if (!target) {
   console.error(`Usage:
   agent:pay <url> [hub|direct] [--asset <addr>] [--network <chain>] [--method <verb>] [--json <json>]
+  agent:pay <payeeAddress> <amount> [--asset <addr>] [--network <chain>]
   agent:pay <channelId> <amount>
 
 Examples:
@@ -39,11 +40,13 @@ Examples:
   agent:pay https://api.example/pay direct            # pay directly
   agent:pay https://api.example/pay --asset 0xUSDC    # pay with specific asset
   agent:pay https://api.example/v1/run --method POST --json '{"q":"hello"}'
+  agent:pay 0xPayeeAddress... 100000000000 --network sepolia --asset 0x0000000000000000000000000000000000000000
   agent:pay 0xChannelId... 5000000                    # pay through channel`);
   process.exit(1);
 }
 
 const isChannelId = /^0x[a-fA-F0-9]{64}$/.test(target);
+const isAddress = /^0x[a-fA-F0-9]{40}$/.test(target);
 
 // NETWORK=sepolia | base | mainnet  (or NETWORKS=eip155:11155111 for back-compat)
 function resolveNetworks() {
@@ -136,6 +139,23 @@ async function main() {
       console.log(`Paying ${arg2} through channel ${target.slice(0, 10)}...`);
       const result = await agent.payChannel(target, arg2);
       console.log(`Paid! ticket=${result.ticket.ticketId} fee=${result.fee}`);
+      console.log(JSON.stringify(result, null, 2));
+    } else if (isAddress) {
+      if (!arg2) {
+        console.error("Usage: agent:pay <payeeAddress> <amount> [--asset <addr>] [--network <chain>]");
+        process.exit(1);
+      }
+      const payOpts = {};
+      if (flags.asset) payOpts.asset = flags.asset;
+      if (flags.network) payOpts.network = flags.network;
+      if (process.env.HUB_URL) payOpts.hubEndpoint = process.env.HUB_URL;
+      console.log(
+        `Paying address ${target} amount=${arg2}` +
+        `${payOpts.network ? ` network=${payOpts.network}` : ""}` +
+        `${payOpts.asset ? ` asset=${payOpts.asset}` : ""}...`
+      );
+      const result = await agent.payAddress(target, arg2, payOpts);
+      console.log(`Paid address! route=${result.route} ticket=${(result.ticket || {}).ticketId || "n/a"} fee=${result.fee}`);
       console.log(JSON.stringify(result, null, 2));
     } else {
       const envRoute = String(process.env.AGENT_DEFAULT_ROUTE || "hub").toLowerCase();

@@ -81,7 +81,7 @@ function resolveHubEndpointForNetwork(networkOrChainId, options = {}) {
     options.baseUrl ||
     process.env.HUB_BASE_URL ||
     process.env.PUBLIC_HUB_BASE_URL ||
-    "http://159.223.150.70"
+    "https://159.223.150.70"
   ).replace(/\/+$/, "");
   return `${baseUrl}${hubPathForChainId(chainId)}`;
 }

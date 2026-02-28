@@ -21,6 +21,12 @@ Operate the x402 State Channel Protocol stack. All commands run from the `x402s/
 
 Payment flow: `Agent → 402 → Hub quote → sign state → Hub issue ticket → paid retry to Payee`
 
+Payee payment modes:
+- `PAYMENT_MODE=per_request` (default): send `PAYMENT-SIGNATURE` on each paid request.
+- `PAYMENT_MODE=pay_once`: pay once, then reuse payee-issued access grant for that path.
+- `PAY_ONCE_TTL_SEC`: access grant lifetime for `pay_once` mode (default `86400`).
+- Access grant transport: `x-scp-access-token` header or `scp_access` cookie, depending on client/server flow.
+
 Offer selection behavior:
 - Filter offers by `network` / `asset` when provided.
 - Split into hub and direct candidates.

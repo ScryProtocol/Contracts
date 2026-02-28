@@ -6,8 +6,18 @@ const { ScpAgentClient } = require("./agent-client");
 const HOST = process.env.AGENT_HOST || "127.0.0.1";
 const PORT = Number(process.env.AGENT_PORT || 4060);
 
+const CORS_ORIGIN = process.env.CORS_ORIGIN || "*";
+
+function setCorsHeaders(res) {
+  res.setHeader("Access-Control-Allow-Origin", CORS_ORIGIN);
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Max-Age", "86400");
+}
+
 function sendJson(res, code, payload) {
   const body = JSON.stringify(payload);
+  setCorsHeaders(res);
   res.writeHead(code, {
     "Content-Type": "application/json",
     "Content-Length": Buffer.byteLength(body)
@@ -83,6 +93,13 @@ function createAgentServer(options = {}) {
   const agent = options.agent || buildAgent();
 
   const server = http.createServer((req, res) => {
+    // CORS preflight
+    if (req.method === "OPTIONS") {
+      setCorsHeaders(res);
+      res.writeHead(204);
+      return res.end();
+    }
+
     (async () => {
       const u = new URL(req.url, `http://${req.headers.host || `${HOST}:${PORT}`}`);
 

@@ -958,10 +958,12 @@ function ChannelsTab({ agent, notify }) {
           const chs = data.channels || data;
           if (Array.isArray(chs) && chs.length) {
             const ch = chs[0];
+            const asset = ch.asset || ZERO_ADDR;
             imported = {
               channelId: ch.channelId,
               participantB: info.address,
-              asset: ch.asset || ZERO_ADDR,
+              asset,
+              assetSymbol: guessAssetSym({ asset }).toLowerCase(),
               nonce: ch.stateNonce || 0,
               balA: ch.balA || "0",
               balB: ch.balB || "0",
@@ -1035,10 +1037,23 @@ function ChannelsTab({ agent, notify }) {
       {channels.length === 0 && <Empty icon="⚡" text="No channels. Open one or import from hub." />}
       {channels.map(ch => (
         <div key={ch.key} style={S.card}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span style={{...S.mono,fontSize:11,maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ch.key}</span>
-            <span style={{fontWeight:700,color:"#10b981",fontSize:14}}>{ch.balA||"0"} <span style={{fontSize:10,color:"#71717a"}}>{ch.assetSymbol?.toUpperCase()||"?"}</span></span>
-          </div>
+          {(() => {
+            const sym = getChannelSym(ch);
+            const prettyBal = fmtToken(ch.balA || "0", sym);
+            return (
+              <>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span style={{...S.mono,fontSize:11,maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ch.key}</span>
+                  <span style={{fontWeight:700,color:"#10b981",fontSize:14}}>
+                    {prettyBal} <span style={{fontSize:10,color:"#71717a"}}>{sym.toUpperCase()}</span>
+                  </span>
+                </div>
+                <div style={{fontSize:10,color:"#6d7890",fontFamily:"monospace",marginTop:3}}>
+                  raw {ch.balA || "0"} wei
+                </div>
+              </>
+            );
+          })()}
           <div style={{fontSize:10,color:"#52525b",fontFamily:"monospace",marginTop:4}}>
             nonce {ch.nonce||0} · {ch.channelId ? shortHash(ch.channelId) : "—"}{ch.txHash ? ` · tx:${shortHash(ch.txHash)}` : ""}
           </div>

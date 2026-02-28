@@ -1,4 +1,5 @@
 const http = require("http");
+const https = require("https");
 
 class HttpJsonClient {
   constructor(options = {}) {
@@ -7,20 +8,32 @@ class HttpJsonClient {
       maxSockets: options.maxSockets || 256,
       keepAliveMsecs: options.keepAliveMsecs || 15000
     });
+    this.secureAgent = new https.Agent({
+      keepAlive: true,
+      maxSockets: options.maxSockets || 256,
+      keepAliveMsecs: options.keepAliveMsecs || 15000
+    });
     this.defaultTimeoutMs = options.timeoutMs || 10000;
+    this.maxRedirects = options.maxRedirects || 5;
   }
 
-  request(method, endpoint, body, headers = {}, timeoutMs = this.defaultTimeoutMs) {
+  request(method, endpoint, body, headers = {}, timeoutMs = this.defaultTimeoutMs, redirectCount = 0) {
     const u = new URL(endpoint);
+    const isHttps = u.protocol === "https:";
+    if (!isHttps && u.protocol !== "http:") {
+      return Promise.reject(new Error(`unsupported protocol: ${u.protocol}`));
+    }
+    const transport = isHttps ? https : http;
     const payload = body ? JSON.stringify(body) : "";
     return new Promise((resolve, reject) => {
-      const req = http.request(
+      const req = transport.request(
         {
           method,
+          protocol: u.protocol,
           hostname: u.hostname,
-          port: u.port,
+          port: u.port || (isHttps ? 443 : 80),
           path: `${u.pathname}${u.search}`,
-          agent: this.agent,
+          agent: isHttps ? this.secureAgent : this.agent,
           headers: {
             "content-type": "application/json",
             ...headers,
@@ -33,11 +46,45 @@ class HttpJsonClient {
             data += chunk.toString("utf8");
           });
           res.on("end", () => {
+            const statusCode = Number(res.statusCode || 0);
+            const location = res.headers.location ? String(res.headers.location) : "";
+            if (
+              location &&
+              [301, 302, 303, 307, 308].includes(statusCode) &&
+              redirectCount < this.maxRedirects
+            ) {
+              const redirectedUrl = new URL(location, u).toString();
+              const shouldSwitchToGet =
+                statusCode === 303 || ((statusCode === 301 || statusCode === 302) && method === "POST");
+              const redirectedMethod = shouldSwitchToGet ? "GET" : method;
+              const redirectedBody = redirectedMethod === "GET" || redirectedMethod === "HEAD" ? null : body;
+              resolve(
+                this.request(
+                  redirectedMethod,
+                  redirectedUrl,
+                  redirectedBody,
+                  headers,
+                  timeoutMs,
+                  redirectCount + 1
+                )
+              );
+              return;
+            }
             try {
+              const ctype = String(res.headers["content-type"] || "").toLowerCase();
+              const isJson =
+                ctype.includes("application/json") ||
+                ctype.includes("+json") ||
+                data.trim().startsWith("{") ||
+                data.trim().startsWith("[");
               resolve({
-                statusCode: res.statusCode,
+                statusCode,
                 headers: res.headers,
-                body: data ? JSON.parse(data) : {}
+                body: data
+                  ? isJson
+                    ? JSON.parse(data)
+                    : { raw: data }
+                  : {}
               });
             } catch (err) {
               reject(err);
@@ -57,6 +104,7 @@ class HttpJsonClient {
 
   close() {
     this.agent.destroy();
+    this.secureAgent.destroy();
   }
 }
 

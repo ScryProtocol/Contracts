@@ -26,7 +26,6 @@ const HUB_FEE_BASE = String(process.env.HUB_FEE_BASE || "0");
 const HUB_FEE_BPS = Number(process.env.HUB_FEE_BPS || 0);
 const PRICE_ETH = process.env.MEOW_PRICE_ETH || "0.0000001";
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || "";
-const SCP_PAY_URL = process.env.SCP_PAY_URL || "";
 const STREAM_T_SEC_RAW = Number(process.env.MEOW_STREAM_T_SEC || process.env.STREAM_T_SEC || 5);
 const STREAM_T_SEC = Number.isInteger(STREAM_T_SEC_RAW) && STREAM_T_SEC_RAW > 0
   ? STREAM_T_SEC_RAW
@@ -106,7 +105,6 @@ function wantsHtml(req) {
 function buildTreeAppHtml(opts = {}) {
   const priceWei = String(opts.priceWei || "100000000000");
   const baseUrl = String(opts.baseUrl || "").replace(/\/+$/, "");
-  const scpPayUrl = String(opts.scpPayUrl || "").replace(/\/+$/, "");
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -296,52 +294,20 @@ h1{font-family:'Fredoka',sans-serif;font-weight:700;font-size:clamp(30px,7vw,48p
     </div>
     <div class="actions">
       <button class="btn btn-go" id="plantBtn"><span class="ico">🌱</span> Copy Plant Link</button>
-      <button class="btn" id="payBtn" onclick="togglePay()"><span class="ico">💳</span> Pay</button>
+      <a class="btn" id="scpLink" href="${baseUrl}/scpapp/" target="_blank" rel="noreferrer"><span class="ico">🔗</span> Open SCP App</a>
     </div>
-    <div id="payWrap" style="display:none;margin-top:12px">
-      <iframe id="scpIframe" style="width:100%;border:none;min-height:520px;display:block;border-radius:16px" title="Pay with x402s"></iframe>
-    </div>
-    <div class="msg" id="msg">Copy the plant link to pay from another device, or pay directly here!</div>
+    <div class="msg" id="msg">Copy the plant link, pay it in the SCP app — a tree grows in your garden!</div>
   </div>
 </div>
 
 <script>
 (function(){
-  var PW="${priceWei}",BASE="${baseUrl}",SCPPAY="${scpPayUrl}";
-  if (window.location.protocol === "https:") {
-    if (BASE.startsWith("http:")) BASE = BASE.replace("http:", "https:");
-    if (SCPPAY.startsWith("http:")) SCPPAY = SCPPAY.replace("http:", "https:");
-  }
+  var PW="${priceWei}",BASE="${baseUrl}";
   document.getElementById("priceLabel").textContent=PW;
   var K="meow_garden_id",gid=localStorage.getItem(K);
   if(!gid){gid="g_"+Math.random().toString(36).slice(2,12);localStorage.setItem(K,gid)}
-  var $gid=document.getElementById("gardenId"),$c=document.getElementById("count"),$m=document.getElementById("msg"),$p=document.getElementById("plantBtn"),$cat=document.getElementById("theCat"),$say=document.getElementById("catSay");
-  $gid.textContent=gid;
-  var payOpen=false;
-  window.togglePay = function(){
-    var w=document.getElementById("payWrap"),
-        f=document.getElementById("scpIframe"),
-        b=document.getElementById("payBtn");
-    if(payOpen){
-      w.style.display="none";
-      b.querySelector(".ico").textContent="💳";
-      payOpen=false;
-      return;
-    }
-    
-    // Explicitly using the requested https://pogchamp.tv/scppay
-    var scpBase = "https://pogchamp.tv/scppay"; 
-
-    var pu = plantUrl();
-    if (window.location.protocol === "https:" && pu.startsWith("http:")) {
-      pu = pu.replace("http:", "https:");
-    }
-    
-    f.src=scpBase+"?url="+encodeURIComponent(pu);
-    w.style.display="block";
-    b.querySelector(".ico").textContent="✕";
-    payOpen=true
-  }
+  var $gid=document.getElementById("gardenId"),$c=document.getElementById("count"),$m=document.getElementById("msg"),$p=document.getElementById("plantBtn"),$sl=document.getElementById("scpLink"),$cat=document.getElementById("theCat"),$say=document.getElementById("catSay");
+  $gid.textContent=gid;if(BASE)$sl.href=BASE+"/scpapp/";
   var knownTrees=0,treeSlots=[];
   function plantUrl(){return(BASE||window.location.origin)+"/meow/plant?garden="+encodeURIComponent(gid)}
   function setM(t,ok){$m.textContent=t;$m.classList.toggle("ok",!!ok)}
@@ -714,7 +680,7 @@ async function handle(req, res, ctx) {
   if (req.method === "GET" && u.pathname === "/meow") {
     if (wantsHtml(req)) {
       const base = resolveResourceUrl(req, "").replace(/\/+$/, "");
-      return sendHtml(res, 200, buildTreeAppHtml({ priceWei: amountWei, unlocked: false, baseUrl: base, scpPayUrl: SCP_PAY_URL }));
+      return sendHtml(res, 200, buildTreeAppHtml({ priceWei: amountWei, unlocked: false, baseUrl: base }));
     }
     const payment = parsePaymentHeader(req);
     if (!payment) {

@@ -19,6 +19,7 @@
 - `AUTO_402_CHALLENGE_PERIOD_SEC`: Default for `--challenge-period-sec`.
 - `AUTO_402_CHANNEL_EXPIRY_SEC`: Default for `--channel-expiry-sec`.
 - `X402S_ROOT`: Explicit x402s project root if not running from `x402s/`.
+- `PAYMENT_MODE`, `PAY_ONCE_TTL_SEC`: payee-side mode controls for protected resources. These are not consumed by `auto_402_hub_pay.js` directly, but affect whether follow-up calls need fresh `PAYMENT-SIGNATURE` or can reuse an access grant.
 
 ## CLI Flags
 
