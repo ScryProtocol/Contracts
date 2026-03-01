@@ -293,10 +293,17 @@ h1{font-family:'Fredoka',sans-serif;font-weight:700;font-size:clamp(30px,7vw,48p
       <div class="stat"><div class="stat-l">Trees Planted</div><div class="stat-v" id="count">0</div></div>
     </div>
     <div class="actions">
-      <button class="btn btn-go" id="plantBtn"><span class="ico">🌱</span> Copy Plant Link</button>
+      <button class="btn btn-go" id="payBtn"><span class="ico">💳</span> Pay</button>
+      <button class="btn" id="plantBtn"><span class="ico">🌱</span> Copy Plant Link</button>
       <a class="btn" id="scpLink" href="${baseUrl}/scpapp/" target="_blank" rel="noreferrer"><span class="ico">🔗</span> Open SCP App</a>
     </div>
-    <div class="msg" id="msg">Copy the plant link, pay it in the SCP app — a tree grows in your garden!</div>
+    <div class="msg" id="msg">Click Pay to plant a tree in your garden!</div>
+  </div>
+</div>
+<div id="payOverlay" style="display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);align-items:center;justify-content:center">
+  <div style="position:relative;width:100%;max-width:420px;margin:16px;border-radius:20px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <button id="payClose" style="position:absolute;top:10px;right:10px;z-index:101;border:none;background:rgba(0,0,0,.5);color:#fff;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;line-height:1">✕</button>
+    <iframe id="payWrap" style="width:100%;border:none;height:80vh;max-height:640px;display:block;border-radius:20px;background:rgba(255,255,255,.15);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)" title="Pay with x402s"></iframe>
   </div>
 </div>
 
@@ -306,10 +313,16 @@ h1{font-family:'Fredoka',sans-serif;font-weight:700;font-size:clamp(30px,7vw,48p
   document.getElementById("priceLabel").textContent=PW;
   var K="meow_garden_id",gid=localStorage.getItem(K);
   if(!gid){gid="g_"+Math.random().toString(36).slice(2,12);localStorage.setItem(K,gid)}
-  var $gid=document.getElementById("gardenId"),$c=document.getElementById("count"),$m=document.getElementById("msg"),$p=document.getElementById("plantBtn"),$sl=document.getElementById("scpLink"),$cat=document.getElementById("theCat"),$say=document.getElementById("catSay");
+  var $gid=document.getElementById("gardenId"),$c=document.getElementById("count"),$m=document.getElementById("msg"),$p=document.getElementById("plantBtn"),$sl=document.getElementById("scpLink"),$cat=document.getElementById("theCat"),$say=document.getElementById("catSay"),$pay=document.getElementById("payBtn");
   $gid.textContent=gid;if(BASE)$sl.href=BASE+"/scpapp/";
+  var $pw=document.getElementById("payWrap"),$po=document.getElementById("payOverlay"),$pc=document.getElementById("payClose");
   var knownTrees=0,treeSlots=[];
   function plantUrl(){return(BASE||window.location.origin)+"/meow/plant?garden="+encodeURIComponent(gid)}
+  function openPay(){$po.style.display="flex";$pw.src="https://pogchamp.tv/scppay?url="+encodeURIComponent(plantUrl());setM("Payment open...",false)}
+  function closePay(){$po.style.display="none";$pw.src="";setM("Click Pay to plant a tree in your garden!",false)}
+  $pay.addEventListener("click",openPay);
+  $pc.addEventListener("click",closePay);
+  $po.addEventListener("click",function(e){if(e.target===$po)closePay()})
   function setM(t,ok){$m.textContent=t;$m.classList.toggle("ok",!!ok)}
 
   var FL=["🌸","🌼","🍀","✨","🌷","💐","🪻","🏵️"];

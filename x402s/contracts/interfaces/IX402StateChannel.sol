@@ -22,6 +22,7 @@ interface IX402StateChannel {
         bool isClosing;
         uint64 closeDeadline;
         uint64 latestNonce;
+        uint8 hubFlags; // 0=none, 1=A is hub, 2=B is hub, 3=both
     }
 
     event ChannelOpened(
@@ -66,7 +67,8 @@ interface IX402StateChannel {
         uint256 amount,
         uint64 challengePeriodSec,
         uint64 channelExpiry,
-        bytes32 salt
+        bytes32 salt,
+        uint8 hubFlags
     ) external payable returns (bytes32 channelId);
 
     function deposit(bytes32 channelId, uint256 amount) external payable;
@@ -89,6 +91,21 @@ interface IX402StateChannel {
 
     function finalizeClose(bytes32 channelId) external;
 
+    event Rebalanced(
+        bytes32 indexed fromChannelId,
+        bytes32 indexed toChannelId,
+        uint256 amount,
+        uint256 fromNewTotal,
+        uint256 toNewTotal
+    );
+
+    function rebalance(
+        ChannelState calldata state,
+        bytes32 toChannelId,
+        uint256 amount,
+        bytes calldata sigCounterparty
+    ) external;
+
     function getChannel(bytes32 channelId)
         external
         view
@@ -107,4 +124,17 @@ interface IX402StateChannel {
         returns (bytes32[] memory);
 
     function hashState(ChannelState calldata st) external view returns (bytes32);
+
+    struct ChannelBalance {
+        uint256 totalBalance;
+        uint256 balA;
+        uint256 balB;
+        uint64 latestNonce;
+        bool isClosing;
+    }
+
+    function balance(bytes32 channelId)
+        external
+        view
+        returns (ChannelBalance memory bal);
 }

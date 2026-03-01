@@ -23,6 +23,12 @@ contract X402StateChannel is IX402StateChannel {
         uint64 latestNonce;
         uint256 closeBalA;
         uint256 closeBalB;
+        uint8 hubFlags; // 0=none, 1=A is hub, 2=B is hub, 3=both
+        // Funded balance tracking — cumulative funds attributed to each side
+        // from openChannel, deposit, and rebalance.  Separate from close
+        // dispute state (closeBalA/closeBalB) which comes from signed states.
+        uint256 fundedBalA;
+        uint256 fundedBalB;
     }
 
     mapping(bytes32 => Channel) private _channels;
@@ -53,12 +59,14 @@ contract X402StateChannel is IX402StateChannel {
         uint256 amount,
         uint64 challengePeriodSec,
         uint64 channelExpiry,
-        bytes32 salt
+        bytes32 salt,
+        uint8 hubFlags
     ) external payable override returns (bytes32 channelId) {
         require(participantB != address(0), "SCP: bad participantB");
         require(challengePeriodSec > 0, "SCP: bad challenge");
         require(channelExpiry > block.timestamp, "SCP: bad expiry");
         require(amount > 0, "SCP: zero amount"); // H11
+        require(hubFlags <= 3, "SCP: bad hubFlags");
 
         channelId = keccak256(
             abi.encode(block.chainid, address(this), msg.sender, participantB, asset, salt)
@@ -77,7 +85,10 @@ contract X402StateChannel is IX402StateChannel {
             closeDeadline: 0,
             latestNonce: 0,
             closeBalA: 0,
-            closeBalB: 0
+            closeBalB: 0,
+            hubFlags: hubFlags,
+            fundedBalA: 0,
+            fundedBalB: 0
         });
         _usedChannelIds[channelId] = true;
 
@@ -92,6 +103,7 @@ contract X402StateChannel is IX402StateChannel {
 
         _collectAsset(asset, msg.sender, amount);
         _channels[channelId].totalBalance = amount;
+        _channels[channelId].fundedBalA = amount; // opener (A) funds everything
 
         emit ChannelOpened(
             channelId,
@@ -117,6 +129,11 @@ contract X402StateChannel is IX402StateChannel {
         _collectAsset(ch.asset, msg.sender, amount);
         // C2: Solidity 0.8.x has built-in overflow protection
         ch.totalBalance = ch.totalBalance + amount;
+        if (msg.sender == ch.participantA) {
+            ch.fundedBalA = ch.fundedBalA + amount;
+        } else {
+            ch.fundedBalB = ch.fundedBalB + amount;
+        }
 
         emit Deposited(channelId, msg.sender, amount, ch.totalBalance);
     }
@@ -212,6 +229,90 @@ contract X402StateChannel is IX402StateChannel {
         emit Challenged(newer.channelId, newer.stateNonce, hashState(newer));
     }
 
+    function rebalance(
+        ChannelState calldata state,
+        bytes32 toChannelId,
+        uint256 amount,
+        bytes calldata sigCounterparty
+    ) external override {
+        Channel storage from = _channels[state.channelId];
+        Channel storage to = _channels[toChannelId];
+        require(from.participantA != address(0), "SCP: from not found");
+        require(to.participantA != address(0), "SCP: to not found");
+        require(!from.isClosing, "SCP: from closing");
+        require(!to.isClosing, "SCP: to closing");
+        require(block.timestamp < to.channelExpiry, "SCP: to expired");
+        require(from.asset == to.asset, "SCP: asset mismatch");
+
+        // Caller must be hub in from-channel and participant in to-channel
+        require(_isHub(from, msg.sender), "SCP: not hub in from");
+        require(
+            msg.sender == to.participantA || msg.sender == to.participantB,
+            "SCP: not to participant"
+        );
+
+        // Validate the state
+        require(state.stateNonce > from.latestNonce, "SCP: stale nonce");
+        require(!_isStateExpired(state), "SCP: state expired");
+        require(state.balA + state.balB == from.totalBalance, "SCP: bad balances");
+
+        // Verify counterparty signed this state
+        bytes32 digest = _hashTypedData(state);
+        if (msg.sender == from.participantA) {
+            require(_recover(digest, sigCounterparty) == from.participantB, "SCP: bad counter sig");
+        } else {
+            require(_recover(digest, sigCounterparty) == from.participantA, "SCP: bad counter sig");
+        }
+
+        // Amount must come from hub's side of the balance
+        require(amount > 0, "SCP: zero rebalance");
+        uint256 hubBal = (msg.sender == from.participantA) ? state.balA : state.balB;
+        require(amount <= hubBal, "SCP: amount exceeds hub balance");
+
+        // Apply: shrink from, grow to
+        from.totalBalance = from.totalBalance - amount;
+        from.latestNonce = state.stateNonce;
+        // Record the post-rebalance balance split from the signed state.
+        // We set BOTH fundedBal fields (not just the hub's side) because the
+        // signed state is the authoritative balance split, and we need
+        // fundedBalA + fundedBalB == new totalBalance.
+        //
+        // The old code did a saturating subtraction on only the hub's
+        // fundedBal, which breaks when the hub earned funds off-chain:
+        // fundedBal tracks deposits, not earnings, so subtracting earned
+        // amounts underflows to 0 and the invariant breaks.
+        if (msg.sender == from.participantA) {
+            from.closeBalA = state.balA - amount;
+            from.closeBalB = state.balB;
+            from.fundedBalA = state.balA - amount;
+            from.fundedBalB = state.balB;
+        } else {
+            from.closeBalA = state.balA;
+            from.closeBalB = state.balB - amount;
+            from.fundedBalA = state.balA;
+            from.fundedBalB = state.balB - amount;
+        }
+
+        to.totalBalance = to.totalBalance + amount;
+        // C-1 fix: track which side of the destination channel receives
+        // the rebalanced funds.  Uses fundedBal (not closeBal, which
+        // belongs to the dispute flow).
+        if (msg.sender == to.participantA) {
+            to.fundedBalA = to.fundedBalA + amount;
+        } else {
+            to.fundedBalB = to.fundedBalB + amount;
+        }
+
+        emit Rebalanced(
+            state.channelId,
+            toChannelId,
+            amount,
+            from.totalBalance,
+            to.totalBalance
+        );
+        emit Deposited(toChannelId, msg.sender, amount, to.totalBalance);
+    }
+
     function finalizeClose(bytes32 channelId) external override {
         Channel storage ch = _channels[channelId];
         require(ch.participantA != address(0), "SCP: not found");
@@ -253,7 +354,8 @@ contract X402StateChannel is IX402StateChannel {
             totalBalance: ch.totalBalance,
             isClosing: ch.isClosing,
             closeDeadline: ch.closeDeadline,
-            latestNonce: ch.latestNonce
+            latestNonce: ch.latestNonce,
+            hubFlags: ch.hubFlags
         });
     }
 
@@ -284,6 +386,27 @@ contract X402StateChannel is IX402StateChannel {
         returns (bytes32[] memory)
     {
         return _channelsByParticipant[participant];
+    }
+
+    function balance(bytes32 channelId)
+        external
+        view
+        override
+        returns (ChannelBalance memory bal)
+    {
+        Channel storage ch = _channels[channelId];
+        bal.totalBalance = ch.totalBalance;
+        bal.latestNonce = ch.latestNonce;
+        bal.isClosing = ch.isClosing;
+        if (ch.isClosing) {
+            // Dispute payout state — from signed states via startClose/challenge
+            bal.balA = ch.closeBalA;
+            bal.balB = ch.closeBalB;
+        } else {
+            // Live channel — funded balance tracking (open + deposit + rebalance)
+            bal.balA = ch.fundedBalA;
+            bal.balB = ch.fundedBalB;
+        }
     }
 
     function pendingPayout(address asset, address account) external view returns (uint256) {
@@ -329,6 +452,12 @@ contract X402StateChannel is IX402StateChannel {
     }
 
     // --- Internals ---
+
+    function _isHub(Channel storage ch, address addr) internal view returns (bool) {
+        if ((ch.hubFlags & 1) != 0 && addr == ch.participantA) return true;
+        if ((ch.hubFlags & 2) != 0 && addr == ch.participantB) return true;
+        return false;
+    }
 
     function _hashTypedData(ChannelState calldata st) internal view returns (bytes32) {
         return hashState(st);
