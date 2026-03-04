@@ -333,6 +333,12 @@ class Storage {
     });
   }
 
+  get(collection, key) {
+    return this._backend.get(collection, key);
+  }
+  set(collection, key, value) {
+    return this._backend.set(collection, key, value);
+  }
   getQuote(key) {
     return this._backend.get("quotes", key);
   }

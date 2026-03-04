@@ -73,6 +73,10 @@ const RATE_LIMIT_ISSUE = Math.max(0, Number(process.env.RATE_LIMIT_ISSUE || 240)
 const RATE_LIMIT_REFUNDS = Math.max(0, Number(process.env.RATE_LIMIT_REFUNDS || 60));
 const QUOTE_SWEEP_INTERVAL_SEC = Math.max(1, Number(process.env.QUOTE_SWEEP_INTERVAL_SEC || 30));
 const SETTLEMENT_MODE = String(process.env.SETTLEMENT_MODE || "cooperative_close").toLowerCase();
+const HANDLE_ENABLED = process.env.HANDLE_ENABLED === "1";
+const HANDLE_DOMAIN = process.env.HANDLE_DOMAIN || "";
+const HANDLE_PRICE = process.env.HANDLE_PRICE || "100000000000000";
+const HANDLE_ASSET = process.env.HANDLE_ASSET || "0x0000000000000000000000000000000000000000";
 const CHANNEL_ABI = [
   "function openChannel(address hub, address asset, uint256 amount, uint64 challengePeriodSec, uint64 channelExpiry, bytes32 salt) external payable returns (bytes32 channelId)",
   "function deposit(bytes32 channelId, uint256 amount) external payable",
@@ -142,7 +146,8 @@ function setCorsHeaders(res) {
   res.setHeader("Access-Control-Allow-Headers", CORS_HEADERS);
   res.setHeader("Access-Control-Expose-Headers", CORS_EXPOSE_HEADERS);
   res.setHeader("Access-Control-Max-Age", "86400");
-  res.setHeader("Vary", "Origin");
+  res.setHeader("Vary", "Origin, Payment-Signature");
+  res.setHeader("Cache-Control", "no-store");
 }
 
 function sendJson(res, code, payload) {
@@ -531,12 +536,29 @@ async function handleRequest(req, res) {
         );
       }
 
+      // Look up payer credits (earned from incoming handle payments)
+      let payerCredit = "0";
+      const existingCh = await store.getChannel(body.channelId);
+      if (existingCh && existingCh.participantA) {
+        const payerKey = existingCh.participantA.toLowerCase();
+        const credits = await store.tx((s) => {
+          return s.payerCredits?.[payerKey] || "0";
+        });
+        if (BigInt(credits) > 0n) {
+          // Credit is capped at hub's balB in this channel (hub can only give back what it has)
+          const hubBalB = existingCh.latestState ? BigInt(existingCh.latestState.balB) : 0n;
+          const available = BigInt(credits) > hubBalB ? hubBalB : BigInt(credits);
+          payerCredit = available.toString();
+        }
+      }
+
       await store.tx((s) => {
         s.quotes[`${body.invoiceId}:${body.paymentId}`] = {
           quote,
           channelId: body.channelId,
           contextHash: body.contextHash || ZERO32,
-          createdAt: now()
+          createdAt: now(),
+          payerCredit
         };
         s.payments[body.paymentId] = {
           paymentId: body.paymentId,
@@ -544,7 +566,7 @@ async function handleRequest(req, res) {
         };
       });
 
-      return sendJson(res, 200, quote);
+      return sendJson(res, 200, { ...quote, payerCredit });
     }
 
     if (req.method === "POST" && pathname === "/v1/tickets/issue") {
@@ -618,8 +640,16 @@ async function handleRequest(req, res) {
         if (stateTotal !== prevTotal) {
           return sendJson(res, 409, makeError("SCP_009_POLICY_VIOLATION", "channel balance invariant violated"));
         }
-        if (prevBalA - stateBalA !== quoteDebit || stateBalB - prevBalB !== quoteDebit) {
-          return sendJson(res, 409, makeError("SCP_009_POLICY_VIOLATION", "state delta must equal quote totalDebit"));
+        // Allow payer credits (rebates from incoming handle payments) to offset the debit.
+        // With credit C: balA decreases by (totalDebit - C), balB increases by (totalDebit - C).
+        const credit = BigInt(stored.payerCredit || "0");
+        const netDebit = quoteDebit > credit ? quoteDebit - credit : 0n;
+        const appliedCredit = quoteDebit > credit ? credit : quoteDebit;
+        const deltaA = prevBalA - stateBalA;
+        const deltaB = stateBalB - prevBalB;
+        if (deltaA !== netDebit || deltaB !== netDebit) {
+          console.log("[issue] delta mismatch: prevBalA=" + prevBalA + " stateBalA=" + stateBalA + " deltaA=" + deltaA + " prevBalB=" + prevBalB + " stateBalB=" + stateBalB + " deltaB=" + deltaB + " quoteDebit=" + quoteDebit + " credit=" + credit + " netDebit=" + netDebit);
+          return sendJson(res, 409, makeError("SCP_009_POLICY_VIOLATION", "state delta must equal quote totalDebit minus applied credit"));
         }
       } else {
         // SECURITY: First-seen channel — verify on-chain before issuing any ticket.
@@ -699,9 +729,23 @@ async function handleRequest(req, res) {
         sigB
       };
 
+      // Compute applied credit for consumption inside tx
+      const _appliedCredit = BigInt(stored.payerCredit || "0") > quoteDebit
+        ? quoteDebit : BigInt(stored.payerCredit || "0");
+
       await store.tx((s) => {
         // C6: Mark quote as consumed to prevent reuse
         delete s.quotes[key];
+
+        // Consume applied payer credit
+        if (_appliedCredit > 0n) {
+          if (!s.payerCredits) s.payerCredits = {};
+          const payerKey = recoveredA.toLowerCase();
+          const prev = BigInt(s.payerCredits[payerKey] || "0");
+          const remaining = prev > _appliedCredit ? prev - _appliedCredit : 0n;
+          s.payerCredits[payerKey] = remaining.toString();
+          console.log("[credits] consumed", _appliedCredit.toString(), "from", payerKey, "remaining:", remaining.toString());
+        }
 
         const issuedPayment = {
           paymentId: quote.paymentId,
@@ -742,6 +786,14 @@ async function handleRequest(req, res) {
           status: "issued"
         });
         s.nextSeq = seq + 1;
+
+        // Accumulate payer credits: when a payee has a payer channel,
+        // track the incoming payment so it can be rebated on their next spend.
+        if (!s.payerCredits) s.payerCredits = {};
+        const creditKey = payee; // payee address (lowercase)
+        const prev = BigInt(s.payerCredits[creditKey] || "0");
+        s.payerCredits[creditKey] = (prev + BigInt(ticket.amount)).toString();
+        console.log("[credits] credited", ticket.amount, "to", creditKey, "total:", s.payerCredits[creditKey]);
       });
 
       // Update Hub↔Payee channel state (if open)
@@ -784,6 +836,18 @@ async function handleRequest(req, res) {
         amount: ticket.amount,
         asset: ticket.asset
       });
+
+      // Handle registration: if invoice matches a pending registration, create the handle
+      if (HANDLE_ENABLED && quote.invoiceId) {
+        const reg = await store.get("handleRegs", quote.invoiceId);
+        if (reg && reg.handleId) {
+          await store.set("handles", reg.handleId, {
+            handleId: reg.handleId, handleName: reg.handleName, handleDomain: reg.handleDomain,
+            owner: recoveredA, createdAt: now()
+          });
+          console.log("[handles] registered:", reg.handleId, "owner:", recoveredA);
+        }
+      }
 
       // Emit balance.low when agent's remaining balance drops below 10% of total
       const balA = BigInt(body.channelState.balA);
@@ -934,6 +998,50 @@ async function handleRequest(req, res) {
       return sendJson(res, 200, payment);
     }
 
+    if (req.method === "GET" && pathname === "/v1/channels/lookup") {
+      const parsed = url.parse(req.url, true);
+      const payer = String((parsed.query && parsed.query.payer) || "").toLowerCase();
+      if (!isHexAddress(payer)) {
+        return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "payer query must be 0x address"));
+      }
+      // Scan on-chain ChannelOpened events for this payer
+      const channels = [];
+      if (RPC_URL && CONTRACT_ADDRESS) {
+        try {
+          const prov = new ethers.providers.JsonRpcProvider(RPC_URL);
+          const ct = new ethers.Contract(CONTRACT_ADDRESS, CHANNEL_ABI, prov);
+          const currentBlock = await prov.getBlockNumber();
+          const fromBlock = Math.max(0, currentBlock - 50000);
+          const filterA = ct.filters.ChannelOpened(null, payer);
+          const logsA = await ct.queryFilter(filterA, fromBlock, currentBlock);
+          for (const log of logsA) {
+            const { channelId, participantA, participantB, asset } = log.args;
+            try {
+              const chData = await ct.getChannel(channelId);
+              channels.push({ channelId, participantA, participantB, asset, totalBalance: chData.totalBalance.toString(), latestNonce: Number(chData.latestNonce || 0), isClosing: !!chData.isClosing });
+            } catch (_e) {
+              channels.push({ channelId, participantA, participantB, asset });
+            }
+          }
+        } catch (e) {
+          console.log("[lookup] on-chain scan error:", e.message);
+        }
+      }
+      // Also check hub store for channels with this payer
+      const allPayments = await store.listPayments();
+      const seenIds = new Set(channels.map(c => c.channelId));
+      for (const p of Object.values(allPayments)) {
+        if (p.channelId && !seenIds.has(p.channelId)) {
+          const ch = await store.getChannel(p.channelId);
+          if (ch && ch.participantA && ch.participantA.toLowerCase() === payer) {
+            channels.push({ channelId: p.channelId, participantA: ch.participantA, participantB: HUB_ADDRESS, totalBalance: "0" });
+            seenIds.add(p.channelId);
+          }
+        }
+      }
+      return sendJson(res, 200, { payer, channels });
+    }
+
     if (req.method === "GET" && pathname.startsWith("/v1/channels/")) {
       const channelId = pathname.split("/").pop();
       if (!isHex32(channelId)) {
@@ -947,9 +1055,28 @@ async function handleRequest(req, res) {
       // SECURITY: redact signatures and raw state — these are close authorizations.
       // Exposing both sigA+sigB would let anyone call cooperativeClose on-chain.
       const { sigA, sigB, latestState, ...safe } = ch;
+      const safeState = latestState ? { balA: latestState.balA, balB: latestState.balB, stateNonce: latestState.stateNonce } : null;
+      let onChainTotal = null;
+      if (RPC_URL && CONTRACT_ADDRESS && isHex32(channelId)) {
+        try {
+          const prov = new ethers.providers.JsonRpcProvider(RPC_URL);
+          const ct = new ethers.Contract(CONTRACT_ADDRESS, CHANNEL_ABI, prov);
+          const chData = await ct.getChannel(channelId);
+          onChainTotal = chData.totalBalance.toString();
+        } catch (_e) { /* ignore */ }
+      }
+      // Include payer credits if participantA has any
+      let payerCredit = "0";
+      if (ch.participantA) {
+        const credits = await store.tx((s) => s.payerCredits?.[ch.participantA.toLowerCase()] || "0");
+        payerCredit = credits;
+      }
       return sendJson(res, 200, {
         ...safe,
-        hasSignedState: !!(sigA || sigB)
+        hasSignedState: !!(sigA || sigB),
+        onChainTotalBalance: onChainTotal,
+        latestState: safeState,
+        payerCredit
       });
     }
 
@@ -1518,6 +1645,76 @@ async function handleRequest(req, res) {
       const channelId = parsed.query.channelId || parsed.query.channel || null;
       const limit = Number(parsed.query.limit || 50);
       return sendJson(res, 200, webhooks.poll({ since, channelId, limit }));
+    }
+
+    // --- Handle routes ---
+    if (HANDLE_ENABLED && req.method === "GET" && pathname.startsWith("/handle/")) {
+      const rawName = decodeURIComponent(pathname.slice("/handle/".length)).toLowerCase().replace(/^@/, "");
+      if (!rawName || !/^[a-z0-9][a-z0-9_.-]{0,30}[a-z0-9]?$/.test(rawName)) {
+        return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "invalid handle name"));
+      }
+      const handleDomain = HANDLE_DOMAIN;
+      if (!handleDomain) return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "HANDLE_DOMAIN not configured"));
+      const handleId = rawName + "@" + handleDomain;
+      const existing = await store.get("handles", handleId);
+      const hasPay = !!(req.headers["payment-signature"] || req.headers["x-payment"]);
+      // Paid request — return 200 with handle info
+      if (hasPay) {
+        if (existing) {
+          return sendJson(res, 200, { handle: handleId, owner: existing.owner, registered: true });
+        }
+        return sendJson(res, 200, { handle: handleId, registered: false, message: "Payment accepted — handle registration pending" });
+      }
+      const { query } = url.parse(req.url, true);
+      const amt = (query && query.amount) || HANDLE_PRICE;
+      const handleBase = process.env.HANDLE_PUBLIC_URL || `https://${handleDomain}`;
+      const hubEp = process.env.HUB_PUBLIC_ENDPOINT || process.env.HUB_ENDPOINT || process.env.HUB_URL || `http://${HOST}:${PORT}`;
+      if (existing) {
+        const payInv = "inv_h_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+        const mkOffer = (asset, label) => ({
+          scheme: "statechannel-hub-v1", network: `eip155:${CHAIN_ID}`,
+          asset, maxAmountRequired: amt, label,
+          resource: `${handleBase}/handle/${encodeURIComponent(rawName)}`,
+          extensions: { "statechannel-hub-v1": {
+            intent: "pay_handle", handle: handleId,
+            hubEndpoint: hubEp, hubName: HUB_NAME,
+            payeeAddress: existing.owner,
+            invoiceId: payInv,
+            stream: { amount: amt, t: 1 }
+          }}
+        });
+        return sendJson(res, 402, {
+          handle: handleId, owner: existing.owner,
+          accepts: [
+            mkOffer(HANDLE_ASSET, "ETH"),
+            mkOffer(DEFAULT_ASSET, "USDC")
+          ]
+        });
+      }
+      const regInv = "inv_hr_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+      await store.set("handleRegs", regInv, { handleId, handleName: rawName, handleDomain, createdAt: now() });
+      return sendJson(res, 402, {
+        handle: handleId, message: "Handle @" + rawName + " is available — pay to register",
+        accepts: [{
+          scheme: "statechannel-hub-v1", network: `eip155:${CHAIN_ID}`,
+          asset: HANDLE_ASSET, maxAmountRequired: HANDLE_PRICE,
+          resource: `${handleBase}/handle/${encodeURIComponent(rawName)}`,
+          extensions: { "statechannel-hub-v1": {
+            intent: "register_handle", handle: handleId,
+            hubEndpoint: hubEp, hubName: HUB_NAME,
+            payeeAddress: HUB_ADDRESS,
+            invoiceId: regInv,
+            stream: { amount: HANDLE_PRICE, t: 1 }
+          }}
+        }]
+      });
+    }
+
+    if (HANDLE_ENABLED && req.method === "GET" && pathname.startsWith("/v1/handles/")) {
+      const handleId = decodeURIComponent(pathname.slice("/v1/handles/".length)).toLowerCase();
+      const existing = await store.get("handles", handleId);
+      if (!existing) return sendJson(res, 404, makeError("SCP_009_POLICY_VIOLATION", "handle not found"));
+      return sendJson(res, 200, existing);
     }
 
     return sendJson(res, 404, makeError("SCP_009_POLICY_VIOLATION", "route not found"));
