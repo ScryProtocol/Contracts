@@ -209,7 +209,8 @@ html,body{font-family:var(--f);background:var(--bg);color:var(--t1);-webkit-font
   <div class="fm">
     <div class="fl"><label>Pay</label><input id="iUrl" type="text" placeholder="pr0@pogchamp.tv or https://..."/></div>
   </div>
-  <div class="ba"><button class="bt" id="bDisc" onclick="discover()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg><span>Pay</span></button></div>
+  <div class="ba"><button class="bt" id="bDisc" onclick="discover()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg><span>Pay</span></button>
+  <button class="b2" style="margin-top:8px" onclick="goChannels()">Channels</button></div>
 </div>
 
 <!-- VIEW 3: Confirm payment -->
@@ -233,6 +234,7 @@ html,body{font-family:var(--f);background:var(--bg);color:var(--t1);-webkit-font
   <div class="dv"></div>
   <div class="wb" style="padding-top:14px"><div class="wc"><div class="wi"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="2" y="6" width="20" height="14" rx="3"/><path d="M2 10h20"/></svg></div><div><div class="wl">Paying from</div><div class="wa" id="oAddr">-</div></div></div></div>
   <div class="ch" id="chW" style="display:none"><div class="ci"><div class="ci-l">Channel Balance</div><div class="ci-v" id="chV">-</div></div></div>
+  <div class="ch" id="crW" style="display:none"><div class="ci"><div class="ci-l">Payer Credit</div><div class="ci-v" id="crV" style="color:var(--ok)">-</div></div></div>
   <div class="st" id="stW" style="display:none"><div class="sl"><span class="p"></span><span id="stT">-</span></div></div>
   <div class="ba">
     <button class="bt" id="bPay" onclick="pay()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg><span id="bPT">Confirm &amp; Pay</span></button>
@@ -254,6 +256,20 @@ html,body{font-family:var(--f);background:var(--bg);color:var(--t1);-webkit-font
     <p class="em" id="erM">-</p>
     <button class="rb" onclick="resetPay()">Try again</button>
   </div>
+</div>
+
+<!-- VIEW 5: Channels -->
+<div class="v" id="vChan">
+  <div class="sp2">
+    <h3>Channels</h3>
+    <div id="chList" style="display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:12px;color:var(--t3)">Loading...</div>
+    </div>
+    <div id="crBal" style="margin-top:14px;display:none">
+      <div class="ci" style="background:#ecfdf5;border-color:#a7f3d0"><div class="ci-l" style="color:#059669">Hub Credit Balance</div><div class="ci-v" id="crBalV" style="color:#059669">-</div></div>
+    </div>
+  </div>
+  <div class="ba" style="padding-top:16px"><button class="b2" onclick="goReady()">&#8592; Back</button></div>
 </div>
 
 <!-- VIEW 4: Settings -->
@@ -296,7 +312,7 @@ const NW={sepolia:{cid:11155111,caip:"eip155:11155111",rpcs:["https://ethereum-s
 const AZ={1:{usdc:"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"},8453:{usdc:"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"},11155111:{usdc:"0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"},84532:{usdc:"0x036CbD53842c5426634e7929541eC2318f3dCF7e"}};
 const DD={usdc:6,usdt:6,eth:18};
 const E20=["function balanceOf(address) view returns (uint256)","function allowance(address,address) view returns (uint256)","function approve(address,uint256) returns (bool)"];
-const CAB=["function openChannel(address participantB,address asset,uint256 amount,uint64 challengePeriodSec,uint64 channelExpiry,bytes32 salt) external payable returns (bytes32 channelId)","function deposit(bytes32 channelId,uint256 amount) external payable","function getChannel(bytes32 channelId) external view returns (tuple(address participantA,address participantB,address asset,uint64 challengePeriodSec,uint64 channelExpiry,uint256 totalBalance,bool isClosing,uint64 closeDeadline,uint64 latestNonce))","event ChannelOpened(bytes32 indexed channelId,address indexed participantA,address indexed participantB,address asset,uint64 challengePeriodSec,uint64 channelExpiry)"];
+const CAB=["function openChannel(address participantB,address asset,uint256 amount,uint64 challengePeriodSec,uint64 channelExpiry,bytes32 salt) external payable returns (bytes32 channelId)","function deposit(bytes32 channelId,uint256 amount) external payable","function getChannel(bytes32 channelId) external view returns (tuple(address participantA,address participantB,address asset,uint64 challengePeriodSec,uint64 channelExpiry,uint256 totalBalance,bool isClosing,uint64 closeDeadline,uint64 latestNonce))","function cooperativeClose(tuple(bytes32 channelId,uint64 stateNonce,uint256 balA,uint256 balB,bytes32 locksRoot,uint64 stateExpiry,bytes32 contextHash) st,bytes sigA,bytes sigB) external","event ChannelOpened(bytes32 indexed channelId,address indexed participantA,address indexed participantB,address asset,uint64 challengePeriodSec,uint64 channelExpiry)"];
 
 function rN(n){const k=(n||"").toLowerCase();if(NW[k])return{...NW[k],nm:k};for(const[m,v]of Object.entries(NW)){if(v.caip===k||String(v.cid)===k)return{...v,nm:m};}return null;}
 function caip(n){return rN(n)?.caip||null;}
@@ -325,19 +341,36 @@ class Agent{
   async getBal(){const p=await this.gp(),eb=await p.getBalance(this.ad),n=this.ni(),cid=n?.cid||11155111,u=AZ[cid]?.usdc;let ub="0";if(u){try{const tk=new ethers.Contract(u,E20,p);ub=(await tk.balanceOf(this.ad)).toString();}catch{}}return{eth:ethers.utils.formatEther(eb),usdc:fA(ub,6)};}
   async disc(url){const r=await wT(fetch(url,{method:"GET",redirect:"manual"}),30000);if(r.status!==402)return{st:r.status,of:[]};const b=await r.json().catch(()=>null);let o=b?.accepts||b?.offers||[];o=o.map(x=>{const e=x.extensions||{},h=e["statechannel-hub-v1"],d=e["statechannel-direct-v1"];return{...x,scheme:h?"statechannel-hub-v1":d?"statechannel-direct-v1":x.scheme||"?",hEp:nE(h?.hubEndpoint||""),pAd:h?.payeeAddress||d?.payeeAddress||x.payeeAddress||null,inv:h?.invoiceId||x.invoiceId||null,intent:h?.intent||null,handle:h?.handle||null};});return{st:402,of:o,raw:b};}
   choose(of,rt="auto"){const nc=caip(this.net),fi=of.filter(o=>{const oc=caip(o.network);return!nc||!oc||oc===nc;}),hs=fi.filter(o=>o.scheme==="statechannel-hub-v1"),ds=fi.filter(o=>o.scheme==="statechannel-direct-v1");const am=o=>{try{return BigInt(oD(o));}catch{return 0n;}};const rH=o=>{const ep=nE(o.hEp);if(!ep)return 0;const c=this.s.ch["hub:"+ep];if(!c)return 0;try{return BigInt(c.bA||"0")>=am(o)?2:1;}catch{return 1;}};const pk=(l,f)=>{if(!l.length)return null;const s=l.map((o,i)=>({o,i,r:f(o),a:am(o)}));s.sort((a,b)=>a.r!==b.r?b.r-a.r:a.a<b.a?-1:a.a>b.a?1:a.i-b.i);return s[0].o;};if(rt==="hub")return pk(hs,rH);if(rt==="direct")return pk(ds,()=>0);return pk(hs,rH)||pk(ds,()=>0);}
-  async hyd(ep){const e=nE(ep);if(!e)return null;const ck="hub:"+e;const ta=v=>{try{return ethers.utils.getAddress(v);}catch{return null;}};let hi=null;try{const r=await wT(fetch(e+"/.well-known/x402"),10000);if(r.ok)hi=await r.json();console.log("[x402s] hyd hub info:",JSON.stringify(hi));}catch{}const ha=ta(hi?.address||hi?.hubAddress||hi?.signingAddress);if(ha&&ha.toLowerCase()===this.ad.toLowerCase()){console.warn("[x402s] hub returned self as address, ignoring");return null;}const cached=this.s.ch[ck];if(cached&&cached.n>0){const cp=ta(cached.pB);if(!ha||!cp||cp.toLowerCase()===ha.toLowerCase())return cached;console.log("[x402s] cached channel hub mismatch, re-scanning");delete this.s.ch[ck];this._sv();}
+  async hyd(ep){const e=nE(ep);if(!e)return null;const ck="hub:"+e;const ta=v=>{try{return ethers.utils.getAddress(v);}catch{return null;}};let hi=null;try{const r=await wT(fetch(e+"/.well-known/x402"),10000);if(r.ok)hi=await r.json();console.log("[x402s] hyd hub info:",JSON.stringify(hi));}catch{}const ha=ta(hi?.address||hi?.hubAddress||hi?.signingAddress);if(ha&&ha.toLowerCase()===this.ad.toLowerCase()){console.warn("[x402s] hub returned self as address, ignoring");return null;}const cached=this.s.ch[ck];if(cached&&cached.n>0){const cp=ta(cached.pB);if(!ha||!cp||cp.toLowerCase()===ha.toLowerCase()){
+      // Verify cached channel is still live — check hub first (fast), then on-chain
+      try{const hr=await wT(fetch(e+"/v1/channels/"+encodeURIComponent(cached.id)),10000);if(hr.ok){const hd=await hr.json();if(hd.status==="closed"){console.log("[x402s] hub says channel closed:",cached.id);delete this.s.ch[ck];this._sv();}else{if(hd.latestState){cached.n=Number(hd.latestState.stateNonce||cached.n);cached.bA=String(hd.latestState.balA??cached.bA);cached.bB=String(hd.latestState.balB??cached.bB);}if(hd.payerCredit)cached.credit=hd.payerCredit;return cached;}}}catch{}
+      try{const pp=await this.gp();const occ=new ethers.Contract(this.ca,CAB,pp);const ocd=await wT(occ.getChannel(cached.id),10000);if(ocd.totalBalance.isZero()){console.log("[x402s] cached channel closed on-chain:",cached.id);delete this.s.ch[ck];this._sv();}else{return cached;}}catch{return cached;}
+    }console.log("[x402s] cached channel hub mismatch, re-scanning");delete this.s.ch[ck];this._sv();}
     // 1) Alias existing local channel by endpoint or peer
     for(const v of Object.values(this.s.ch||{})){if(!v?.id||v.id===Z32)continue;const sameEp=nE(v.hEp||"")===e;const peer=ta(v.pB);const samePeer=!!(ha&&peer&&peer.toLowerCase()===ha.toLowerCase());if(!sameEp&&!samePeer)continue;this.s.ch[ck]={...v,pB:ha||v.pB,hEp:e};this._sv();console.log("[x402s] aliased existing channel",v.id);return this.s.ch[ck];}
     // 2) Hub lookup API (on-chain scan server-side)
-    try{const r=await wT(fetch(e+"/v1/channels/lookup?payer="+this.ad),15000);if(r.ok){const d=await r.json();console.log("[x402s] hub lookup:",JSON.stringify(d));const cs=d.channels||[];const mc=ha?cs.find(c=>{const pb=ta(c.participantB);return pb&&pb.toLowerCase()===ha.toLowerCase();}):cs[0];if(mc){const c=mc;const pB=ha||ta(c.participantB);if(pB&&pB.toLowerCase()!==this.ad.toLowerCase()){let nn=0,bA=String(c.totalBalance||"0"),bB="0";try{const hr=await wT(fetch(e+"/v1/channels/"+encodeURIComponent(c.channelId)),10000);if(hr.ok){const hd=await hr.json();nn=Number(hd.latestNonce||0);if(nn>0&&hd.latestState){bA=String(hd.latestState.balA??"0");bB=String(hd.latestState.balB??"0");}else{bA=String(hd.onChainTotalBalance||c.totalBalance||"0");}}}catch{}this.s.ch[ck]={id:c.channelId,pB,ast:c.asset||ZA,sym:gS({asset:c.asset}).toLowerCase(),n:nn,bA,bB,hEp:e};this._sv();console.log("[x402s] found channel:",c.channelId,"n:",nn,"bA:",bA);return this.s.ch[ck];}}}}catch(err){console.warn("[x402s] hub lookup failed:",err.message);}
+    try{const r=await wT(fetch(e+"/v1/channels/lookup?payer="+this.ad),15000);if(r.ok){const d=await r.json();console.log("[x402s] hub lookup:",JSON.stringify(d));const cs=d.channels||[];const mc=ha?cs.find(c=>{const pb=ta(c.participantB);return pb&&pb.toLowerCase()===ha.toLowerCase();}):cs[0];if(mc){const c=mc;const pB=ha||ta(c.participantB);if(pB&&pB.toLowerCase()!==this.ad.toLowerCase()){
+      // Verify channel is still live — check hub status first, then on-chain
+      try{const hc=await wT(fetch(e+"/v1/channels/"+encodeURIComponent(c.channelId)),10000);if(hc.ok){const hcd=await hc.json();if(hcd.status==="closed"){console.log("[x402s] hub says channel closed (path2):",c.channelId);throw new Error("closed");}}}catch(he){if(he.message==="closed")throw he;}
+      try{const pp=await this.gp();const occ=new ethers.Contract(this.ca,CAB,pp);const ocd=await wT(occ.getChannel(c.channelId),10000);if(ocd.totalBalance.isZero()){console.log("[x402s] channel closed on-chain, skipping:",c.channelId);delete this.s.ch[ck];this._sv();throw new Error("closed");}}catch(ocErr){if(ocErr.message==="closed")throw ocErr;}
+      let nn=0,bA=String(c.totalBalance||"0"),bB="0",cr="0";try{const hr=await wT(fetch(e+"/v1/channels/"+encodeURIComponent(c.channelId)),10000);if(hr.ok){const hd=await hr.json();nn=Number(hd.latestNonce||0);if(nn>0&&hd.latestState){bA=String(hd.latestState.balA??"0");bB=String(hd.latestState.balB??"0");}else{bA=String(hd.onChainTotalBalance||c.totalBalance||"0");}if(hd.payerCredit)cr=hd.payerCredit;}}catch{}this.s.ch[ck]={id:c.channelId,pB,ast:c.asset||ZA,sym:gS({asset:c.asset}).toLowerCase(),n:nn,bA,bB,hEp:e,credit:cr||"0"};this._sv();console.log("[x402s] found channel:",c.channelId,"n:",nn,"bA:",bA);return this.s.ch[ck];}}}}catch(err){if(err.message==="closed"){console.log("[x402s] skipping closed channel, will scan for new one");}else{console.warn("[x402s] hub lookup failed:",err.message);}}
     // 3) On-chain ChannelOpened log scan (limited to last 100k blocks)
     if(!ha)return null;const pa=ta(this.ad);if(!pa)return null;let cId=null;try{const p=await this.gp();const ct=new ethers.Contract(this.ca,CAB,p);const fl=ct.filters.ChannelOpened(null,pa,ha);const lb=await wT(p.getBlockNumber(),10000);const minBlock=Math.max(0,lb-100000);let step=9000,found=null;for(let to=lb;to>=minBlock&&!found;){const from=Math.max(minBlock,to-step+1);try{const logs=await wT(ct.queryFilter(fl,from,to),12000);if(logs.length)found=logs[logs.length-1];to=from-1;}catch(err){const m=String(err?.reason||err?.error?.message||err?.message||err);if(/eth_getlogs|block.*range|limited to|more than/i.test(m)&&step>1000){step=Math.max(1000,Math.floor(step/2));continue;}break;}}cId=found?.args?.channelId||found?.args?.[0]||null;if(cId)console.log("[x402s] found on-chain channel:",cId);}catch(err){console.warn("[x402s] log scan failed:",err.message);}
     if(!cId||cId===Z32)return null;
     // Fetch latest state from hub
-    let ls=null;let hubResp=null;try{const r=await wT(fetch(e+"/v1/channels/"+encodeURIComponent(cId)),10000);if(r.ok)hubResp=await r.json();ls=hubResp;}catch{}const st=ls?.latestState||{};const ast=st.asset||ls?.asset||ZA;const nn=Number(st.stateNonce??ls?.latestNonce??0);const ocb=hubResp?.onChainTotalBalance;const bA=nn>0?String(st.balA??"0"):ocb||"-1";const bB=nn>0?String(st.balB??"0"):"0";this.s.ch[ck]={id:cId,pB:ha,ast,sym:gS({asset:ast}).toLowerCase(),n:nn,bA,bB,hEp:e};this._sv();console.log("[x402s] hydrated channel:",cId,"nonce:",nn,"bA:",bA,"ocb:",ocb);return this.s.ch[ck];}
+    let ls=null;let hubResp=null;try{const r=await wT(fetch(e+"/v1/channels/"+encodeURIComponent(cId)),10000);if(r.ok)hubResp=await r.json();ls=hubResp;}catch{}
+    if(hubResp?.status==="closed"){console.log("[x402s] hub says channel closed (path3):",cId);return null;}
+    const st=ls?.latestState||{};const ast=st.asset||ls?.asset||ZA;const nn=Number(st.stateNonce??ls?.latestNonce??0);const ocb=hubResp?.onChainTotalBalance;const bA=nn>0?String(st.balA??"0"):ocb||"-1";const bB=nn>0?String(st.balB??"0"):"0";const cr3=hubResp?.payerCredit||"0";this.s.ch[ck]={id:cId,pB:ha,ast,sym:gS({asset:ast}).toLowerCase(),n:nn,bA,bB,hEp:e,credit:cr3};this._sv();console.log("[x402s] hydrated channel:",cId,"nonce:",nn,"bA:",bA,"ocb:",ocb);return this.s.ch[ck];}
   async openCh(peer,asset,amt,cb){const p=await this.gp(),sg=this.w.connect(p),ct=new ethers.Contract(this.ca,CAB,sg),n=this.ni(),cid=n?.cid||11155111,ra=rA(asset,cid),ab=ethers.BigNumber.from(amt),sl=ethers.utils.hexlify(ethers.utils.randomBytes(32));const peerAddr=ethers.utils.getAddress(peer);if(peerAddr.toLowerCase()===this.ad.toLowerCase())throw new Error("BLOCKED: Cannot open channel with self as peer ("+sA(peerAddr)+"). Hub returned wrong address.");console.log("[x402s] openChannel peer="+peerAddr+" self="+this.ad);if(!ra.isE){const tk=new ethers.Contract(ra.addr,E20,sg),al=await wT(tk.allowance(this.ad,this.ca),10000);if(al.lt(ab)){cb?.("Approving token...");const tx=await wT(tk.approve(this.ca,ethers.constants.MaxUint256),30000);await wT(tx.wait(1),120000);}}const to=ra.isE?{value:ab,gasLimit:350000}:{gasLimit:350000};cb?.("Opening channel...");const tx=await wT(ct.openChannel(peerAddr,ra.addr,ab,86400,Math.floor(Date.now()/1000)+2592000,sl,to),30000);cb?.("Confirming...");const rc=await wT(tx.wait(1),120000),ev=rc.events?.find(e=>e.event==="ChannelOpened");const rCid=ev?.args?.channelId||ev?.args?.[0]||null;if(!rCid||rCid===Z32)throw new Error("openChannel succeeded but channelId not found in event — check ABI");return{cId:rCid,tx:tx.hash,amt:amt+"",ast:ra.addr,sym:ra.sym,pB:peerAddr};}
   async fundCh(cId,amt){const p=await this.gp(),sg=this.w.connect(p),ct=new ethers.Contract(this.ca,CAB,sg),ch=await wT(ct.getChannel(cId),10000),aa=ch[2],ie=aa===ZA,ab=ethers.BigNumber.from(amt);if(!ie){const tk=new ethers.Contract(aa,E20,sg),al=await wT(tk.allowance(this.ad,this.ca),10000);if(al.lt(ab)){const tx=await wT(tk.approve(this.ca,ethers.constants.MaxUint256),30000);await wT(tx.wait(1),120000);}}const to=ie?{value:ab,gasLimit:200000}:{gasLimit:200000};const tx=await wT(ct.deposit(cId,ab,to),30000);await wT(tx.wait(1),120000);return{cId,tx:tx.hash};}
-  async ensure(of,cb){const ep=nE(of.hEp||""),ck="hub:"+ep;cb?.("Checking hub...");await this.hyd(ep);const ch=this.s.ch[ck],amt=BigInt(oD(of)),tgt=amt*100n;if(ch&&ch.n===0&&ch.id){try{const r=await wT(fetch(ep+"/v1/channels/"+encodeURIComponent(ch.id)),10000);if(r.ok){const b=await r.json();if(b?.onChainTotalBalance){ch.bA=b.onChainTotalBalance;ch.bB="0";this._sv();console.log("[x402s] ensure: on-chain balance",ch.bA);}}}catch{}}if(ch&&(ch.bA==="-1"||BigInt(ch.bA||"0")>=amt))return;let cur=ch?BigInt(ch.bA||"0"):0n;if(ch&&cur>=amt)return;const need=tgt>cur?tgt-cur:tgt;let hi=null;try{const r=await wT(fetch(ep+"/.well-known/x402"),10000);if(r.ok)hi=await r.json();console.log("[x402s] hub info:",JSON.stringify(hi));}catch(e){console.warn("[x402s] hub info fetch failed:",e.message);}if(!ch){const ha=hi?.address||hi?.hubAddress||hi?.signingAddress||hi?.peerAddress;if(!ha)throw new Error("Hub address not found (got: "+JSON.stringify(hi)+")");let peer;try{peer=ethers.utils.getAddress(ha);}catch{throw new Error("Invalid hub address: "+ha);}if(peer.toLowerCase()===this.ad.toLowerCase())throw new Error("Hub returned own wallet as peer address");cb?.("Opening channel on-chain...");const res=await this.openCh(peer,of.asset||"eth",need+"",cb);this.s.ch[ck]={id:res.cId,pB:res.pB,ast:res.ast,sym:res.sym,n:0,bA:need+"",bB:"0",hEp:ep};this._sv();return;}cb?.("Funding channel...");const res=await this.fundCh(ch.id,need+"");ch.bA=(cur+need)+"";this._sv();}
+  async ensure(of,cb){const ep=nE(of.hEp||""),ck="hub:"+ep;cb?.("Checking hub...");await this.hyd(ep);const ch=this.s.ch[ck],amt=BigInt(of._userAmt||oD(of)),tgt=amt*100n;if(ch&&ch.id){try{const r=await wT(fetch(ep+"/v1/channels/"+encodeURIComponent(ch.id)),10000);if(r.ok){const b=await r.json();if(b?.onChainTotalBalance){const ocT=BigInt(b.onChainTotalBalance),ls=b?.latestState;if(ls&&Number(ls.stateNonce||0)>0){const sA=BigInt(ls.balA||"0"),sB=BigInt(ls.balB||"0"),drift=ocT-(sA+sB);ch.bA=(sA+(drift>0n?drift:0n))+"";ch.bB=sB+"";ch.n=Number(ls.stateNonce);}else{ch.bA=b.onChainTotalBalance;ch.bB="0";ch.n=0;}this._sv();console.log("[x402s] ensure: reconciled bA="+ch.bA+" bB="+ch.bB+" onChain="+b.onChainTotalBalance);}}}catch{}}if(ch&&(ch.bA==="-1"||BigInt(ch.bA||"0")>=amt))return;let cur=ch?BigInt(ch.bA||"0"):0n;const cr=BigInt(ch?.credit||"0");if(ch&&cur>=amt)return;let need=tgt>cur?tgt-cur:tgt;
+    // Cap funding at wallet balance (leave gas reserve)
+    try{const p=await this.gp(),wb=(await p.getBalance(this.ad)).toBigInt(),gr=100000000000000n;const mf=wb>gr?wb-gr:0n;if(mf<amt)throw new Error("Insufficient wallet balance (need "+fT(amt+"","eth")+" ETH, wallet has "+fT(wb+"","eth")+" ETH)");if(need>mf)need=mf;}catch(e){if(e.message.startsWith("Insufficient"))throw e;}
+    let hi=null;try{const r=await wT(fetch(ep+"/.well-known/x402"),10000);if(r.ok)hi=await r.json();console.log("[x402s] hub info:",JSON.stringify(hi));}catch(e){console.warn("[x402s] hub info fetch failed:",e.message);}if(!ch){
+      // Check if credit alone covers this payment — skip channel opening
+      let noChCredit=0n;try{const cr2=await wT(fetch(ep+"/v1/credit/balance?address="+this.ad),10000);if(cr2.ok){const cb2=await cr2.json();noChCredit=BigInt(cb2.credit||"0");}}catch{}
+      if(noChCredit>=amt&&amt>0n){console.log("[x402s] ensure: no channel but credit covers payment, skip open");return;}
+      const ha=hi?.address||hi?.hubAddress||hi?.signingAddress||hi?.peerAddress;if(!ha)throw new Error("Hub address not found (got: "+JSON.stringify(hi)+")");let peer;try{peer=ethers.utils.getAddress(ha);}catch{throw new Error("Invalid hub address: "+ha);}if(peer.toLowerCase()===this.ad.toLowerCase())throw new Error("Hub returned own wallet as peer address");cb?.("Opening channel on-chain...");const res=await this.openCh(peer,of.asset||"eth",need+"",cb);this.s.ch[ck]={id:res.cId,pB:res.pB,ast:res.ast,sym:res.sym,n:0,bA:need+"",bB:"0",hEp:ep};this._sv();return;}cb?.("Funding channel...");const res=await this.fundCh(ch.id,need+"");ch.bA=(cur+need)+"";this._sv();}
   bds(cid){return ethers.utils.keccak256(ethers.utils.defaultAbiCoder.encode(["bytes32","bytes32","bytes32","uint256","address"],[ethers.utils.keccak256(ethers.utils.toUtf8Bytes("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)")),ethers.utils.keccak256(ethers.utils.toUtf8Bytes("X402StateChannel")),ethers.utils.keccak256(ethers.utils.toUtf8Bytes("1")),cid,this.ca]));}
   sig(st,cid){const TH=ethers.utils.keccak256(ethers.utils.toUtf8Bytes("ChannelState(bytes32 channelId,uint64 stateNonce,uint256 balA,uint256 balB,bytes32 locksRoot,uint64 stateExpiry,bytes32 contextHash)"));const s2=ethers.utils.keccak256(ethers.utils.defaultAbiCoder.encode(["bytes32","bytes32","uint64","uint256","uint256","bytes32","uint64","bytes32"],[TH,st.channelId,st.stateNonce,st.balA,st.balB,st.locksRoot||Z32,st.stateExpiry||0,st.contextHash||Z32]));const dm=this.bds(cid),dg=ethers.utils.keccak256(ethers.utils.solidityPack(["string","bytes32","bytes32"],["\x19\x01",dm,s2]));return ethers.utils.joinSignature(this.w._signingKey().signDigest(dg));}
   async payUrl(url,rt,cb,overrides){
@@ -356,9 +389,29 @@ class Agent{
     const ofForEnsure={...of,asset:useAsset};
     cb?.("Ensuring channel...");
     await this.ensure(ofForEnsure,cb);
-    if(!this.s.ch[ck])throw new Error("Channel setup failed");
-    const ch=this.s.ch[ck];
-    if(ch.id){try{const r=await wT(fetch(ep+"/v1/channels/"+encodeURIComponent(ch.id)),10000);if(r.ok){const b=await r.json().catch(()=>null),ls=b?.latestState;if(ls&&Number(ls.stateNonce||0)>0){ch.n=Number(ls.stateNonce);ch.bA=String(ls.balA??"0");ch.bB=String(ls.balB??"0");}else if(b?.onChainTotalBalance){ch.bA=b.onChainTotalBalance;ch.bB="0";ch.n=0;this._sv();}}}catch{}}
+    // Credit-only payment: no channel but credit covers the amount
+    if(!this.s.ch[ck]){
+      const da=of._userAmt||oD(of);
+      let crBal=0n;try{const cr=await wT(fetch(ep+"/v1/credit/balance?address="+this.ad),10000);if(cr.ok){const cb2=await cr.json();crBal=BigInt(cb2.credit||"0");}}catch{}
+      if(crBal>=BigInt(da)&&BigInt(da)>0n){
+        cb?.("Paying via credit...");
+        const inv=of.inv||"cpay_"+Date.now().toString(36);
+        const msg=ethers.utils.solidityKeccak256(["address","address","uint256","string"],[this.ad,of.pAd,da,inv]);
+        const sig=await this.w.signMessage(ethers.utils.arrayify(msg));
+        const cr=await wT(fetch(ep+"/v1/credit/pay",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({payer:this.ad,payee:of.pAd,amount:da,sig,invoiceId:inv})}),30000);
+        const rb=await cr.json();
+        if(!cr.ok)throw new Error(rb.message||"Credit payment failed");
+        // Send paid request to origin
+        const pr=await wT(fetch(url,{method:"GET",headers:{"PAYMENT-SIGNATURE":JSON.stringify({scheme:"credit",paymentId:rb.paymentId,amount:da})},cache:"no-store"}),30000);
+        return{ok:pr.ok,st:pr.status,amt:da,fee:"0",pid:rb.paymentId,tk:{ticketId:rb.paymentId},of,ai:rA(useAsset,cid),type:"credit"};
+      }
+      throw new Error("Channel setup failed");
+    }
+    const ch=this.s.ch[ck];const ensuredBal=ch.bA;
+    if(ch.id){try{const r=await wT(fetch(ep+"/v1/channels/"+encodeURIComponent(ch.id)),10000);if(r.ok){const b=await r.json().catch(()=>null),ls=b?.latestState;if(b?.onChainTotalBalance){const ocT=BigInt(b.onChainTotalBalance);if(ls&&Number(ls.stateNonce||0)>0){const sA=BigInt(ls.balA||"0"),sB=BigInt(ls.balB||"0"),drift=ocT-(sA+sB);ch.bA=(sA+(drift>0n?drift:0n))+"";ch.bB=sB+"";ch.n=Number(ls.stateNonce);}else{ch.bA=b.onChainTotalBalance;ch.bB="0";ch.n=0;}}if(b?.payerCredit)ch.credit=b.payerCredit;this._sv();}}catch{}}
+    // Never downgrade balance below what ensure() set (RPC may return stale data after deposit)
+    if(BigInt(ensuredBal||"0")>BigInt(ch.bA||"0")){ch.bA=ensuredBal;this._sv();}
+    try{const cr=await wT(fetch(ep+"/v1/credit/balance?address="+this.ad),10000);if(cr.ok){const cb=await cr.json();if(cb?.credit)ch.credit=cb.credit;}}catch{}
     const pid="pay_"+Date.now().toString(36),inv=of.inv||"inv_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8);
     const da=of._userAmt||oD(of);
     const ctx=ethers.utils.keccak256(ethers.utils.defaultAbiCoder.encode(["address","string","string","string"],[of.pAd||ZA,"GET",pid,inv]));
@@ -368,6 +421,7 @@ class Agent{
     const q=await qr.json(),td=q.totalDebit||q.ticketDraft?.totalDebit||q.amount||da;
     // Apply payer credits (rebate from incoming handle payments)
     const pc=BigInt(q.payerCredit||"0");
+    delete q.payerCredit; // Strip before sending back to issue (schema validation)
     const netDb=BigInt(td)>pc?BigInt(td)-pc:0n;
     if(pc>0n)console.log("[x402s] applying credit:",pc.toString(),"netDebit:",netDb.toString(),"totalDebit:",td);
     if(ch.bA==="-1")throw new Error("Could not determine on-chain balance. Retry.");const cA=BigInt(ch.bA||"0");const cB=BigInt(ch.bB||"0");
@@ -488,6 +542,93 @@ function goSet(){
   show('vSet');
 }
 function goReady(){show('vReady');refreshBal();}
+async function goChannels(){
+  show('vChan');
+  const list=document.getElementById('chList');
+  list.innerHTML='<div style="font-size:12px;color:var(--t3)">Loading...</div>';
+  if(!ag){list.innerHTML='<div style="font-size:12px;color:var(--t3)">No wallet</div>';return;}
+  // Hydrate channels from hub (discovers on-chain channels even if local cache is empty)
+  const defEp="https://pogchamp.tv/hub/sepolia";
+  const hubEps=new Set();
+  for(const[k,v]of Object.entries(ag.s?.ch||{})){const e=nE(v.hEp||k.replace("hub:",""));if(e)hubEps.add(e);}
+  hubEps.add(defEp);
+  for(const ep of hubEps){try{await ag.hyd(ep);}catch(e){console.warn("[channels] hyd failed:",e.message);}}
+  const chs=ag.s?.ch||{};const entries=Object.entries(chs).filter(([,v])=>v?.id);
+  // Fetch fresh credit balance
+  let hubCr="0";
+  for(const ep of hubEps){
+    try{const r=await fetch(ep+"/v1/credit/balance?address="+ag.ad);if(r.ok){const b=await r.json();if(BigInt(b.credit||"0")>BigInt(hubCr))hubCr=b.credit||"0";}}catch{}
+  }
+  const crDiv=document.getElementById('crBal');
+  if(BigInt(hubCr)>0n){crDiv.style.display='block';document.getElementById('crBalV').textContent=fT(hubCr,"eth")+" ETH";}else{crDiv.style.display='none';}
+  if(!entries.length){list.innerHTML='<div style="font-size:12px;color:var(--t3)">No channels found</div>';return;}
+  let html='';
+  // Check on-chain status and filter closed channels
+  let p=null;try{p=await ag.gp();}catch{}
+  const live=[];
+  for(const[k,v]of entries){
+    if(p&&v.id){try{const ct=new ethers.Contract(ag.ca,CAB,p);const oc=await ct.getChannel(v.id);if(oc.totalBalance.isZero()){delete ag.s.ch[k];ag._sv();continue;}}catch{}}
+    live.push([k,v]);
+  }
+  for(const[k,v]of live){
+    const ep=nE(v.hEp||k.replace("hub:",""));
+    let bA=v.bA||"0",bB=v.bB||"0",n=v.n||0;
+    // Refresh from hub
+    if(ep&&v.id){try{const r=await fetch(ep+"/v1/channels/"+encodeURIComponent(v.id));if(r.ok){const d=await r.json();if(d.latestState){bA=d.latestState.balA||bA;bB=d.latestState.balB||bB;n=Number(d.latestState.stateNonce||n);}}}catch{}}
+    const sym=gS({asset:v.ast});
+    html+='<div class="ci" style="flex-direction:column;align-items:stretch;gap:6px;padding:12px">';
+    html+='<div style="display:flex;justify-content:space-between"><span class="ci-l">Channel</span><span style="font-size:10px;color:var(--t3);font-family:var(--m)">'+sA(v.id)+'</span></div>';
+    html+='<div style="display:flex;justify-content:space-between"><span style="font-size:11px;color:var(--t2)">Your Balance</span><span style="font-size:12px;font-weight:700">'+fT(bA,sym.toLowerCase())+' '+sym+'</span></div>';
+    html+='<div style="display:flex;justify-content:space-between"><span style="font-size:11px;color:var(--t2)">Hub Balance</span><span style="font-size:12px;font-weight:600;color:var(--t2)">'+fT(bB,sym.toLowerCase())+' '+sym+'</span></div>';
+    html+='<div style="display:flex;justify-content:space-between"><span style="font-size:11px;color:var(--t2)">State Nonce</span><span style="font-size:11px;font-weight:600">'+n+'</span></div>';
+    html+='<div style="display:flex;justify-content:space-between"><span style="font-size:11px;color:var(--t2)">Hub</span><span style="font-size:10px;font-family:var(--m);color:var(--t3)">'+sA(v.pB)+'</span></div>';
+    html+='<button class="bdanger" style="margin-top:4px" onclick="closeChannel(\''+k+'\')">Close Channel</button>';
+    html+='</div>';
+  }
+  if(!live.length&&entries.length){list.innerHTML='<div style="font-size:12px;color:var(--t3)">No open channels (closed channels removed)</div>';return;}
+  list.innerHTML=html;
+}
+async function closeChannel(ck){
+  if(!ag)return;
+  if(!confirm("Close this channel? Your balance will be returned on-chain."))return;
+  const ch=ag.s.ch[ck];if(!ch||!ch.id)return alert("Channel not found");
+  const ep=nE(ch.hEp||ck.replace("hub:",""));
+  if(!ep)return alert("Hub endpoint not found");
+  try{
+    // Sign the channelId to prove we're the payer
+    const sig=await ag.w.signMessage(ethers.utils.arrayify(ch.id));
+    // Request close state + sigB from hub (hub applies credit to balA)
+    const r=await fetch(ep+"/v1/channels/"+encodeURIComponent(ch.id)+"/close",{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({sig})
+    });
+    if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.message||"Close request failed: "+r.status);}
+    const d=await r.json();
+    const st=d.state;
+    const cr=d.creditApplied||"0";
+    if(BigInt(cr)>0n){
+      if(!confirm("Hub will return "+fT(cr,"eth")+" ETH credit to your wallet.\nNew balance: "+fT(st.balA,"eth")+" ETH\n\nProceed?"))return;
+    }
+    // Payer signs the close state as sigA
+    const n=ag.ni(),cid=n?.cid||11155111;
+    const sigA=ag.sig(st,cid);
+    // Call cooperativeClose on-chain
+    const p=await ag.gp();
+    const sg=ag.w.connect(p);
+    const ct=new ethers.Contract(ag.ca,CAB,sg);
+    const tx=await ct.cooperativeClose(st,sigA,d.sigB,{gasLimit:250000});
+    alert("Close tx sent: "+tx.hash+"\nWaiting for confirmation...");
+    await tx.wait(1);
+    // Notify hub that channel is closed (consumes credit, marks closed in store)
+    try{await fetch(ep+"/v1/channels/"+encodeURIComponent(ch.id)+"/confirm-close",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({creditApplied:cr})});}catch{}
+    // Remove from local state
+    delete ag.s.ch[ck];ag._sv();
+    alert("Channel closed! "+fT(st.balA,"eth")+" ETH returned to your wallet."+(BigInt(cr)>0n?" (includes "+fT(cr,"eth")+" ETH credit)":""));
+    goChannels();
+  }catch(e){
+    alert("Close failed: "+e.message);
+  }
+}
 function showKey(){
   const d=JSON.parse(localStorage.getItem(WK)||"{}");
   if(!d.pk)return;
@@ -536,6 +677,18 @@ async function discover(){
   try{
     const s=JSON.parse(localStorage.getItem("x402s.settings")||"{}"),rt=s.rt||"hub";
     const d=await ag.disc(url);
+    // Free handle registration — bypass payment flow entirely
+    if(d.st===402&&d.raw?.free===true){
+      btn.innerHTML='<span class="sp"></span> Registering...';
+      const regUrl=url+(url.includes("?")?"&":"?")+"owner="+encodeURIComponent(ag.ad);
+      const rr=await fetch(regUrl);const rb=await rr.json().catch(()=>null);
+      if(rr.ok&&rb?.registered){
+        alert("Handle "+rb.handle+" registered to "+sA(ag.ad)+"!");
+      }else{
+        alert("Registration failed: "+(rb?.message||rr.status));
+      }
+      throw new Error("skip");
+    }
     if(d.st!==402){alert("Server returned "+d.st+" (not 402)");throw new Error("skip");}
     if(!d.of.length)throw new Error("No offers in 402 response");
     const of=ag.choose(d.of,rt);
@@ -569,7 +722,15 @@ async function discover(){
     const ep=nE(of.hEp);
     if(ep)await ag.hyd(ep);
     const ch=ep?ag.s.ch["hub:"+ep]:null;
-    if(ch){document.getElementById('chW').style.display='block';document.getElementById('chV').textContent=fT(ch.bA||"0",gS({asset:ch.ast}).toLowerCase())+" "+gS({asset:ch.ast});}else document.getElementById('chW').style.display='none';
+    // Fetch credit balance from hub (works even without channel)
+    let hubCredit="0";
+    if(ep){try{const cr=await fetch(ep+"/v1/credit/balance?address="+ag.ad);if(cr.ok){const cb=await cr.json();hubCredit=cb.credit||"0";}}catch{}}
+    if(ch&&ch.id&&ep){try{const hr=await fetch(ep+"/v1/channels/"+encodeURIComponent(ch.id));if(hr.ok){const hb=await hr.json();if(hb?.onChainTotalBalance){const ocT=BigInt(hb.onChainTotalBalance),ls=hb?.latestState;if(ls&&Number(ls.stateNonce||0)>0){const sA=BigInt(ls.balA||"0"),sB=BigInt(ls.balB||"0"),drift=ocT-(sA+sB);ch.bA=(sA+(drift>0n?drift:0n))+"";ch.bB=sB+"";ch.n=Number(ls.stateNonce);}else{ch.bA=hb.onChainTotalBalance;ch.bB="0";}ag._sv();}}}catch{}}
+    if(ch){document.getElementById('chW').style.display='block';document.getElementById('chV').textContent=fT(ch.bA||"0",gS({asset:ch.ast}).toLowerCase())+" "+gS({asset:ch.ast});ch.credit=hubCredit;}else{document.getElementById('chW').style.display='none';}
+    const crAmt=BigInt(hubCredit);if(crAmt>0n){document.getElementById('crW').style.display='block';document.getElementById('crV').textContent="+"+fT(hubCredit,"eth")+" ETH";}else{document.getElementById('crW').style.display='none';}
+    // Store credit-only flag for pay()
+    curOffer._creditOnly=!ch&&crAmt>0n;curOffer._hubCredit=hubCredit;curOffer._hubEp=ep;
+    if(!ch&&crAmt>0n){document.getElementById('oRoute').textContent='Hub (credit → channel if needed)';}
     show('vPay');
   }catch(e){if(e.message!=="skip")alert("Failed: "+e.message);}
   btn.disabled=false;btn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg><span>Pay</span>';
@@ -582,6 +743,34 @@ async function pay(){
   const btn=document.getElementById('bPay'),bt=document.getElementById('bPT');
   btn.classList.add('ld');btn.disabled=true;
   try{
+    // Credit-only payment path (no channel needed)
+    if(curOffer._creditOnly){
+      const amt=curOffer._userAmt||oD(curOffer);
+      if(!amt||amt==="0")return alert("Enter an amount to send");
+      if(BigInt(amt)>BigInt(curOffer._hubCredit||"0")){
+        // Credit insufficient — fall through to normal channel flow (will open/fund as needed)
+        curOffer._creditOnly=false;
+      }
+    }
+    if(curOffer._creditOnly){
+      const amt=curOffer._userAmt||oD(curOffer);
+      bt.innerHTML='<span class="sp"></span> Signing...';
+      const ep=curOffer._hubEp,inv=curOffer.inv||"cpay_"+Date.now().toString(36);
+      const payee=curOffer.pAd;
+      const msg=ethers.utils.solidityKeccak256(["address","address","uint256","string"],[ag.ad,payee,amt,inv]);
+      const sig=await ag.w.signMessage(ethers.utils.arrayify(msg));
+      bt.innerHTML='<span class="sp"></span> Paying via credit...';
+      const cr=await fetch(ep+"/v1/credit/pay",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({payer:ag.ad,payee,amount:amt,sig,invoiceId:inv})});
+      const rb=await cr.json();
+      if(!cr.ok)throw new Error(rb.message||"Credit payment failed");
+      ss(null);btn.classList.remove('ld');btn.classList.add('ok');
+      bt.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg> Paid';
+      document.getElementById('okS').textContent=fA(amt,18)+" ETH paid via credit. Zero gas.";
+      document.getElementById('okT').textContent="id:"+(rb.paymentId||"").slice(0,16)+"...";
+      document.getElementById('okD').textContent="Zero hub fee (credit transfer)";
+      setTimeout(()=>document.getElementById('okO').classList.add('on'),400);
+      if(window.parent!==window)window.parent.postMessage({type:"x402:payment:success",payId:rb.paymentId,amount:amt},"*");
+    }else{
     const s=JSON.parse(localStorage.getItem("x402s.settings")||"{}"),rt=s.rt||"hub";
     const ov=isHandlePay&&curOffer?{amt:curOffer._userAmt,asset:curOffer._userAsset,sym:curOffer._userSym}:null;
     const r=await ag.payUrl(tUrl,rt,m=>{ss(m);bt.innerHTML='<span class="sp"></span> '+m;},ov);
@@ -595,6 +784,7 @@ async function pay(){
     document.getElementById('okD').textContent=r.fee&&r.fee!=="0"?"Hub fee: "+fA(r.fee,dec)+" "+sym:"Zero hub fee";
     setTimeout(()=>document.getElementById('okO').classList.add('on'),400);
     if(window.parent!==window)window.parent.postMessage({type:"x402:payment:success",ticketId:r.tk?.ticketId,payId:r.pid,amount:r.amt},"*");
+    }
   }catch(e){
     ss(null);btn.classList.remove('ld');btn.className='bt';btn.disabled=false;bt.textContent='Confirm & Pay';
     document.getElementById('erM').textContent=e.message;
