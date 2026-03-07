@@ -267,6 +267,13 @@ html,body{font-family:var(--f);background:var(--bg);color:var(--t1);-webkit-font
     </div>
     <div id="crBal" style="margin-top:14px;display:none">
       <div class="ci" style="background:#ecfdf5;border-color:#a7f3d0"><div class="ci-l" style="color:#059669">Hub Credit Balance</div><div class="ci-v" id="crBalV" style="color:#059669">-</div></div>
+      <button class="b2" id="bWithdraw" style="margin-top:8px;width:100%" onclick="withdrawCredit()">Withdraw to Wallet</button>
+    </div>
+    <div id="fundWrap" style="margin-top:14px">
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="fundAmt" type="number" step="0.001" min="0.001" placeholder="ETH amount" style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid var(--b2);background:var(--c2);color:var(--t1);font-size:13px"/>
+        <button class="b2" id="bFund" style="white-space:nowrap" onclick="fundChannel()">Fund Channel</button>
+      </div>
     </div>
   </div>
   <div class="ba" style="padding-top:16px"><button class="b2" onclick="goReady()">&#8592; Back</button></div>
@@ -627,6 +634,66 @@ async function closeChannel(ck){
     goChannels();
   }catch(e){
     alert("Close failed: "+e.message);
+  }
+}
+async function fundChannel(){
+  if(!ag)return alert("No wallet");
+  const v=document.getElementById('fundAmt').value;
+  if(!v||parseFloat(v)<=0)return alert("Enter an amount");
+  const amt=ethers.utils.parseEther(v);
+  const btn=document.getElementById('bFund');
+  btn.disabled=true;btn.textContent='Funding...';
+  try{
+    const defEp="https://pogchamp.tv/hub/sepolia";
+    // Find existing channel
+    const chs=ag.s?.ch||{};const ck="hub:"+defEp;const ch=chs[ck];
+    if(ch&&ch.id){
+      // Deposit to existing channel
+      btn.textContent='Depositing...';
+      await ag.fundCh(ch.id,amt.toString());
+      ch.bA=(BigInt(ch.bA||"0")+amt.toBigInt())+"";ag._sv();
+      alert("Deposited "+v+" ETH to channel "+ch.id.slice(0,10)+"...");
+    }else{
+      // Open new channel
+      btn.textContent='Fetching hub info...';
+      let hi=null;try{const r=await fetch(defEp+"/.well-known/x402");if(r.ok)hi=await r.json();}catch{}
+      const ha=hi?.address||hi?.hubAddress||hi?.signingAddress||hi?.peerAddress;
+      if(!ha)throw new Error("Hub address not found");
+      const peer=ethers.utils.getAddress(ha);
+      btn.textContent='Opening channel...';
+      const res=await ag.openCh(peer,"eth",amt.toString(),m=>{btn.textContent=m;});
+      ag.s.ch[ck]={id:res.cId,pB:res.pB,ast:res.ast,sym:res.sym,n:0,bA:amt.toString(),bB:"0",hEp:defEp};ag._sv();
+      alert("Channel opened! "+v+" ETH deposited.\nChannel: "+res.cId.slice(0,10)+"...");
+    }
+    goChannels();
+  }catch(e){
+    alert("Fund failed: "+e.message);
+    btn.disabled=false;btn.textContent='Fund Channel';
+  }
+}
+async function withdrawCredit(){
+  if(!ag)return alert("No wallet");
+  const defEp="https://pogchamp.tv/hub/sepolia";
+  const btn=document.getElementById('bWithdraw');
+  btn.disabled=true;btn.textContent='Checking...';
+  try{
+    const cr=await fetch(defEp+"/v1/credit/balance?address="+ag.ad);
+    if(!cr.ok)throw new Error("Failed to check credit");
+    const cb=await cr.json();const amt=cb.credit||"0";
+    if(BigInt(amt)<=0n)throw new Error("No credit to withdraw");
+    if(!confirm("Withdraw "+fT(amt,"eth")+" ETH credit to your wallet?\nThis sends an on-chain transaction."))throw new Error("cancelled");
+    btn.textContent='Signing...';
+    const msg=ethers.utils.solidityKeccak256(["address","uint256","string"],[ag.ad,amt,"withdraw"]);
+    const sig=await ag.w.signMessage(ethers.utils.arrayify(msg));
+    btn.textContent='Withdrawing...';
+    const wr=await fetch(defEp+"/v1/credit/withdraw",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({address:ag.ad,amount:amt,sig})});
+    const rb=await wr.json();
+    if(!wr.ok)throw new Error(rb.message||"Withdrawal failed");
+    alert("Withdrawn "+fT(amt,"eth")+" ETH!\nTx: "+rb.txHash);
+    goChannels();
+  }catch(e){
+    if(e.message!=="cancelled")alert("Withdraw failed: "+e.message);
+    btn.disabled=false;btn.textContent='Withdraw to Wallet';
   }
 }
 function showKey(){

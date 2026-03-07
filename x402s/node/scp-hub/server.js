@@ -1690,8 +1690,26 @@ async function handleRequest(req, res) {
       } catch (_e) {
         return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "invalid signature"));
       }
-      const ch = await store.getChannel(channelId);
-      if (!ch || !ch.latestState) return sendJson(res, 404, makeError("SCP_007_CHANNEL_NOT_FOUND", "channel not found or no state"));
+      let ch = await store.getChannel(channelId);
+      // For nonce-0 channels (no tickets issued), create state from on-chain data
+      if (!ch || !ch.latestState) {
+        try {
+          const signer = getHubSigner();
+          const contract = new ethers.Contract(CONTRACT_ADDRESS, CHANNEL_ABI, signer);
+          const onChain = await contract.getChannel(channelId);
+          const total = onChain.totalBalance.toBigInt();
+          if (total === 0n) return sendJson(res, 409, makeError("SCP_007_CHANNEL_NOT_FOUND", "channel already closed on-chain"));
+          const pA = onChain.participantA || onChain[0];
+          const pB = onChain.participantB || onChain[1];
+          ch = {
+            channelId, participantA: pA, participantB: pB,
+            latestState: { channelId, balA: total.toString(), balB: "0", stateNonce: 0, locksRoot: ethers.constants.HashZero, contextHash: ethers.constants.HashZero },
+            latestNonce: 0, status: "open"
+          };
+        } catch (e) {
+          return sendJson(res, 404, makeError("SCP_007_CHANNEL_NOT_FOUND", "channel not found: " + e.message));
+        }
+      }
       if (recovered.toLowerCase() !== (ch.participantA || "").toLowerCase()) {
         return sendJson(res, 403, makeError("SCP_009_POLICY_VIOLATION", "sig must be from participantA"));
       }
@@ -1867,6 +1885,46 @@ async function handleRequest(req, res) {
         return s.payerCredits?.[addr] || "0";
       });
       return sendJson(res, 200, { address: addr, credit });
+    }
+
+    // --- Credit withdrawal: hub sends ETH on-chain to the user ---
+    if (req.method === "POST" && pathname === "/v1/credit/withdraw") {
+      const body = await parseBody(req);
+      const addr = (body.address || "").toLowerCase();
+      if (!addr || !isHexAddress(addr)) return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "valid address required"));
+      const sig = body.sig;
+      if (!sig) return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "signature required"));
+      const amount = body.amount;
+      if (!amount || BigInt(amount) <= 0n) return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "amount required"));
+      // Verify signature: keccak256(address, amount, "withdraw")
+      const msgHash = ethers.utils.solidityKeccak256(["address", "uint256", "string"], [addr, amount, "withdraw"]);
+      let recovered;
+      try {
+        recovered = ethers.utils.verifyMessage(ethers.utils.arrayify(msgHash), sig).toLowerCase();
+      } catch (e) {
+        return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "invalid signature"));
+      }
+      if (recovered !== addr) return sendJson(res, 403, makeError("SCP_009_POLICY_VIOLATION", "signature does not match address"));
+      // Check credit balance
+      const credit = await store.tx((s) => BigInt(s.payerCredits?.[addr] || "0"));
+      if (credit < BigInt(amount)) return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "insufficient credit"));
+      // Send ETH on-chain
+      try {
+        const signer = getHubSigner();
+        const tx = await signer.sendTransaction({ to: ethers.utils.getAddress(addr), value: ethers.BigNumber.from(amount), gasLimit: 21000 });
+        await tx.wait(1);
+        // Debit credit
+        await store.tx((s) => {
+          if (!s.payerCredits) s.payerCredits = {};
+          const cur = BigInt(s.payerCredits[addr] || "0");
+          s.payerCredits[addr] = (cur - BigInt(amount)).toString();
+        });
+        console.log("[credit-withdraw]", addr, amount, "tx:", tx.hash);
+        return sendJson(res, 200, { ok: true, address: addr, amount, txHash: tx.hash });
+      } catch (e) {
+        console.error("[credit-withdraw] failed:", e.message);
+        return sendJson(res, 500, makeError("SCP_011_SETTLEMENT_FAILED", "withdrawal tx failed: " + e.message));
+      }
     }
 
     // --- Handle routes ---
