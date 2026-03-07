@@ -336,12 +336,6 @@ class Agent{
   constructor(o){this.w=new ethers.Wallet(o.pk);this.ad=this.w.address;this.net=o.net||"sepolia";this.mA=o.mA||"5000000000000";this.mF=o.mF||"5000";this.ca=o.ca||DC;this.s={ch:{},pay:[]};this._p=null;this._pt=0;this._rpc=o.rpc||"";this._ld();}
   _k(){return"x402s.scp-agent.state.v1:"+this.ad.toLowerCase()+":"+String(this.net||"").toLowerCase()+":"+this.ca.toLowerCase();}
   _ld(){try{const r=localStorage.getItem(this._k());if(r){const p=JSON.parse(r);const aCh=p?.state?.channels||p?.channels||{};const aPay=p?.state?.payments||p?.payments||[];this.s={ch:{},pay:[]};for(const[k,v]of Object.entries(aCh)){if(!v?.channelId)continue;this.s.ch[k]={id:v.channelId,pB:v.participantB,ast:v.asset||ZA,sym:v.assetSymbol||gS({asset:v.asset}).toLowerCase(),n:Number(v.nonce||v.stateNonce||0),bA:String(v.balA||"0"),bB:String(v.balB||"0"),hEp:v.hubEndpoint||""};}if(Object.keys(this.s.ch).length)console.log("[x402s] loaded",Object.keys(this.s.ch).length,"channels from shared state");}}catch{}}
-  _sv(){try{
-    // Write back in scp-agent format so both apps stay in sync
-    const channels={};for(const[k,v]of Object.entries(this.s.ch)){channels[k]={channelId:v.id,participantB:v.pB,asset:v.ast,assetSymbol:v.sym,nonce:v.n,balA:v.bA,balB:v.bB,hubEndpoint:v.hEp};}
-    const existing=JSON.parse(localStorage.getItem(this._k())||"{}");
-    const merged={...existing,v:1,t:Date.now(),state:{...existing?.state,channels:{...existing?.state?.channels,...channels}}};
-    localStorage.setItem(this._k(),JSON.stringify(merged));}catch{}}
   _sv(){try{localStorage.setItem(this._k(),JSON.stringify({v:1,t:Date.now(),state:this.s}));}catch{}}
   ni(){return rN(this.net);}
   async gp(){if(this._p&&Date.now()-this._pt<300000)return this._p;this._p=null;const n=this.ni(),cid=n?.cid||11155111,rpcs=[...(this._rpc?[this._rpc]:[]),...(n?.rpcs||[])];for(const r of rpcs){try{const p=new ethers.providers.StaticJsonRpcProvider({url:r,timeout:12000},cid);const b=await wT(p.getBlockNumber(),12000);if(typeof b!=="number"||b<1)continue;this._p=p;this._pt=Date.now();return p;}catch{continue;}}throw new Error("No RPC available. Add a custom RPC in Settings.");}
@@ -350,7 +344,7 @@ class Agent{
   choose(of,rt="auto"){const nc=caip(this.net),fi=of.filter(o=>{const oc=caip(o.network);return!nc||!oc||oc===nc;}),hs=fi.filter(o=>o.scheme==="statechannel-hub-v1"),ds=fi.filter(o=>o.scheme==="statechannel-direct-v1");const am=o=>{try{return BigInt(oD(o));}catch{return 0n;}};const rH=o=>{const ep=nE(o.hEp);if(!ep)return 0;const c=this.s.ch["hub:"+ep];if(!c)return 0;try{return BigInt(c.bA||"0")>=am(o)?2:1;}catch{return 1;}};const pk=(l,f)=>{if(!l.length)return null;const s=l.map((o,i)=>({o,i,r:f(o),a:am(o)}));s.sort((a,b)=>a.r!==b.r?b.r-a.r:a.a<b.a?-1:a.a>b.a?1:a.i-b.i);return s[0].o;};if(rt==="hub")return pk(hs,rH);if(rt==="direct")return pk(ds,()=>0);return pk(hs,rH)||pk(ds,()=>0);}
   async hyd(ep){const e=nE(ep);if(!e)return null;const ck="hub:"+e;const ta=v=>{try{return ethers.utils.getAddress(v);}catch{return null;}};let hi=null;try{const r=await wT(fetch(e+"/.well-known/x402"),10000);if(r.ok)hi=await r.json();console.log("[x402s] hyd hub info:",JSON.stringify(hi));}catch{}const ha=ta(hi?.address||hi?.hubAddress||hi?.signingAddress);if(ha&&ha.toLowerCase()===this.ad.toLowerCase()){console.warn("[x402s] hub returned self as address, ignoring");return null;}const cached=this.s.ch[ck];if(cached&&cached.n>0){const cp=ta(cached.pB);if(!ha||!cp||cp.toLowerCase()===ha.toLowerCase()){
       // Verify cached channel is still live — check hub first (fast), then on-chain
-      try{const hr=await wT(fetch(e+"/v1/channels/"+encodeURIComponent(cached.id)),10000);if(hr.ok){const hd=await hr.json();if(hd.status==="closed"){console.log("[x402s] hub says channel closed:",cached.id);delete this.s.ch[ck];this._sv();}else{if(hd.latestState){cached.n=Number(hd.latestState.stateNonce||cached.n);cached.bA=String(hd.latestState.balA??cached.bA);cached.bB=String(hd.latestState.balB??cached.bB);}if(hd.payerCredit)cached.credit=hd.payerCredit;return cached;}}}catch{}
+      try{const hr=await wT(fetch(e+"/v1/channels/"+encodeURIComponent(cached.id)),10000);if(hr.ok){const hd=await hr.json();if(hd.status==="closed"){console.log("[x402s] hub says channel closed:",cached.id);delete this.s.ch[ck];this._sv();}else{if(hd.latestState){const hubN=Number(hd.latestState.stateNonce||0);if(hubN>=cached.n){cached.n=hubN;cached.bA=String(hd.latestState.balA??cached.bA);cached.bB=String(hd.latestState.balB??cached.bB);}else{console.warn("[x402s] hub nonce regression:",hubN,"<",cached.n,"— keeping local");}}if(hd.payerCredit)cached.credit=hd.payerCredit;return cached;}}}catch{}
       try{const pp=await this.gp();const occ=new ethers.Contract(this.ca,CAB,pp);const ocd=await wT(occ.getChannel(cached.id),10000);if(ocd.totalBalance.isZero()){console.log("[x402s] cached channel closed on-chain:",cached.id);delete this.s.ch[ck];this._sv();}else{return cached;}}catch{return cached;}
     }console.log("[x402s] cached channel hub mismatch, re-scanning");delete this.s.ch[ck];this._sv();}
     // 1) Alias existing local channel by endpoint or peer
@@ -403,9 +397,10 @@ class Agent{
       if(crBal>=BigInt(da)&&BigInt(da)>0n){
         cb?.("Paying via credit...");
         const inv=of.inv||"cpay_"+Date.now().toString(36);
-        const msg=ethers.utils.solidityKeccak256(["address","address","uint256","string"],[this.ad,of.pAd,da,inv]);
+        const cpNonce="cn_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8);
+        const msg=ethers.utils.solidityKeccak256(["address","address","uint256","string","string"],[this.ad,of.pAd,da,inv,cpNonce]);
         const sig=await this.w.signMessage(ethers.utils.arrayify(msg));
-        const cr=await wT(fetch(ep+"/v1/credit/pay",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({payer:this.ad,payee:of.pAd,amount:da,sig,invoiceId:inv})}),30000);
+        const cr=await wT(fetch(ep+"/v1/credit/pay",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({payer:this.ad,payee:of.pAd,amount:da,sig,invoiceId:inv,nonce:cpNonce})}),30000);
         const rb=await cr.json();
         if(!cr.ok)throw new Error(rb.message||"Credit payment failed");
         // Send paid request to origin
@@ -415,7 +410,7 @@ class Agent{
       throw new Error("Channel setup failed");
     }
     const ch=this.s.ch[ck];const ensuredBal=ch.bA;
-    if(ch.id){try{const r=await wT(fetch(ep+"/v1/channels/"+encodeURIComponent(ch.id)),10000);if(r.ok){const b=await r.json().catch(()=>null),ls=b?.latestState;if(b?.onChainTotalBalance){const ocT=BigInt(b.onChainTotalBalance);if(ls&&Number(ls.stateNonce||0)>0){const sA=BigInt(ls.balA||"0"),sB=BigInt(ls.balB||"0"),drift=ocT-(sA+sB);ch.bA=(sA+(drift>0n?drift:0n))+"";ch.bB=sB+"";ch.n=Number(ls.stateNonce);}else{ch.bA=b.onChainTotalBalance;ch.bB="0";ch.n=0;}}if(b?.payerCredit)ch.credit=b.payerCredit;this._sv();}}catch{}}
+    if(ch.id){try{const r=await wT(fetch(ep+"/v1/channels/"+encodeURIComponent(ch.id)),10000);if(r.ok){const b=await r.json().catch(()=>null),ls=b?.latestState;if(b?.onChainTotalBalance){const ocT=BigInt(b.onChainTotalBalance);if(ls&&Number(ls.stateNonce||0)>0){const hubN=Number(ls.stateNonce);if(hubN>=ch.n){const sA=BigInt(ls.balA||"0"),sB=BigInt(ls.balB||"0"),drift=ocT-(sA+sB);ch.bA=(sA+(drift>0n?drift:0n))+"";ch.bB=sB+"";ch.n=hubN;}else{console.warn("[x402s] payUrl nonce regression:",hubN,"<",ch.n);}}else if(ch.n===0){ch.bA=b.onChainTotalBalance;ch.bB="0";}}if(b?.payerCredit)ch.credit=b.payerCredit;this._sv();}}catch{}}
     // Never downgrade balance below what ensure() set (RPC may return stale data after deposit)
     if(BigInt(ensuredBal||"0")>BigInt(ch.bA||"0")){ch.bA=ensuredBal;this._sv();}
     try{const cr=await wT(fetch(ep+"/v1/credit/balance?address="+this.ad),10000);if(cr.ok){const cb=await cr.json();if(cb?.credit)ch.credit=cb.credit;}}catch{}
@@ -613,6 +608,14 @@ async function closeChannel(ck){
     const d=await r.json();
     const st=d.state;
     const cr=d.creditApplied||"0";
+    // Verify close state before signing: balA should be >= our tracked balance
+    const localBal=BigInt(ch.bA||"0");
+    const closeBal=BigInt(st.balA||"0");
+    if(closeBal<localBal&&BigInt(cr)===0n){
+      throw new Error("Hub returned close state with lower balance ("+fT(st.balA,"eth")+" vs local "+fT(ch.bA,"eth")+"). Rejecting.");
+    }
+    // Verify balA+balB sums correctly (fetch on-chain total)
+    try{const pp=await ag.gp();const occ=new ethers.Contract(ag.ca,CAB,pp);const ocd=await occ.getChannel(ch.id);const ocTotal=ocd.totalBalance.toBigInt();const stTotal=BigInt(st.balA||"0")+BigInt(st.balB||"0");if(stTotal!==ocTotal)throw new Error("Close state total ("+stTotal+") != on-chain total ("+ocTotal+")");}catch(ve){if(ve.message.includes("Close state total"))throw ve;}
     if(BigInt(cr)>0n){
       if(!confirm("Hub will return "+fT(cr,"eth")+" ETH credit to your wallet.\nNew balance: "+fT(st.balA,"eth")+" ETH\n\nProceed?"))return;
     }
@@ -683,10 +686,11 @@ async function withdrawCredit(){
     if(BigInt(amt)<=0n)throw new Error("No credit to withdraw");
     if(!confirm("Withdraw "+fT(amt,"eth")+" ETH credit to your wallet?\nThis sends an on-chain transaction."))throw new Error("cancelled");
     btn.textContent='Signing...';
-    const msg=ethers.utils.solidityKeccak256(["address","uint256","string"],[ag.ad,amt,"withdraw"]);
+    const wdNonce="wd_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8);
+    const msg=ethers.utils.solidityKeccak256(["address","uint256","string","string"],[ag.ad,amt,wdNonce,"withdraw"]);
     const sig=await ag.w.signMessage(ethers.utils.arrayify(msg));
     btn.textContent='Withdrawing...';
-    const wr=await fetch(defEp+"/v1/credit/withdraw",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({address:ag.ad,amount:amt,sig})});
+    const wr=await fetch(defEp+"/v1/credit/withdraw",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({address:ag.ad,amount:amt,sig,nonce:wdNonce})});
     const rb=await wr.json();
     if(!wr.ok)throw new Error(rb.message||"Withdrawal failed");
     alert("Withdrawn "+fT(amt,"eth")+" ETH!\nTx: "+rb.txHash);
@@ -824,10 +828,11 @@ async function pay(){
       bt.innerHTML='<span class="sp"></span> Signing...';
       const ep=curOffer._hubEp,inv=curOffer.inv||"cpay_"+Date.now().toString(36);
       const payee=curOffer.pAd;
-      const msg=ethers.utils.solidityKeccak256(["address","address","uint256","string"],[ag.ad,payee,amt,inv]);
+      const cpNonce2="cn_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8);
+      const msg=ethers.utils.solidityKeccak256(["address","address","uint256","string","string"],[ag.ad,payee,amt,inv,cpNonce2]);
       const sig=await ag.w.signMessage(ethers.utils.arrayify(msg));
       bt.innerHTML='<span class="sp"></span> Paying via credit...';
-      const cr=await fetch(ep+"/v1/credit/pay",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({payer:ag.ad,payee,amount:amt,sig,invoiceId:inv})});
+      const cr=await fetch(ep+"/v1/credit/pay",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({payer:ag.ad,payee,amount:amt,sig,invoiceId:inv,nonce:cpNonce2})});
       const rb=await cr.json();
       if(!cr.ok)throw new Error(rb.message||"Credit payment failed");
       ss(null);btn.classList.remove('ld');btn.classList.add('ok');

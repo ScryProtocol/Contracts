@@ -636,6 +636,24 @@ async function handleRequest(req, res) {
         if (String(existingChannel.participantA || "").toLowerCase() !== recoveredA.toLowerCase()) {
           return sendJson(res, 409, makeError("SCP_009_POLICY_VIOLATION", "participantA mismatch"));
         }
+        // Re-validate on-chain liveness for continuation issues
+        let onChainData = null;
+        const cHubSigner = getHubSigner();
+        if (cHubSigner && CONTRACT_ADDRESS) {
+          try {
+            const contract = new ethers.Contract(CONTRACT_ADDRESS, CHANNEL_ABI, cHubSigner);
+            onChainData = await contract.getChannel(body.channelState.channelId);
+            if (onChainData.isClosing) {
+              return sendJson(res, 409, makeError("SCP_009_POLICY_VIOLATION", "channel is closing on-chain"));
+            }
+            const chainExpiry = Number(onChainData.channelExpiry);
+            if (chainExpiry > 0 && chainExpiry <= now()) {
+              return sendJson(res, 409, makeError("SCP_009_POLICY_VIOLATION", "channel expired on-chain"));
+            }
+          } catch (e) {
+            console.warn("[issue] on-chain liveness check failed:", e.message);
+          }
+        }
         let prevBalA;
         let prevBalB;
         try {
@@ -647,9 +665,15 @@ async function handleRequest(req, res) {
         let prevTotal = prevBalA + prevBalB;
         // Reconcile on-chain deposits: if totalBalance increased, assign drift to payer (balA)
         if (stateTotal !== prevTotal) {
-          try {
-            const contract = new ethers.Contract(CONTRACT_ADDRESS, CHANNEL_ABI, getHubSigner());
-            const onChainData = await contract.getChannel(body.channelState.channelId);
+          if (!onChainData && cHubSigner && CONTRACT_ADDRESS) {
+            try {
+              const contract = new ethers.Contract(CONTRACT_ADDRESS, CHANNEL_ABI, cHubSigner);
+              onChainData = await contract.getChannel(body.channelState.channelId);
+            } catch (e) {
+              console.warn("[issue] on-chain reconciliation failed:", e.message);
+            }
+          }
+          if (onChainData) {
             const onChainTotal = BigInt(onChainData.totalBalance.toString());
             if (onChainTotal > prevTotal && stateTotal === onChainTotal) {
               const drift = onChainTotal - prevTotal;
@@ -657,8 +681,6 @@ async function handleRequest(req, res) {
               prevBalA = prevBalA + drift;
               prevTotal = onChainTotal;
             }
-          } catch (e) {
-            console.warn("[issue] on-chain reconciliation failed:", e.message);
           }
           if (stateTotal !== prevTotal) {
             return sendJson(res, 409, makeError("SCP_009_POLICY_VIOLATION", "channel balance invariant violated"));
@@ -717,6 +739,15 @@ async function handleRequest(req, res) {
         if (recoveredA.toLowerCase() !== expectedPayer) {
           return sendJson(res, 409, makeError("SCP_009_POLICY_VIOLATION",
             "sigA must recover to the non-hub channel participant"));
+        }
+        // Verify channel asset matches quoted asset
+        const onChainAsset = String(onChainData.asset || ethers.constants.AddressZero).toLowerCase();
+        const quotedAsset = String(quote.ticketDraft?.asset || ethers.constants.AddressZero).toLowerCase();
+        // Normalize: zero address and "eth" both mean native ETH
+        const normAsset = (a) => (a === "eth" || a === ethers.constants.AddressZero.toLowerCase()) ? ethers.constants.AddressZero.toLowerCase() : a;
+        if (normAsset(onChainAsset) !== normAsset(quotedAsset)) {
+          return sendJson(res, 409, makeError("SCP_009_POLICY_VIOLATION",
+            `channel asset (${onChainAsset}) does not match quoted asset (${quotedAsset})`));
         }
         // Verify channel is live (not closing, not expired)
         if (onChainData.isClosing) {
@@ -1774,6 +1805,12 @@ async function handleRequest(req, res) {
       ));
       const dg = ethers.utils.keccak256(ethers.utils.solidityPack(["string","bytes32","bytes32"],["\x19\x01", dm, s2]));
       const sigB = ethers.utils.joinSignature(hubSigner._signingKey().signDigest(dg));
+      // Store creditApplied in channel record so confirm-close can use the hub-derived value
+      await store.tx((s) => {
+        if (!s.channels[channelId]) s.channels[channelId] = {};
+        s.channels[channelId].pendingCloseCredit = creditApplied.toString();
+        s.channels[channelId].pendingCloseState = closeState;
+      });
       console.log("[close] issuing sigB for channel", channelId, "payer:", recovered, "creditApplied:", creditApplied.toString());
       return sendJson(res, 200, {
         channelId, state: closeState, sigB, creditApplied: creditApplied.toString(),
@@ -1786,7 +1823,7 @@ async function handleRequest(req, res) {
       const parts = pathname.split("/");
       const channelId = parts[parts.length - 2];
       if (!isHex32(channelId)) return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "invalid channel id"));
-      const body = await parseBody(req);
+      await parseBody(req); // consume body but ignore caller-supplied values
       // Verify on-chain that channel is actually closed
       try {
         const contract = new ethers.Contract(CONTRACT_ADDRESS, CHANNEL_ABI, getHubSigner());
@@ -1797,12 +1834,14 @@ async function handleRequest(req, res) {
       } catch (e) {
         return sendJson(res, 503, makeError("SCP_010_SETTLEMENT_UNAVAILABLE", "on-chain check failed"));
       }
-      // Mark channel closed in store and consume credit
+      // Mark channel closed in store and consume credit using hub-stored value (not caller input)
       const ch = await store.getChannel(channelId);
-      const creditUsed = body.creditApplied ? BigInt(body.creditApplied) : 0n;
+      const creditUsed = ch?.pendingCloseCredit ? BigInt(ch.pendingCloseCredit) : 0n;
       await store.tx((s) => {
         if (s.channels[channelId]) {
           s.channels[channelId].status = "closed";
+          delete s.channels[channelId].pendingCloseCredit;
+          delete s.channels[channelId].pendingCloseState;
         }
         if (creditUsed > 0n && ch && ch.participantA) {
           const pk = ch.participantA.toLowerCase();
@@ -1818,16 +1857,19 @@ async function handleRequest(req, res) {
     // --- Credit-only payment (no channel required) ---
     if (req.method === "POST" && pathname === "/v1/credit/pay") {
       const body = await parseBody(req);
-      const { payer, payee, amount, sig, invoiceId } = body;
+      const { payer, payee, amount, sig, invoiceId, nonce: cpNonce } = body;
       if (!isHexAddress(payer) || !isHexAddress(payee) || !amount || !sig) {
         return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "payer, payee, amount, sig required"));
       }
+      if (!cpNonce || typeof cpNonce !== "string") {
+        return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "nonce required"));
+      }
       const amt = BigInt(amount);
       if (amt <= 0n) return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "amount must be > 0"));
-      // Verify signature: payer signs keccak256(payer + payee + amount + invoiceId)
+      // Verify signature: payer signs keccak256(payer + payee + amount + invoiceId + nonce)
       const msg = ethers.utils.solidityKeccak256(
-        ["address", "address", "uint256", "string"],
-        [payer, payee, amount, invoiceId || ""]
+        ["address", "address", "uint256", "string", "string"],
+        [payer, payee, amount, invoiceId || "", cpNonce]
       );
       let recovered;
       try {
@@ -1838,25 +1880,22 @@ async function handleRequest(req, res) {
       if (recovered.toLowerCase() !== payer.toLowerCase()) {
         return sendJson(res, 403, makeError("SCP_009_POLICY_VIOLATION", "sig does not match payer"));
       }
-      // Check credit balance
-      const payerKey = payer.toLowerCase();
-      const credit = await store.tx((s) => {
-        return s.payerCredits?.[payerKey] || "0";
-      });
-      if (BigInt(credit) < amt) {
-        return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION",
-          "insufficient credit: have " + credit + " need " + amount));
-      }
-      // Transfer: debit payer credit, credit payee
+      // Atomic: check replay + check balance + transfer — all in one tx
       const payId = "cpay_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+      const payerKey = payer.toLowerCase();
       const payeeKey = payee.toLowerCase();
+      let txResult = null;
       await store.tx((s) => {
+        if (!s.spentCreditNonces) s.spentCreditNonces = {};
+        if (s.spentCreditNonces[cpNonce]) { txResult = "replay"; return; }
         if (!s.payerCredits) s.payerCredits = {};
         const pc = BigInt(s.payerCredits[payerKey] || "0");
+        if (pc < amt) { txResult = "insufficient"; return; }
+        // Mark nonce spent + debit + credit + record — all atomic
+        s.spentCreditNonces[cpNonce] = now();
         s.payerCredits[payerKey] = (pc - amt).toString();
         const pp = BigInt(s.payerCredits[payeeKey] || "0");
         s.payerCredits[payeeKey] = (pp + amt).toString();
-        // Record payment
         if (!s.payments) s.payments = {};
         s.payments[payId] = {
           paymentId: payId, status: "issued", createdAt: now(),
@@ -1871,7 +1910,15 @@ async function handleRequest(req, res) {
           invoiceId: invoiceId || "", amount, asset: "credit", status: "issued"
         });
         s.nextSeq = seq + 1;
+        txResult = "ok";
       });
+      if (txResult === "replay") {
+        return sendJson(res, 409, makeError("SCP_009_POLICY_VIOLATION", "nonce already used"));
+      }
+      if (txResult === "insufficient") {
+        return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION",
+          "insufficient credit"));
+      }
       console.log("[credit-pay]", payerKey, "->", payeeKey, amount, "payId:", payId);
       return sendJson(res, 200, { ok: true, paymentId: payId, amount, payer, payee, type: "credit" });
     }
@@ -1896,8 +1943,10 @@ async function handleRequest(req, res) {
       if (!sig) return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "signature required"));
       const amount = body.amount;
       if (!amount || BigInt(amount) <= 0n) return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "amount required"));
-      // Verify signature: keccak256(address, amount, "withdraw")
-      const msgHash = ethers.utils.solidityKeccak256(["address", "uint256", "string"], [addr, amount, "withdraw"]);
+      const nonce = body.nonce;
+      if (!nonce || typeof nonce !== "string") return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "nonce required"));
+      // Verify signature: keccak256(address, amount, nonce, "withdraw")
+      const msgHash = ethers.utils.solidityKeccak256(["address", "uint256", "string", "string"], [addr, amount, nonce, "withdraw"]);
       let recovered;
       try {
         recovered = ethers.utils.verifyMessage(ethers.utils.arrayify(msgHash), sig).toLowerCase();
@@ -1905,24 +1954,40 @@ async function handleRequest(req, res) {
         return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "invalid signature"));
       }
       if (recovered !== addr) return sendJson(res, 403, makeError("SCP_009_POLICY_VIOLATION", "signature does not match address"));
-      // Check credit balance
-      const credit = await store.tx((s) => BigInt(s.payerCredits?.[addr] || "0"));
-      if (credit < BigInt(amount)) return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "insufficient credit"));
-      // Send ETH on-chain
+      // Atomic: check replay, check balance, debit credit — all in one tx BEFORE sending ETH
+      let debitOk = false;
+      await store.tx((s) => {
+        if (!s.spentWithdrawNonces) s.spentWithdrawNonces = {};
+        if (s.spentWithdrawNonces[nonce]) return; // replay — debitOk stays false
+        if (!s.payerCredits) s.payerCredits = {};
+        const cur = BigInt(s.payerCredits[addr] || "0");
+        if (cur < BigInt(amount)) return; // insufficient — debitOk stays false
+        // Debit BEFORE sending (prevents TOCTOU)
+        s.payerCredits[addr] = (cur - BigInt(amount)).toString();
+        s.spentWithdrawNonces[nonce] = now();
+        debitOk = true;
+      });
+      if (!debitOk) {
+        // Distinguish replay from insufficient
+        const isReplay = await store.tx((s) => !!(s.spentWithdrawNonces?.[nonce]));
+        if (isReplay) return sendJson(res, 409, makeError("SCP_009_POLICY_VIOLATION", "nonce already used"));
+        return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "insufficient credit"));
+      }
+      // Send ETH on-chain (credit already debited — if tx fails, re-credit)
       try {
         const signer = getHubSigner();
         const tx = await signer.sendTransaction({ to: ethers.utils.getAddress(addr), value: ethers.BigNumber.from(amount), gasLimit: 21000 });
         await tx.wait(1);
-        // Debit credit
-        await store.tx((s) => {
-          if (!s.payerCredits) s.payerCredits = {};
-          const cur = BigInt(s.payerCredits[addr] || "0");
-          s.payerCredits[addr] = (cur - BigInt(amount)).toString();
-        });
         console.log("[credit-withdraw]", addr, amount, "tx:", tx.hash);
         return sendJson(res, 200, { ok: true, address: addr, amount, txHash: tx.hash });
       } catch (e) {
-        console.error("[credit-withdraw] failed:", e.message);
+        // Re-credit on tx failure (nonce stays spent to prevent retry of same sig)
+        await store.tx((s) => {
+          if (!s.payerCredits) s.payerCredits = {};
+          const cur = BigInt(s.payerCredits[addr] || "0");
+          s.payerCredits[addr] = (cur + BigInt(amount)).toString();
+        });
+        console.error("[credit-withdraw] failed (re-credited):", e.message);
         return sendJson(res, 500, makeError("SCP_011_SETTLEMENT_FAILED", "withdrawal tx failed: " + e.message));
       }
     }
