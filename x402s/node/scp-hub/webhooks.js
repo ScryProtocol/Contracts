@@ -22,10 +22,29 @@ const MAX_HOOKS_PER_CHANNEL = 10;
 const EVENT_LOG_MAX = 1000;
 const FAIL_THRESHOLD = 3;
 
+function isPrivateHost(hostname) {
+  // Block RFC-1918, loopback, link-local, cloud metadata IPs
+  const h = hostname.toLowerCase();
+  if (h === "localhost" || h === "[::1]") return true;
+  // IPv4 patterns
+  const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
+  if (ipv4) {
+    const [, a, b] = ipv4.map(Number);
+    if (a === 127) return true;                   // loopback
+    if (a === 10) return true;                    // 10.0.0.0/8
+    if (a === 172 && b >= 16 && b <= 31) return true; // 172.16.0.0/12
+    if (a === 192 && b === 168) return true;      // 192.168.0.0/16
+    if (a === 169 && b === 254) return true;      // link-local / cloud metadata
+    if (a === 0) return true;                     // 0.0.0.0/8
+  }
+  return false;
+}
+
 function parseWebhookUrl(raw) {
   try {
     const u = new URL(raw);
     if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    if (isPrivateHost(u.hostname)) return null;
     return u;
   } catch (_e) {
     return null;

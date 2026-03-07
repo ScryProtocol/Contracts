@@ -429,6 +429,10 @@ class Agent{
     if(ch.bA==="-1")throw new Error("Could not determine on-chain balance. Retry.");const cA=BigInt(ch.bA||"0");const cB=BigInt(ch.bB||"0");
     if(cA<netDb)throw new Error("Insufficient channel balance");
     const ns={channelId:ch.id,stateNonce:(ch.n||0)+1,balA:(cA-netDb)+"",balB:(cB+netDb)+"",locksRoot:Z32,stateExpiry:Math.floor(Date.now()/1000)+3600,contextHash:ctx};
+    // M7: balance invariant — total must not change
+    if(BigInt(ns.balA)+BigInt(ns.balB)!==cA+cB)throw new Error("Balance invariant violated: total changed");
+    // M9: quote amount sanity — totalDebit must not exceed 2x requested amount
+    if(BigInt(td)>BigInt(da)*2n)throw new Error("Quote totalDebit ("+td+") exceeds 2x requested amount ("+da+")");
     cb?.("Signing...");
     const sg=this.sig(ns,cid);
     cb?.("Issuing ticket...");
@@ -511,7 +515,9 @@ async function refreshBal(){
     const b=await ag.getBal();
     const n=ag.ni(),cid=n?.cid||11155111;
     const hasU=AZ[cid]?.usdc;
-    document.getElementById('rBal').textContent=hasU?(b.usdc+" USDC"):(parseFloat(b.eth).toFixed(4)+" ETH");
+    const parts=[parseFloat(b.eth).toFixed(4)+" ETH"];
+    if(hasU)parts.push(b.usdc+" USDC");
+    document.getElementById('rBal').textContent=parts.join(" / ");
   }catch(e){document.getElementById('rBal').textContent="\u2013";console.warn("[x402s] Balance fetch failed:",e.message);}
 }
 
@@ -576,7 +582,7 @@ async function goChannels(){
     const ep=nE(v.hEp||k.replace("hub:",""));
     let bA=v.bA||"0",bB=v.bB||"0",n=v.n||0;
     // Refresh from hub
-    if(ep&&v.id){try{const r=await fetch(ep+"/v1/channels/"+encodeURIComponent(v.id));if(r.ok){const d=await r.json();if(d.latestState){bA=d.latestState.balA||bA;bB=d.latestState.balB||bB;n=Number(d.latestState.stateNonce||n);}}}catch{}}
+    if(ep&&v.id){try{const r=await fetch(ep+"/v1/channels/"+encodeURIComponent(v.id));if(r.ok){const d=await r.json();if(d.latestState){bA=d.latestState.balA||bA;bB=d.latestState.balB||bB;n=Number(d.latestState.stateNonce||n);}if(d.onChainTotalBalance){const ocT=BigInt(d.onChainTotalBalance),sA2=BigInt(bA),sB2=BigInt(bB),drift=ocT-(sA2+sB2);if(drift>0n){bA=(sA2+drift)+"";v.bA=bA;v.bB=bB;v.n=n;ag._sv();}}}}catch{}}
     const sym=gS({asset:v.ast});
     html+='<div class="ci" style="flex-direction:column;align-items:stretch;gap:6px;padding:12px">';
     html+='<div style="display:flex;justify-content:space-between"><span class="ci-l">Channel</span><span style="font-size:10px;color:var(--t3);font-family:var(--m)">'+sA(v.id)+'</span></div>';

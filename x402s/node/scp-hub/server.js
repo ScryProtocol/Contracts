@@ -791,19 +791,23 @@ async function handleRequest(req, res) {
       // Compute applied credit for consumption inside tx
       const _appliedCredit = BigInt(stored.payerCredit || "0") > quoteDebit
         ? quoteDebit : BigInt(stored.payerCredit || "0");
+      let _creditInsufficient = false;
 
       await store.tx((s) => {
         // C6: Mark quote as consumed to prevent reuse
         delete s.quotes[key];
 
-        // Consume applied payer credit
+        // Consume applied payer credit — reject if credit was consumed elsewhere
         if (_appliedCredit > 0n) {
           if (!s.payerCredits) s.payerCredits = {};
           const payerKey = recoveredA.toLowerCase();
           const prev = BigInt(s.payerCredits[payerKey] || "0");
-          const remaining = prev > _appliedCredit ? prev - _appliedCredit : 0n;
-          s.payerCredits[payerKey] = remaining.toString();
-          console.log("[credits] consumed", _appliedCredit.toString(), "from", payerKey, "remaining:", remaining.toString());
+          if (prev < _appliedCredit) {
+            _creditInsufficient = true;
+            return;
+          }
+          s.payerCredits[payerKey] = (prev - _appliedCredit).toString();
+          console.log("[credits] consumed", _appliedCredit.toString(), "from", payerKey, "remaining:", (prev - _appliedCredit).toString());
         }
 
         const issuedPayment = {
@@ -854,8 +858,11 @@ async function handleRequest(req, res) {
         s.payerCredits[creditKey] = (prev + BigInt(ticket.amount)).toString();
         console.log("[credits] credited", ticket.amount, "to", creditKey, "total:", s.payerCredits[creditKey]);
       });
+      if (_creditInsufficient) {
+        return sendJson(res, 409, makeError("SCP_009_POLICY_VIOLATION", "payer credit consumed by concurrent request"));
+      }
 
-      // Update Hub↔Payee channel state (if open)
+      // Update Hub↔Payee channel state (if open) — atomic CAS to prevent TOCTOU
       let hubChannelAck = null;
       const payeeKey = String(ticket.payee || "").toLowerCase();
       const hc = await store.getHubChannel(payeeKey);
@@ -877,13 +884,24 @@ async function handleRequest(req, res) {
           contextHash: body.channelState.contextHash || ZERO32
         };
         const hcSigA = await signChannelState(hcState, wallet);
-        hc.balA = newBalA;
-        hc.balB = newBalH;
-        hc.nonce = newNonce;
-        hc.latestState = hcState;
-        hc.sigA = hcSigA;
-        hc.status = "open";
-        await store.setHubChannel(payeeKey, hc);
+        // Atomic: re-read + CAS on nonce to prevent concurrent overwrites
+        const expectedNonce = hc.nonce;
+        let casOk = false;
+        await store.tx((s) => {
+          if (!s.hubChannels) s.hubChannels = {};
+          const cur = s.hubChannels[payeeKey];
+          if (!cur || cur.nonce !== expectedNonce) return; // concurrent update — casOk stays false
+          cur.balA = newBalA;
+          cur.balB = newBalH;
+          cur.nonce = newNonce;
+          cur.latestState = hcState;
+          cur.sigA = hcSigA;
+          cur.status = "open";
+          casOk = true;
+        });
+        if (!casOk) {
+          return sendJson(res, 409, makeError("SCP_009_POLICY_VIOLATION", "concurrent hub-payee channel update, retry"));
+        }
         hubChannelAck = { channelId: hc.channelId, stateNonce: newNonce, balB: newBalH, sigA: hcSigA };
       }
 
@@ -1732,6 +1750,10 @@ async function handleRequest(req, res) {
           if (total === 0n) return sendJson(res, 409, makeError("SCP_007_CHANNEL_NOT_FOUND", "channel already closed on-chain"));
           const pA = onChain.participantA || onChain[0];
           const pB = onChain.participantB || onChain[1];
+          // H8: verify hub is a participant in this channel
+          if (pA.toLowerCase() !== HUB_ADDRESS.toLowerCase() && pB.toLowerCase() !== HUB_ADDRESS.toLowerCase()) {
+            return sendJson(res, 403, makeError("SCP_009_POLICY_VIOLATION", "hub is not a participant in this channel"));
+          }
           ch = {
             channelId, participantA: pA, participantB: pB,
             latestState: { channelId, balA: total.toString(), balB: "0", stateNonce: 0, locksRoot: ethers.constants.HashZero, contextHash: ethers.constants.HashZero },
@@ -1773,7 +1795,11 @@ async function handleRequest(req, res) {
       // Transfer credit from hub side (balB) to payer side (balA)
       // NOTE: credit is NOT consumed here — it's consumed when the channel is actually
       // closed on-chain. This prevents credit loss if the close tx reverts.
-      const credit = await store.tx((s) => BigInt(s.payerCredits?.[payerKey] || "0"));
+      // H8: Only apply credit if tickets were issued on this channel (latestNonce > 0).
+      // Nonce-0 channels never had tickets, so cross-channel credit must not apply.
+      const credit = (ch.latestNonce > 0)
+        ? await store.tx((s) => BigInt(s.payerCredits?.[payerKey] || "0"))
+        : 0n;
       if (credit > 0n && newBalB > 0n) {
         creditApplied = credit > newBalB ? newBalB : credit;
         newBalA = newBalA + creditApplied;

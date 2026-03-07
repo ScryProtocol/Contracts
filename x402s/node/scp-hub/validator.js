@@ -14,7 +14,7 @@ function buildValidators() {
     jsonPointers: true,
     schemaId: "auto",
     unknownFormats: "ignore",
-    validateSchema: false
+    validateSchema: true
   });
 
   const schemaDir = path.resolve(__dirname, "../../docs/schemas");
@@ -52,7 +52,7 @@ function buildValidators() {
     required: ["ticketId", "refundAmount", "reason"],
     properties: {
       ticketId: { type: "string", minLength: 6, maxLength: 128 },
-      refundAmount: { type: "string", pattern: "^[0-9]+$" },
+      refundAmount: { type: "string", pattern: "^[0-9]+$", maxLength: 78 },
       reason: { type: "string", minLength: 1, maxLength: 280 }
     }
   });
