@@ -19,6 +19,11 @@ const { ethers } = require("ethers");
 const { verifyTicket } = require("../scp-hub/ticket");
 const { HttpJsonClient } = require("../scp-common/http-client");
 const { recoverChannelStateSigner } = require("../scp-hub/state-signing");
+
+function buildContextHash(fields) {
+  const canonical = JSON.stringify(fields, Object.keys(fields).sort());
+  return ethers.utils.keccak256(ethers.utils.toUtf8Bytes(canonical));
+}
 const { resolveNetwork, resolveAsset } = require("../scp-common/networks");
 
 const HOST = process.env.HOST || "127.0.0.1";
@@ -495,10 +500,25 @@ async function validatePayment(pp, ctx, expectedPath) {
     const signer = recoverChannelStateSigner(dp.channelState, dp.sigA);
     if (signer.toLowerCase() !== dp.payer.toLowerCase()) return { ok: false, error: "bad payer sig" };
 
+    // SECURITY: verify contextHash binds signed state to the payment fields
+    if (dp.channelState.contextHash) {
+      const expectedCtx = buildContextHash({
+        payee: dp.payee,
+        invoiceId: dp.invoiceId,
+        paymentId: dp.paymentId,
+        amount: dp.amount,
+        asset: dp.asset
+      });
+      if (dp.channelState.contextHash.toLowerCase() !== expectedCtx.toLowerCase()) {
+        return { ok: false, error: "contextHash mismatch" };
+      }
+    }
+
     const chId = dp.channelState.channelId;
     const prev = ctx.directChannels.get(chId) || { nonce: 0, balB: "0" };
     if (Number(dp.channelState.stateNonce) <= prev.nonce) return { ok: false, error: "stale nonce" };
-    if (BigInt(dp.channelState.balB) - BigInt(prev.balB) < BigInt(dp.amount)) return { ok: false, error: "insufficient delta" };
+    const delta = BigInt(dp.channelState.balB) - BigInt(prev.balB);
+    if (delta !== BigInt(dp.amount)) return { ok: false, error: "delta mismatch" };
     if (dp.channelState.stateExpiry && Number(dp.channelState.stateExpiry) < now()) return { ok: false, error: "state expired" };
 
     ctx.directChannels.set(chId, { nonce: Number(dp.channelState.stateNonce), balB: dp.channelState.balB });

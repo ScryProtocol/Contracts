@@ -1,6 +1,20 @@
 const { ethers } = require("ethers");
 const { hashChannelState, recoverChannelStateSigner } = require("./state-signing");
 
+/**
+ * Recompute a contextHash from unsigned wrapper fields.
+ * Must match agent-client.js buildContextHash() exactly:
+ *   keccak256(JSON.stringify(fields, sorted_keys))
+ */
+function buildContextHash(fields) {
+  const canonical = JSON.stringify(fields, Object.keys(fields).sort());
+  return ethers.utils.keccak256(ethers.utils.toUtf8Bytes(canonical));
+}
+
+const CHANNEL_ABI = [
+  "function getChannel(bytes32 channelId) external view returns (tuple(address participantA, address participantB, address asset, uint64 challengePeriodSec, uint64 channelExpiry, uint256 totalBalance, bool isClosing, uint64 closeDeadline, uint64 latestNonce, uint8 hubFlags))"
+];
+
 function canonicalize(value) {
   if (Array.isArray(value)) {
     return value.map(canonicalize);
@@ -41,6 +55,34 @@ function parsePaymentHeader(header) {
 }
 
 function nowSec() { return Date.now() / 1000 | 0; }
+
+function normalizeLowerAddress(value) {
+  if (!value) return null;
+  try {
+    return ethers.utils.getAddress(String(value)).toLowerCase();
+  } catch (_e) {
+    const raw = String(value).trim();
+    return /^0x[a-fA-F0-9]{40}$/.test(raw) ? raw.toLowerCase() : null;
+  }
+}
+
+function verifyDirectProgression(direct, state, { commit = true } = {}) {
+  const channelId = direct.channelState.channelId;
+  const prev = state.get(channelId) || { nonce: 0, balB: "0" };
+  const nextNonce = Number(direct.channelState.stateNonce);
+  if (nextNonce <= Number(prev.nonce)) return { ok: false, error: "stale direct nonce" };
+  const delta = BigInt(direct.channelState.balB) - BigInt(prev.balB);
+  if (delta !== BigInt(direct.amount)) {
+    return { ok: false, error: `direct delta mismatch: expected ${direct.amount}, got ${delta}` };
+  }
+  if (direct.channelState.stateExpiry && Number(direct.channelState.stateExpiry) < nowSec()) {
+    return { ok: false, error: "state expired" };
+  }
+  if (commit) {
+    state.set(channelId, { nonce: nextNonce, balB: direct.channelState.balB });
+  }
+  return { ok: true };
+}
 
 /**
  * Verify a hub-routed payment header (ticket + channel proof).
@@ -124,18 +166,28 @@ function verifyDirectPayment(header, expect, state) {
     return { ok: false, error: "payer sig mismatch" };
   }
 
+  // SECURITY: verify contextHash binds the signed state to the request fields.
+  // The agent signs contextHash = keccak256(canonical({payee, resource, method, invoiceId,
+  // paymentId, amount, asset})) inside channelState. Without this check, a payee could
+  // repurpose a valid signed state for a different invoice/path/amount.
+  if (dp.channelState.contextHash) {
+    const expectedCtx = buildContextHash({
+      payee: dp.payee,
+      ...(expect.resource ? { resource: expect.resource } : {}),
+      ...(expect.method ? { method: expect.method } : {}),
+      invoiceId: dp.invoiceId,
+      paymentId: dp.paymentId,
+      amount: dp.amount,
+      asset: dp.asset
+    });
+    if (dp.channelState.contextHash.toLowerCase() !== expectedCtx.toLowerCase()) {
+      return { ok: false, error: "contextHash mismatch: signed state does not match payment fields" };
+    }
+  }
+
   if (state) {
-    const channelId = dp.channelState.channelId;
-    const prev = state.get(channelId) || { nonce: 0, balB: "0" };
-    const nextNonce = Number(dp.channelState.stateNonce);
-    if (nextNonce <= Number(prev.nonce)) return { ok: false, error: "stale direct nonce" };
-    if (BigInt(dp.channelState.balB) - BigInt(prev.balB) < BigInt(dp.amount)) {
-      return { ok: false, error: "insufficient direct delta" };
-    }
-    if (dp.channelState.stateExpiry && Number(dp.channelState.stateExpiry) < nowSec()) {
-      return { ok: false, error: "state expired" };
-    }
-    state.set(channelId, { nonce: nextNonce, balB: dp.channelState.balB });
+    const progression = verifyDirectProgression(dp, state);
+    if (!progression.ok) return progression;
   }
 
   return { ok: true, paymentId: payload.paymentId, direct: dp };
@@ -154,29 +206,46 @@ function verifyDirectPayment(header, expect, state) {
  * @returns {Promise<object>} verification result
  */
 async function verifyDirectPaymentAsync(header, expect, state, opts = {}) {
-  const result = verifyDirectPayment(header, expect, state);
+  const result = verifyDirectPayment(header, expect, null);
   if (!result.ok) return result;
 
-  // On-chain verification (recommended for production)
-  if (opts.getChannel && result.direct && result.direct.channelState) {
+  const requireOnChain = opts.requireOnChain === true;
+  if (requireOnChain && typeof opts.getChannel !== "function") {
+    return { ok: false, error: "direct on-chain verification unavailable" };
+  }
+
+  // On-chain verification
+  if (typeof opts.getChannel === "function" && result.direct && result.direct.channelState) {
     const channelId = result.direct.channelState.channelId;
     try {
       const ch = await opts.getChannel(channelId);
       if (!ch || !ch.participantA || ch.participantA === "0x0000000000000000000000000000000000000000") {
         return { ok: false, error: "channel does not exist on-chain" };
       }
-      const pA = ch.participantA.toLowerCase();
-      const pB = ch.participantB.toLowerCase();
-      const payerAddr = result.direct.payer.toLowerCase();
-      const payeeAddr = result.direct.payee.toLowerCase();
-      if (pA !== payerAddr && pB !== payerAddr) {
-        return { ok: false, error: "payer is not a channel participant" };
+      const pA = normalizeLowerAddress(ch.participantA);
+      const pB = normalizeLowerAddress(ch.participantB);
+      const payerAddr = normalizeLowerAddress(result.direct.payer);
+      const payeeAddr = normalizeLowerAddress(result.direct.payee);
+      if (!pA || !pB || !payerAddr || !payeeAddr) {
+        return { ok: false, error: "invalid on-chain participants" };
       }
-      if (pA !== payeeAddr && pB !== payeeAddr) {
-        return { ok: false, error: "payee is not a channel participant (uncollectible)" };
+      if (pA !== payerAddr) {
+        return { ok: false, error: "payer must be channel participantA" };
+      }
+      if (pB !== payeeAddr) {
+        return { ok: false, error: "payee must be channel participantB (collectible direct channel required)" };
       }
       if (ch.isClosing) {
         return { ok: false, error: "channel is closing" };
+      }
+      const chainExpiry = Number(ch.channelExpiry || 0);
+      if (chainExpiry > 0 && chainExpiry <= nowSec()) {
+        return { ok: false, error: "channel expired on-chain" };
+      }
+      const chainAsset = normalizeLowerAddress(ch.asset) || ethers.constants.AddressZero.toLowerCase();
+      const expectedAsset = normalizeLowerAddress(expect.asset || result.direct.asset) || ethers.constants.AddressZero.toLowerCase();
+      if (chainAsset !== expectedAsset) {
+        return { ok: false, error: "direct asset does not match on-chain channel asset" };
       }
       const onChainTotal = BigInt(ch.totalBalance.toString());
       const stateTotal = BigInt(result.direct.channelState.balA) + BigInt(result.direct.channelState.balB);
@@ -186,6 +255,11 @@ async function verifyDirectPaymentAsync(header, expect, state, opts = {}) {
     } catch (e) {
       return { ok: false, error: "on-chain check failed: " + (e.message || "unknown") };
     }
+  }
+
+  if (state) {
+    const progression = verifyDirectProgression(result.direct, state);
+    if (!progression.ok) return progression;
   }
 
   return result;
@@ -201,7 +275,10 @@ async function verifyPaymentFull(header, options) {
 
   // Direct route
   if (payload.scheme === "statechannel-direct-v1") {
-    const result = verifyDirectPayment(header, options, options.directChannels);
+    const result = await verifyDirectPaymentAsync(header, options, options.directChannels, {
+      getChannel: options.getChannel,
+      requireOnChain: options.requireDirectOnChain
+    });
     if (!result.ok) return result;
     if (!hasInvoice(options.invoiceStore, payload.invoiceId, result.direct)) {
       return { ok: false, error: "unknown invoice" };
@@ -315,7 +392,11 @@ function createVerifier({
   hubUrl,
   hub,
   hubs,
+  rpcUrl,
+  contractAddress,
+  getChannel: extGetChannel,
   confirmHub = true,
+  requireDirectOnChain = true,
   seenPayments: extSeenPayments,
   directChannels: extDirectChannels
 } = {}) {
@@ -323,6 +404,12 @@ function createVerifier({
   const httpClient = new HttpJsonClient();
   const seenPayments = extSeenPayments || new Map();
   const directChannels = extDirectChannels || new Map();
+  let getChannel = typeof extGetChannel === "function" ? extGetChannel : null;
+  if (!getChannel && rpcUrl && contractAddress) {
+    const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+    const contract = new ethers.Contract(contractAddress, CHANNEL_ABI, provider);
+    getChannel = async (channelId) => contract.getChannel(channelId);
+  }
 
   // address → url cache for all known hubs
   const hubMap = new Map(); // lowercase address → hubUrl
@@ -346,7 +433,14 @@ function createVerifier({
     // For direct payments, no hub needed
     const payload = parsePaymentHeader(header);
     if (payload && payload.scheme === "statechannel-direct-v1") {
-      return verifyPaymentFull(header, { payee, invoiceStore, seenPayments, directChannels });
+      return verifyPaymentFull(header, {
+        payee,
+        invoiceStore,
+        seenPayments,
+        directChannels,
+        getChannel,
+        requireDirectOnChain
+      });
     }
 
     // Resolve hub addresses on first call (or if new hubs added)
@@ -359,7 +453,7 @@ function createVerifier({
       if (matchedUrl) {
         return verifyPaymentFull(header, {
           payee, hub: quickCheck.signer, hubUrl: confirmHub ? matchedUrl : null,
-          httpClient, invoiceStore, seenPayments, directChannels
+          httpClient, invoiceStore, seenPayments, directChannels, getChannel, requireDirectOnChain
         });
       }
     }
@@ -377,7 +471,7 @@ function createVerifier({
 
     return verifyPaymentFull(header, {
       payee, hub: fallbackAddr, hubUrl: confirmHub ? fallbackUrl : null,
-      httpClient, invoiceStore, seenPayments, directChannels
+      httpClient, invoiceStore, seenPayments, directChannels, getChannel, requireDirectOnChain
     });
   };
 

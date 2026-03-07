@@ -113,7 +113,18 @@ describe("SCP Ticket Unit", function () {
   });
 
   it("verifies direct payment and tracks nonce progression", async function () {
-    const state = sampleState({ balA: "5000", balB: "1000" });
+    // Build contextHash matching the wrapper fields (must match buildContextHash in ticket.js)
+    const ctxFields = {
+      payee: payeeWallet.address,
+      invoiceId: "inv_dir_001",
+      paymentId: "pay_dir_001",
+      amount: "1000",
+      asset: ethers.constants.AddressZero
+    };
+    const contextHash = ethers.utils.keccak256(
+      ethers.utils.toUtf8Bytes(JSON.stringify(ctxFields, Object.keys(ctxFields).sort()))
+    );
+    const state = sampleState({ balA: "5000", balB: "1000", contextHash });
     const sigA = await signChannelState(state, payerWallet);
     const payload = {
       scheme: "statechannel-direct-v1",
