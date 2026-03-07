@@ -791,8 +791,36 @@ async function handleRequest(req, res) {
       // Compute applied credit for consumption inside tx
       const _appliedCredit = BigInt(stored.payerCredit || "0") > quoteDebit
         ? quoteDebit : BigInt(stored.payerCredit || "0");
-      let _creditInsufficient = false;
 
+      // H2: Pre-validate hub-payee channel capacity BEFORE committing payer state.
+      // Prepare hub-payee update so it can be committed atomically with the payer side.
+      let hubChannelAck = null;
+      const payeeKey = String(ticket.payee || "").toLowerCase();
+      const hc = await store.getHubChannel(payeeKey);
+      let hcPrepared = null;
+      if (hc && hc.channelId && hc.status !== "closed") {
+        const paymentAmount = BigInt(ticket.amount);
+        if (BigInt(hc.balA) < paymentAmount) {
+          return sendJson(res, 409, makeError("SCP_009_POLICY_VIOLATION", "hub-payee channel balance insufficient"));
+        }
+        const newBalA = (BigInt(hc.balA) - paymentAmount).toString();
+        const newBalH = (BigInt(hc.balB) + paymentAmount).toString();
+        const newNonce = hc.nonce + 1;
+        const hcState = {
+          channelId: hc.channelId,
+          stateNonce: newNonce,
+          balA: newBalA,
+          balB: newBalH,
+          locksRoot: ZERO32,
+          stateExpiry: now() + 3600,
+          contextHash: body.channelState.contextHash || ZERO32
+        };
+        const hcSigA = await signChannelState(hcState, wallet);
+        hcPrepared = { expectedNonce: hc.nonce, newBalA, newBalH, newNonce, hcState, hcSigA };
+      }
+
+      // Single atomic tx: payer-side commit + hub-payee CAS + credit consumption
+      let _txReject = null;
       await store.tx((s) => {
         // C6: Mark quote as consumed to prevent reuse
         delete s.quotes[key];
@@ -803,11 +831,32 @@ async function handleRequest(req, res) {
           const payerKey = recoveredA.toLowerCase();
           const prev = BigInt(s.payerCredits[payerKey] || "0");
           if (prev < _appliedCredit) {
-            _creditInsufficient = true;
+            _txReject = "payer credit consumed by concurrent request";
             return;
           }
           s.payerCredits[payerKey] = (prev - _appliedCredit).toString();
           console.log("[credits] consumed", _appliedCredit.toString(), "from", payerKey, "remaining:", (prev - _appliedCredit).toString());
+        }
+
+        // H2: Hub-payee CAS inside same tx — if it fails, nothing is committed
+        if (hcPrepared) {
+          if (!s.hubChannels) s.hubChannels = {};
+          const cur = s.hubChannels[payeeKey];
+          if (!cur || cur.nonce !== hcPrepared.expectedNonce) {
+            _txReject = "concurrent hub-payee channel update, retry";
+            return;
+          }
+          // Re-check balance inside tx (may have changed since pre-validation)
+          if (BigInt(cur.balA) < BigInt(ticket.amount)) {
+            _txReject = "hub-payee channel balance insufficient";
+            return;
+          }
+          cur.balA = hcPrepared.newBalA;
+          cur.balB = hcPrepared.newBalH;
+          cur.nonce = hcPrepared.newNonce;
+          cur.latestState = hcPrepared.hcState;
+          cur.sigA = hcPrepared.hcSigA;
+          cur.status = "open";
         }
 
         const issuedPayment = {
@@ -858,51 +907,11 @@ async function handleRequest(req, res) {
         s.payerCredits[creditKey] = (prev + BigInt(ticket.amount)).toString();
         console.log("[credits] credited", ticket.amount, "to", creditKey, "total:", s.payerCredits[creditKey]);
       });
-      if (_creditInsufficient) {
-        return sendJson(res, 409, makeError("SCP_009_POLICY_VIOLATION", "payer credit consumed by concurrent request"));
+      if (_txReject) {
+        return sendJson(res, 409, makeError("SCP_009_POLICY_VIOLATION", _txReject));
       }
-
-      // Update Hub↔Payee channel state (if open) — atomic CAS to prevent TOCTOU
-      let hubChannelAck = null;
-      const payeeKey = String(ticket.payee || "").toLowerCase();
-      const hc = await store.getHubChannel(payeeKey);
-      if (hc && hc.channelId && hc.status !== "closed") {
-        const paymentAmount = BigInt(ticket.amount);
-        if (BigInt(hc.balA) < paymentAmount) {
-          return sendJson(res, 409, makeError("SCP_009_POLICY_VIOLATION", "hub-payee channel balance insufficient"));
-        }
-        const newBalA = (BigInt(hc.balA) - paymentAmount).toString();
-        const newBalH = (BigInt(hc.balB) + paymentAmount).toString();
-        const newNonce = hc.nonce + 1;
-        const hcState = {
-          channelId: hc.channelId,
-          stateNonce: newNonce,
-          balA: newBalA,
-          balB: newBalH,
-          locksRoot: ZERO32,
-          stateExpiry: now() + 3600,
-          contextHash: body.channelState.contextHash || ZERO32
-        };
-        const hcSigA = await signChannelState(hcState, wallet);
-        // Atomic: re-read + CAS on nonce to prevent concurrent overwrites
-        const expectedNonce = hc.nonce;
-        let casOk = false;
-        await store.tx((s) => {
-          if (!s.hubChannels) s.hubChannels = {};
-          const cur = s.hubChannels[payeeKey];
-          if (!cur || cur.nonce !== expectedNonce) return; // concurrent update — casOk stays false
-          cur.balA = newBalA;
-          cur.balB = newBalH;
-          cur.nonce = newNonce;
-          cur.latestState = hcState;
-          cur.sigA = hcSigA;
-          cur.status = "open";
-          casOk = true;
-        });
-        if (!casOk) {
-          return sendJson(res, 409, makeError("SCP_009_POLICY_VIOLATION", "concurrent hub-payee channel update, retry"));
-        }
-        hubChannelAck = { channelId: hc.channelId, stateNonce: newNonce, balB: newBalH, sigA: hcSigA };
+      if (hcPrepared) {
+        hubChannelAck = { channelId: hcPrepared.hcState.channelId, stateNonce: hcPrepared.newNonce, balB: hcPrepared.newBalH, sigA: hcPrepared.hcSigA };
       }
 
       webhooks.emit(EVENT.PAYMENT_RECEIVED, {
@@ -960,16 +969,18 @@ async function handleRequest(req, res) {
       if (!ticketPayment) {
         return sendJson(res, 404, makeError("SCP_007_CHANNEL_NOT_FOUND", "ticket not found or already refunded"));
       }
-      if (ticketPayment.status !== "issued") {
-        return sendJson(res, 404, makeError("SCP_007_CHANNEL_NOT_FOUND", "ticket not found or already refunded"));
+      if (ticketPayment.status !== "issued" && ticketPayment.status !== "partially_refunded") {
+        return sendJson(res, 404, makeError("SCP_007_CHANNEL_NOT_FOUND", "ticket not found or already fully refunded"));
       }
 
       // AUTH: require payee auth — only the payee who received the ticket can trigger refunds
       const refundPayee = String(ticketPayment.payee || "").toLowerCase();
       if (!requirePayeeAuth(req, res, pathname, refundPayee, body)) return;
 
-      if (BigInt(body.refundAmount) > BigInt(ticketPayment.amount)) {
-        return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "refund exceeds original amount"));
+      const alreadyRefunded = BigInt(ticketPayment.refundAmount || "0");
+      if (BigInt(body.refundAmount) + alreadyRefunded > BigInt(ticketPayment.amount)) {
+        return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION",
+          "refund exceeds remaining amount (already refunded " + alreadyRefunded.toString() + ")"));
       }
 
       // Build a signed refund state so the payer can advance channel state after refund.
@@ -1024,12 +1035,19 @@ async function handleRequest(req, res) {
         sigB
       };
 
+      const isFullRefund = refundAmount === originalAmount;
+      const refundStatus = isFullRefund ? "refunded" : "partially_refunded";
+
       await store.tx((s) => {
-        s.payments[ticketPayment.paymentId].status = "refunded";
-        s.payments[ticketPayment.paymentId].refundedAt = now();
-        s.payments[ticketPayment.paymentId].refundReceiptId = receiptId;
-        s.payments[ticketPayment.paymentId].refundAmount = body.refundAmount;
-        s.payments[ticketPayment.paymentId].refundTotalDebit = refundDebit.toString();
+        // Re-check status inside tx to prevent double-refund TOCTOU
+        const payment = s.payments[ticketPayment.paymentId];
+        if (!payment || (payment.status !== "issued" && payment.status !== "partially_refunded")) return;
+
+        payment.status = refundStatus;
+        payment.refundedAt = now();
+        payment.refundReceiptId = receiptId;
+        payment.refundAmount = body.refundAmount;
+        payment.refundTotalDebit = refundDebit.toString();
         s.channels[ticketPayment.channelId] = {
           ...s.channels[ticketPayment.channelId],
           latestNonce: refundState.stateNonce,
@@ -1040,13 +1058,22 @@ async function handleRequest(req, res) {
         const payee = String(ticketPayment.payee || "").toLowerCase();
         const entries = (s.payeeLedger && s.payeeLedger[payee]) || [];
         for (const entry of entries) {
-          if (entry.paymentId === ticketPayment.paymentId && entry.status === "issued") {
-            entry.status = "refunded";
+          if (entry.paymentId === ticketPayment.paymentId &&
+              (entry.status === "issued" || entry.status === "partially_refunded")) {
+            entry.status = refundStatus;
             entry.refundedAt = now();
             entry.refundReceiptId = receiptId;
+            entry.refundAmount = body.refundAmount;
             break;
           }
         }
+        // H1: Reverse payee credits to prevent withdraw after refund
+        if (!s.payerCredits) s.payerCredits = {};
+        const creditKey = payee;
+        const prev = BigInt(s.payerCredits[creditKey] || "0");
+        const deduction = BigInt(body.refundAmount);
+        s.payerCredits[creditKey] = (prev > deduction ? prev - deduction : 0n).toString();
+        console.log("[credits] reversed", body.refundAmount, "from", creditKey, "remaining:", s.payerCredits[creditKey]);
       });
 
       webhooks.emit(EVENT.PAYMENT_REFUNDED, {
@@ -1238,11 +1265,18 @@ async function handleRequest(req, res) {
       for (const entry of ledger) {
         const amt = BigInt(entry.amount);
         if (entry.status === "refunded") {
-          earned -= amt;
+          // Full refund — subtract the refunded amount (not the full original)
+          const refunded = BigInt(entry.refundAmount || entry.amount);
+          earned += amt - refunded;
+          continue;
+        }
+        if (entry.status === "partially_refunded") {
+          const refunded = BigInt(entry.refundAmount || "0");
+          earned += amt - refunded;
           continue;
         }
         earned += amt;
-        if (entry.status === "settled") settled += BigInt(entry.amount);
+        if (entry.status === "settled") settled += amt;
       }
       return sendJson(res, 200, {
         payee,
