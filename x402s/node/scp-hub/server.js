@@ -820,12 +820,11 @@ async function handleRequest(req, res) {
       }
 
       // Single atomic tx: payer-side commit + hub-payee CAS + credit consumption
+      // V1+V2: ALL checks run before ANY mutations to avoid partial state on early return
+      // (storage backends do not rollback mutations on early return from tx mutator)
       let _txReject = null;
       await store.tx((s) => {
-        // C6: Mark quote as consumed to prevent reuse
-        delete s.quotes[key];
-
-        // Consume applied payer credit — reject if credit was consumed elsewhere
+        // --- Phase 1: all CAS checks (no mutations) ---
         if (_appliedCredit > 0n) {
           if (!s.payerCredits) s.payerCredits = {};
           const payerKey = recoveredA.toLowerCase();
@@ -834,11 +833,7 @@ async function handleRequest(req, res) {
             _txReject = "payer credit consumed by concurrent request";
             return;
           }
-          s.payerCredits[payerKey] = (prev - _appliedCredit).toString();
-          console.log("[credits] consumed", _appliedCredit.toString(), "from", payerKey, "remaining:", (prev - _appliedCredit).toString());
         }
-
-        // H2: Hub-payee CAS inside same tx — if it fails, nothing is committed
         if (hcPrepared) {
           if (!s.hubChannels) s.hubChannels = {};
           const cur = s.hubChannels[payeeKey];
@@ -846,11 +841,24 @@ async function handleRequest(req, res) {
             _txReject = "concurrent hub-payee channel update, retry";
             return;
           }
-          // Re-check balance inside tx (may have changed since pre-validation)
           if (BigInt(cur.balA) < BigInt(ticket.amount)) {
             _txReject = "hub-payee channel balance insufficient";
             return;
           }
+        }
+
+        // --- Phase 2: all checks passed — now mutate ---
+        delete s.quotes[key];
+
+        if (_appliedCredit > 0n) {
+          const payerKey = recoveredA.toLowerCase();
+          const prev = BigInt(s.payerCredits[payerKey] || "0");
+          s.payerCredits[payerKey] = (prev - _appliedCredit).toString();
+          console.log("[credits] consumed", _appliedCredit.toString(), "from", payerKey, "remaining:", (prev - _appliedCredit).toString());
+        }
+
+        if (hcPrepared) {
+          const cur = s.hubChannels[payeeKey];
           cur.balA = hcPrepared.newBalA;
           cur.balB = hcPrepared.newBalH;
           cur.nonce = hcPrepared.newNonce;
@@ -1035,19 +1043,40 @@ async function handleRequest(req, res) {
         sigB
       };
 
-      const isFullRefund = refundAmount === originalAmount;
-      const refundStatus = isFullRefund ? "refunded" : "partially_refunded";
-
+      // V3: use _txReject flag to prevent returning signed state on tx no-op
+      let _refundReject = null;
       await store.tx((s) => {
         // Re-check status inside tx to prevent double-refund TOCTOU
         const payment = s.payments[ticketPayment.paymentId];
-        if (!payment || (payment.status !== "issued" && payment.status !== "partially_refunded")) return;
+        if (!payment || (payment.status !== "issued" && payment.status !== "partially_refunded")) {
+          _refundReject = "ticket already refunded or status changed";
+          return;
+        }
+        // V4: re-check cumulative refund inside tx to prevent over-refund race
+        const cumulativeRefunded = BigInt(payment.refundAmount || "0") + BigInt(body.refundAmount);
+        if (cumulativeRefunded > BigInt(payment.amount)) {
+          _refundReject = "cumulative refund exceeds original amount";
+          return;
+        }
+        // V5: verify payee has sufficient credits to reverse (prevent withdraw-then-refund drain)
+        const payee = String(ticketPayment.payee || "").toLowerCase();
+        if (!s.payerCredits) s.payerCredits = {};
+        const creditKey = payee;
+        const prevCredit = BigInt(s.payerCredits[creditKey] || "0");
+        const deduction = BigInt(body.refundAmount);
+        if (prevCredit < deduction) {
+          _refundReject = "payee credits insufficient for refund (already withdrawn)";
+          return;
+        }
 
-        payment.status = refundStatus;
+        // --- all checks passed, now mutate ---
+        const newRefundStatus = cumulativeRefunded === BigInt(payment.amount) ? "refunded" : "partially_refunded";
+        payment.status = newRefundStatus;
         payment.refundedAt = now();
         payment.refundReceiptId = receiptId;
-        payment.refundAmount = body.refundAmount;
-        payment.refundTotalDebit = refundDebit.toString();
+        // V4: accumulate refundAmount, not overwrite
+        payment.refundAmount = cumulativeRefunded.toString();
+        payment.refundTotalDebit = (BigInt(payment.refundTotalDebit || "0") + refundDebit).toString();
         s.channels[ticketPayment.channelId] = {
           ...s.channels[ticketPayment.channelId],
           latestNonce: refundState.stateNonce,
@@ -1055,26 +1084,24 @@ async function handleRequest(req, res) {
           sigA: null,
           sigB
         };
-        const payee = String(ticketPayment.payee || "").toLowerCase();
         const entries = (s.payeeLedger && s.payeeLedger[payee]) || [];
         for (const entry of entries) {
           if (entry.paymentId === ticketPayment.paymentId &&
               (entry.status === "issued" || entry.status === "partially_refunded")) {
-            entry.status = refundStatus;
+            entry.status = newRefundStatus;
             entry.refundedAt = now();
             entry.refundReceiptId = receiptId;
-            entry.refundAmount = body.refundAmount;
+            entry.refundAmount = cumulativeRefunded.toString();
             break;
           }
         }
-        // H1: Reverse payee credits to prevent withdraw after refund
-        if (!s.payerCredits) s.payerCredits = {};
-        const creditKey = payee;
-        const prev = BigInt(s.payerCredits[creditKey] || "0");
-        const deduction = BigInt(body.refundAmount);
-        s.payerCredits[creditKey] = (prev > deduction ? prev - deduction : 0n).toString();
+        // H1: Reverse payee credits
+        s.payerCredits[creditKey] = (prevCredit - deduction).toString();
         console.log("[credits] reversed", body.refundAmount, "from", creditKey, "remaining:", s.payerCredits[creditKey]);
       });
+      if (_refundReject) {
+        return sendJson(res, 409, makeError("SCP_009_POLICY_VIOLATION", _refundReject));
+      }
 
       webhooks.emit(EVENT.PAYMENT_REFUNDED, {
         ticketId: body.ticketId,
