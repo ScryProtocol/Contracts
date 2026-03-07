@@ -320,7 +320,10 @@ function requireAdminAuth(req, res) {
   const authz = typeof req.headers.authorization === "string" ? req.headers.authorization : "";
   const bearer = authz.toLowerCase().startsWith("bearer ") ? authz.slice(7).trim() : "";
   const token = hdrToken || bearer;
-  if (!token || token !== HUB_ADMIN_TOKEN) {
+  const tokenBuf = Buffer.from(token || "");
+  const expectedBuf = Buffer.from(HUB_ADMIN_TOKEN);
+  if (!token || tokenBuf.length !== expectedBuf.length ||
+      !crypto.timingSafeEqual(tokenBuf, expectedBuf)) {
     sendJson(res, 401, makeError("SCP_012_UNAUTHORIZED", "admin auth required"));
     return false;
   }
@@ -1842,6 +1845,14 @@ async function handleRequest(req, res) {
       }
       if (recovered.toLowerCase() !== (ch.participantA || "").toLowerCase()) {
         return sendJson(res, 403, makeError("SCP_009_POLICY_VIOLATION", "sig must be from participantA"));
+      }
+      // M5: prevent repeated close requests — reject if a pending close already exists
+      if (ch.pendingCloseState) {
+        const pendingExpiry = ch.pendingCloseState.stateExpiry || 0;
+        if (pendingExpiry > Math.floor(Date.now() / 1000)) {
+          return sendJson(res, 409, makeError("SCP_009_POLICY_VIOLATION",
+            "close already pending — submit the existing sigB on-chain or wait for expiry"));
+        }
       }
       // Apply payer credit to channel state before closing
       const hubSigner = getHubSigner();
