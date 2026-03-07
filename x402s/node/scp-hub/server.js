@@ -651,7 +651,10 @@ async function handleRequest(req, res) {
               return sendJson(res, 409, makeError("SCP_009_POLICY_VIOLATION", "channel expired on-chain"));
             }
           } catch (e) {
-            console.warn("[issue] on-chain liveness check failed:", e.message);
+            // H2: fail-closed — do not issue tickets when liveness cannot be verified
+            console.warn("[issue] on-chain liveness check failed (fail-closed):", e.message);
+            return sendJson(res, 503, makeError("SCP_010_SETTLEMENT_UNAVAILABLE",
+              "on-chain liveness check failed, retry later: " + (e.message || "unknown")));
           }
         }
         let prevBalA;
@@ -825,6 +828,19 @@ async function handleRequest(req, res) {
       let _txReject = null;
       await store.tx((s) => {
         // --- Phase 1: all CAS checks (no mutations) ---
+        // C1: verify quote still exists (prevents double-issue from parallel requests)
+        if (!s.quotes[key]) {
+          _txReject = "quote already consumed (concurrent issue)";
+          return;
+        }
+        // C1: verify payer-channel nonce hasn't advanced (CAS on latestNonce)
+        const curCh = s.channels[body.channelState.channelId];
+        if (curCh && curCh.latestState) {
+          if (Number(curCh.latestNonce) !== Number(body.channelState.stateNonce) - 1) {
+            _txReject = "channel nonce conflict (concurrent issue)";
+            return;
+          }
+        }
         if (_appliedCredit > 0n) {
           if (!s.payerCredits) s.payerCredits = {};
           const payerKey = recoveredA.toLowerCase();
@@ -2089,13 +2105,20 @@ async function handleRequest(req, res) {
       if (!handleDomain) return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "HANDLE_DOMAIN not configured"));
       const handleId = rawName + "@" + handleDomain;
       const existing = await store.get("handles", handleId);
-      const hasPay = !!(req.headers["payment-signature"] || req.headers["x-payment"]);
-      // Paid request — return 200 with handle info
-      if (hasPay) {
-        if (existing) {
-          return sendJson(res, 200, { handle: handleId, owner: existing.owner, registered: true });
+      // M3: verify Payment-Signature contains a real issued payment, not just header presence
+      const payHeader = req.headers["payment-signature"] || req.headers["x-payment"];
+      if (payHeader) {
+        let payProof = null;
+        try { payProof = typeof payHeader === "string" ? JSON.parse(payHeader) : payHeader; } catch (_e) { /* invalid */ }
+        const paymentId = payProof?.paymentId;
+        const verifiedPayment = paymentId ? await store.getPayment(paymentId) : null;
+        if (verifiedPayment && (verifiedPayment.status === "issued" || verifiedPayment.status === "partially_refunded")) {
+          if (existing) {
+            return sendJson(res, 200, { handle: handleId, owner: existing.owner, registered: true });
+          }
+          return sendJson(res, 200, { handle: handleId, registered: false, message: "Payment accepted — handle registration pending" });
         }
-        return sendJson(res, 200, { handle: handleId, registered: false, message: "Payment accepted — handle registration pending" });
+        // Invalid or forged payment header — fall through to 402
       }
       const { query } = url.parse(req.url, true);
       const amt = (query && query.amount) || HANDLE_PRICE;
