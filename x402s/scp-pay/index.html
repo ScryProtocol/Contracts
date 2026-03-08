@@ -210,12 +210,15 @@ html,body{font-family:var(--f);background:var(--bg);color:var(--t1);-webkit-font
     <div class="fl"><label>Pay</label><input id="iUrl" type="text" placeholder="pr0@pogchamp.tv or https://..."/></div>
   </div>
   <div class="ba"><button class="bt" id="bDisc" onclick="discover()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg><span>Pay</span></button>
-  <button class="b2" style="margin-top:8px" onclick="goChannels()">Channels</button></div>
+  <div style="display:flex;gap:8px;margin-top:8px"><button class="b2" style="flex:1" onclick="goChannels()">Channels</button><button class="b2" style="flex:1" onclick="goPayments()">Payments</button></div></div>
 </div>
 
 <!-- VIEW 3: Confirm payment -->
 <div class="v" id="vPay">
   <div class="am"><div class="am-l" id="oMerch">-</div><div class="am-v" id="oAmtWrap"><span id="oAmt">-</span><span class="am-c" id="oSym">-</span></div><div class="am-d" id="oDesc">-</div></div>
+  <div id="anWrap" style="display:none;padding:0 24px 4px;text-align:center">
+    <select id="anSelect" style="padding:6px 12px;border:1.5px solid var(--bd);border-radius:8px;font:500 12px var(--f);background:var(--b0);color:var(--t2);outline:none;cursor:pointer;min-width:140px" onchange="switchOffer()"></select>
+  </div>
   <div id="handleAmtWrap" style="display:none;padding:0 20px 8px">
     <div style="display:flex;gap:8px">
       <input id="hAmt" type="number" step="any" min="0" placeholder="Amount" style="flex:1;padding:10px 12px;border:1.5px solid var(--bd);border-radius:10px;font:500 15px var(--f);background:var(--b0);outline:none" oninput="updateHandleAmt()"/>
@@ -274,6 +277,17 @@ html,body{font-family:var(--f);background:var(--bg);color:var(--t1);-webkit-font
         <input id="fundAmt" type="number" step="0.001" min="0.001" placeholder="ETH amount" style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid var(--b2);background:var(--c2);color:var(--t1);font-size:13px"/>
         <button class="b2" id="bFund" style="white-space:nowrap" onclick="fundChannel()">Fund Channel</button>
       </div>
+    </div>
+  </div>
+  <div class="ba" style="padding-top:16px"><button class="b2" onclick="goReady()">&#8592; Back</button></div>
+</div>
+
+<!-- VIEW 6: Payment History -->
+<div class="v" id="vHist">
+  <div class="sp2">
+    <h3>Payments</h3>
+    <div id="payList" style="display:flex;flex-direction:column;gap:8px">
+      <div style="font-size:12px;color:var(--t3)">Loading...</div>
     </div>
   </div>
   <div class="ba" style="padding-top:16px"><button class="b2" onclick="goReady()">&#8592; Back</button></div>
@@ -457,7 +471,7 @@ class Agent{
 // Wallet persistence & UI
 // ======================================================================
 const WK="x402s.wallet";
-let ag=null,tUrl="",curOffer=null;
+let ag=null,tUrl="",curOffer=null,availOffers=[];
 
 function show(id){document.querySelectorAll('.v').forEach(v=>v.classList.remove('on'));document.getElementById(id).classList.add('on');}
 function ss(m){const w=document.getElementById('stW'),t=document.getElementById('stT');if(m){w.style.display='block';t.textContent=m;}else w.style.display='none';}
@@ -594,6 +608,51 @@ async function goChannels(){
     html+='</div>';
   }
   if(!live.length&&entries.length){list.innerHTML='<div style="font-size:12px;color:var(--t3)">No open channels (closed channels removed)</div>';return;}
+  list.innerHTML=html;
+}
+async function goPayments(){
+  show('vHist');
+  const list=document.getElementById('payList');
+  list.innerHTML='<div style="font-size:12px;color:var(--t3)">Loading...</div>';
+  if(!ag){list.innerHTML='<div style="font-size:12px;color:var(--t3)">No wallet</div>';return;}
+  const defEp="https://pogchamp.tv/hub/sepolia";
+  const hubEps=new Set();
+  for(const[k,v]of Object.entries(ag.s?.ch||{})){const e=nE(v.hEp||k.replace("hub:",""));if(e)hubEps.add(e);}
+  hubEps.add(defEp);
+  let allPay=[];
+  for(const ep of hubEps){
+    try{
+      const lr=await fetch(ep+"/v1/channels/lookup?payer="+ag.ad);
+      if(!lr.ok)continue;
+      const ld=await lr.json();
+      for(const c of(ld.channels||[])){
+        try{
+          const rr=await fetch(ep+"/v1/agent/receipts?channelId="+encodeURIComponent(c.channelId)+"&limit=50");
+          if(!rr.ok)continue;
+          const rd=await rr.json();
+          for(const item of(rd.items||[]))allPay.push(item);
+        }catch{}
+      }
+    }catch{}
+  }
+  allPay.sort((a,b)=>Number(b.createdAt||0)-Number(a.createdAt||0));
+  if(!allPay.length){list.innerHTML='<div style="font-size:12px;color:var(--t3)">No payments found</div>';return;}
+  let html='';
+  for(const p of allPay){
+    const sym=gS({asset:p.asset}),dec=DD[sym.toLowerCase()]||18;
+    const net=fA(p.netAmount||p.amount,dec);
+    const fee=fA(p.netFee||p.fee||"0",dec);
+    const dt=p.createdAt?new Date(Number(p.createdAt)).toLocaleString():'';
+    const st=p.status||'issued';
+    const stCol=st==='issued'?'var(--ok)':st==='refunded'?'var(--er)':'var(--b6)';
+    html+='<div class="ci" style="flex-direction:column;align-items:stretch;gap:4px;padding:10px">';
+    html+='<div style="display:flex;justify-content:space-between"><span style="font-size:11px;font-weight:700">'+net+' '+sym+'</span><span style="font-size:10px;font-weight:600;color:'+stCol+'">'+st+'</span></div>';
+    if(p.payee)html+='<div style="display:flex;justify-content:space-between"><span style="font-size:10px;color:var(--t3)">To</span><span style="font-size:10px;font-family:var(--m);color:var(--t2)">'+sA(p.payee)+'</span></div>';
+    if(fee!=='0')html+='<div style="display:flex;justify-content:space-between"><span style="font-size:10px;color:var(--t3)">Fee</span><span style="font-size:10px;color:var(--t2)">'+fee+' '+sym+'</span></div>';
+    html+='<div style="display:flex;justify-content:space-between"><span style="font-size:10px;color:var(--t3)">Date</span><span style="font-size:10px;color:var(--t2)">'+dt+'</span></div>';
+    if(p.paymentId)html+='<div style="font-size:9px;font-family:var(--m);color:var(--t3);overflow:hidden;text-overflow:ellipsis">'+p.paymentId+'</div>';
+    html+='</div>';
+  }
   list.innerHTML=html;
 }
 async function closeChannel(ck){
@@ -742,6 +801,31 @@ function updateHandleAmt(){
   document.getElementById('oSym').textContent=sym;
   document.getElementById('bPT').textContent="Confirm & Pay "+(v||"0")+" "+sym;
 }
+function populateOfferSelect(offers,selIdx){
+  const sel=document.getElementById('anSelect');
+  sel.innerHTML='';
+  offers.forEach((o,i)=>{
+    const sym=gS(o),nn=rN(o.network);
+    const label=sym+' on '+(nn?.nm||o.network||'?').replace(/^./,c=>c.toUpperCase()).replace("-s"," S");
+    const opt=document.createElement('option');opt.value=i;opt.textContent=label;
+    if(i===selIdx)opt.selected=true;
+    sel.appendChild(opt);
+  });
+  document.getElementById('anWrap').style.display=offers.length>1?'block':'none';
+}
+function switchOffer(){
+  const idx=parseInt(document.getElementById('anSelect').value,10);
+  if(!availOffers[idx])return;
+  const of=availOffers[idx];
+  curOffer=of;
+  const sym=gS(of),nn=rN(of.network),dr=oD(of),dec=DD[sym.toLowerCase()]||18,ha=fA(dr,dec);
+  if(!isHandlePay){
+    document.getElementById('oAmt').textContent=ha;
+    document.getElementById('oSym').textContent=sym;
+    document.getElementById('bPT').textContent="Confirm & Pay "+ha+" "+sym;
+  }
+  document.getElementById('oNet').textContent=(nn?.nm||of.network||ag.net).replace(/^./,c=>c.toUpperCase()).replace("-s"," S");
+}
 // Discover
 async function discover(){
   let url=document.getElementById('iUrl').value.trim();
@@ -770,6 +854,11 @@ async function discover(){
     if(!d.of.length)throw new Error("No offers in 402 response");
     const of=ag.choose(d.of,rt);
     if(!of)throw new Error("No compatible offer for network");
+    // Build list of all compatible offers for the asset/network chooser
+    const nc=caip(ag.net);
+    availOffers=d.of.filter(o=>{const oc=caip(o.network);return(!nc||!oc||oc===nc)&&(o.scheme==="statechannel-hub-v1"||o.scheme==="statechannel-direct-v1");});
+    if(!availOffers.includes(of))availOffers.unshift(of);
+    populateOfferSelect(availOffers,availOffers.indexOf(of));
     curOffer=of;tUrl=url;
     isHandlePay=of.intent==="pay_handle";
     const sym=gS(of),nn=rN(of.network),dr=oD(of),dec=DD[sym.toLowerCase()]||18,ha=fA(dr,dec);

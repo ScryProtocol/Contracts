@@ -26,6 +26,7 @@ const HUB_FEE_BASE = String(process.env.HUB_FEE_BASE || "0");
 const HUB_FEE_BPS = Number(process.env.HUB_FEE_BPS || 0);
 const PRICE_ETH = process.env.MEOW_PRICE_ETH || "0.0000001";
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || "";
+const SCP_PAY_URL = process.env.SCP_PAY_URL || "";
 const STREAM_T_SEC_RAW = Number(process.env.MEOW_STREAM_T_SEC || process.env.STREAM_T_SEC || 5);
 const STREAM_T_SEC = Number.isInteger(STREAM_T_SEC_RAW) && STREAM_T_SEC_RAW > 0
   ? STREAM_T_SEC_RAW
@@ -105,6 +106,7 @@ function wantsHtml(req) {
 function buildTreeAppHtml(opts = {}) {
   const priceWei = String(opts.priceWei || "100000000000");
   const baseUrl = String(opts.baseUrl || "").replace(/\/+$/, "");
+  const scpPayUrl = String(opts.scpPayUrl || "").replace(/\/+$/, "");
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -251,6 +253,12 @@ h1{font-family:'Fredoka',sans-serif;font-weight:700;font-size:clamp(30px,7vw,48p
 .cft{position:fixed;pointer-events:none;z-index:21;width:8px;height:8px;border-radius:2px;animation:cf ease-out forwards}
 @keyframes cf{0%{opacity:1;transform:translate(0,0) rotate(0)}100%{opacity:0;transform:translate(var(--cx),var(--cy)) rotate(720deg)}}
 
+/* pay overlay */
+.pay-overlay{display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.45);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);align-items:center;justify-content:center;animation:fi .25s ease}
+.pay-overlay.show{display:flex}
+.pay-frame{width:100%;max-width:430px;height:min(680px,90vh);border:none;border-radius:22px;box-shadow:0 20px 60px rgba(0,0,0,.25);background:#fff}
+.pay-close{position:fixed;top:16px;right:20px;z-index:101;width:36px;height:36px;border-radius:50%;border:none;background:rgba(255,255,255,.9);color:#333;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 12px rgba(0,0,0,.15);transition:transform .15s}
+.pay-close:hover{transform:scale(1.1)}
 @media(max-width:680px){.stats{grid-template-columns:1fr}.actions{flex-direction:column}.actions .btn{width:100%;justify-content:center}.hero{justify-content:center;text-align:center}}
 </style>
 </head>
@@ -293,36 +301,39 @@ h1{font-family:'Fredoka',sans-serif;font-weight:700;font-size:clamp(30px,7vw,48p
       <div class="stat"><div class="stat-l">Trees Planted</div><div class="stat-v" id="count">0</div></div>
     </div>
     <div class="actions">
-      <button class="btn btn-go" id="payBtn"><span class="ico">💳</span> Pay</button>
-      <button class="btn" id="plantBtn"><span class="ico">🌱</span> Copy Plant Link</button>
-      <a class="btn" id="scpLink" href="${baseUrl}/scpapp/" target="_blank" rel="noreferrer"><span class="ico">🔗</span> Open SCP App</a>
+      <button class="btn btn-go" id="plantBtn"><span class="ico">🌱</span> Copy Plant Link</button>
+      <button class="btn" id="payBtn" onclick="openPay()"><span class="ico">💳</span> Pay</button>
+      <button class="btn" id="netBtn" onclick="toggleNet()" style="font-size:12px;padding:8px 14px"><span class="ico" id="netIco">🟣</span> <span id="netLabel">Sepolia</span></button>
     </div>
-    <div class="msg" id="msg">Click Pay to plant a tree in your garden!</div>
+    <div class="msg" id="msg">Copy the plant link to pay from another device, or pay directly here!</div>
   </div>
 </div>
-<div id="payOverlay" style="display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);align-items:center;justify-content:center">
-  <div style="position:relative;width:100%;max-width:420px;margin:16px;border-radius:20px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.3)">
-    <button id="payClose" style="position:absolute;top:10px;right:10px;z-index:101;border:none;background:rgba(0,0,0,.5);color:#fff;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;line-height:1">✕</button>
-    <iframe id="payWrap" style="width:100%;border:none;height:80vh;max-height:640px;display:block;border-radius:20px;background:rgba(255,255,255,.15);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)" title="Pay with x402s"></iframe>
-  </div>
+
+<div class="pay-overlay" id="payOverlay">
+  <button class="pay-close" id="payClose" onclick="closePay()">✕</button>
+  <iframe class="pay-frame" id="payFrame" allow="clipboard-write"></iframe>
 </div>
 
 <script>
 (function(){
-  var PW="${priceWei}",BASE="${baseUrl}";
+  var PW="${priceWei}",BASE="${baseUrl}",SCPPAY="${scpPayUrl}";
   document.getElementById("priceLabel").textContent=PW;
   var K="meow_garden_id",gid=localStorage.getItem(K);
   if(!gid){gid="g_"+Math.random().toString(36).slice(2,12);localStorage.setItem(K,gid)}
-  var $gid=document.getElementById("gardenId"),$c=document.getElementById("count"),$m=document.getElementById("msg"),$p=document.getElementById("plantBtn"),$sl=document.getElementById("scpLink"),$cat=document.getElementById("theCat"),$say=document.getElementById("catSay"),$pay=document.getElementById("payBtn");
-  $gid.textContent=gid;if(BASE)$sl.href=BASE+"/scpapp/";
-  var $pw=document.getElementById("payWrap"),$po=document.getElementById("payOverlay"),$pc=document.getElementById("payClose");
+  var $gid=document.getElementById("gardenId"),$c=document.getElementById("count"),$m=document.getElementById("msg"),$p=document.getElementById("plantBtn"),$cat=document.getElementById("theCat"),$say=document.getElementById("catSay");
+  $gid.textContent=gid;
+  var $payOv=document.getElementById("payOverlay"),$payFr=document.getElementById("payFrame");
+  window.openPay=function(){var scpBase=SCPPAY||(BASE||window.location.origin)+"/scppay/";$payFr.src=scpBase+"?url="+encodeURIComponent(plantUrl());$payOv.classList.add("show")}
+  window.closePay=function(){$payOv.classList.remove("show");$payFr.src=""}
+  $payOv.addEventListener("click",function(e){if(e.target===$payOv)closePay()})
+  window.addEventListener("message",function(e){if(e.data&&e.data.type==="x402:payment:success"){closePay();catSay("Tree planted!");petals(20);pollGarden()}})
   var knownTrees=0,treeSlots=[];
-  function plantUrl(){return(BASE||window.location.origin)+"/meow/plant?garden="+encodeURIComponent(gid)}
-  function openPay(){$po.style.display="flex";$pw.src="https://pogchamp.tv/scppay?url="+encodeURIComponent(plantUrl());setM("Payment open...",false)}
-  function closePay(){$po.style.display="none";$pw.src="";setM("Click Pay to plant a tree in your garden!",false)}
-  $pay.addEventListener("click",openPay);
-  $pc.addEventListener("click",closePay);
-  $po.addEventListener("click",function(e){if(e.target===$po)closePay()})
+  var NET_KEY="meow_net",curNet=localStorage.getItem(NET_KEY)||"sepolia";
+  var NETS={sepolia:{label:"Sepolia",ico:"🟣",path:"/meow/"},base:{label:"Base",ico:"🔵",path:"/meow-base/"}};
+  function updateNetUI(){var n=NETS[curNet]||NETS.sepolia;document.getElementById("netLabel").textContent=n.label;document.getElementById("netIco").textContent=n.ico}
+  window.toggleNet=function(){curNet=curNet==="sepolia"?"base":"sepolia";localStorage.setItem(NET_KEY,curNet);updateNetUI();catSay("Switched to "+NETS[curNet].label+"!")}
+  updateNetUI();
+  function plantUrl(){var n=NETS[curNet]||NETS.sepolia;return(BASE||window.location.origin)+n.path+"plant?garden="+encodeURIComponent(gid)}
   function setM(t,ok){$m.textContent=t;$m.classList.toggle("ok",!!ok)}
 
   var FL=["🌸","🌼","🍀","✨","🌷","💐","🪻","🏵️"];
@@ -354,7 +365,7 @@ h1{font-family:'Fredoka',sans-serif;font-weight:700;font-size:clamp(30px,7vw,48p
 
   function pollGarden(){
     var xhr=new XMLHttpRequest();
-    xhr.open("GET",BASE+"/meow/garden?garden="+encodeURIComponent(gid));
+    var np=NETS[curNet]||NETS.sepolia;xhr.open("GET",(BASE||window.location.origin)+np.path+"garden?garden="+encodeURIComponent(gid));
     xhr.setRequestHeader("Accept","application/json");
     xhr.onload=function(){
       if(xhr.status!==200)return;
@@ -377,7 +388,7 @@ h1{font-family:'Fredoka',sans-serif;font-weight:700;font-size:clamp(30px,7vw,48p
 
   function initGarden(){
     var xhr=new XMLHttpRequest();
-    xhr.open("GET",BASE+"/meow/garden?garden="+encodeURIComponent(gid));
+    var np=NETS[curNet]||NETS.sepolia;xhr.open("GET",(BASE||window.location.origin)+np.path+"garden?garden="+encodeURIComponent(gid));
     xhr.setRequestHeader("Accept","application/json");
     xhr.onload=function(){
       if(xhr.status!==200)return;
@@ -536,13 +547,8 @@ async function validateHubPayment(payment, ctx) {
   }
   const ticket = payment.ticket;
   if (!ticket) return { ok: false, error: "missing ticket" };
-  let invoice = ctx.invoices.get(payment.invoiceId);
-  if (!invoice) {
-    // Invoice may be lost after process restart — reconstruct from known defaults.
-    // Hub ticket sig + payment status check below are the real security gates.
-    console.log("[validate] invoice not in memory, using defaults for", payment.invoiceId);
-    invoice = { hubEndpoint: HUB_ENDPOINT, asset: ASSET_ETH, amount: amountWei };
-  }
+  const invoice = ctx.invoices.get(payment.invoiceId);
+  if (!invoice) return { ok: false, error: "unknown invoice" };
   if (payment.invoiceId !== ticket.invoiceId || payment.paymentId !== ticket.paymentId) {
     return { ok: false, error: "id mismatch" };
   }
@@ -698,7 +704,7 @@ async function handle(req, res, ctx) {
   if (req.method === "GET" && u.pathname === "/meow") {
     if (wantsHtml(req)) {
       const base = resolveResourceUrl(req, "").replace(/\/+$/, "");
-      return sendHtml(res, 200, buildTreeAppHtml({ priceWei: amountWei, unlocked: false, baseUrl: base }));
+      return sendHtml(res, 200, buildTreeAppHtml({ priceWei: amountWei, unlocked: false, baseUrl: base, scpPayUrl: SCP_PAY_URL }));
     }
     const payment = parsePaymentHeader(req);
     if (!payment) {

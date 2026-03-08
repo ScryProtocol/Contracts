@@ -1184,7 +1184,11 @@ async function handleRequest(req, res) {
         if (p.channelId && !seenIds.has(p.channelId)) {
           const ch = await store.getChannel(p.channelId);
           if (ch && ch.participantA && ch.participantA.toLowerCase() === payer) {
-            channels.push({ channelId: p.channelId, participantA: ch.participantA, participantB: HUB_ADDRESS, totalBalance: "0" });
+            let tb = "0";
+            if (RPC_URL && CONTRACT_ADDRESS) {
+              try { const prov = new ethers.providers.JsonRpcProvider(RPC_URL); const ct = new ethers.Contract(CONTRACT_ADDRESS, CHANNEL_ABI, prov); const cd = await ct.getChannel(p.channelId); tb = cd.totalBalance.toString(); } catch (_) {}
+            }
+            channels.push({ channelId: p.channelId, participantA: ch.participantA, participantB: HUB_ADDRESS, totalBalance: tb });
             seenIds.add(p.channelId);
           }
         }
