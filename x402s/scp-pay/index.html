@@ -213,7 +213,7 @@ html,body{font-family:var(--f);background:var(--bg);color:var(--t1);-webkit-font
     </div>
   </div>
   <div class="fm">
-    <div class="fl"><label>Pay</label><input id="iUrl" type="text" placeholder="pr0@pogchamp.tv or https://..."/></div>
+    <div class="fl"><label>Pay</label><input id="iUrl" type="text" placeholder="pr0@pogchamp.tv, 0x..., or https://..."/></div>
   </div>
   <div class="ba"><button class="bt" id="bDisc" onclick="discover()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg><span>Pay</span></button>
   <div style="display:flex;gap:8px;margin-top:8px"><button class="b2" style="flex:1" onclick="goChannels()">Channels</button><button class="b2" style="flex:1" onclick="goPayments()">Payments</button></div></div>
@@ -606,20 +606,24 @@ async function goChannels(){
   for(const[k,v]of Object.entries(ag.s?.ch||{})){const e=nE(v.hEp||k.replace("hub:",""));if(e)hubEps.add(e);}
   for(const ep of hubEps){const hn=ep.includes("/hub/base")?"base":"sepolia";const oN=ag.net,oP=ag._p,oPt=ag._pt;if(hn!==ag.net){ag.net=hn;ag._p=null;ag._pt=0;}try{await ag.hyd(ep);}catch(e){console.warn("[channels] hyd failed:",e.message);}finally{ag.net=oN;ag._p=oP;ag._pt=oPt;}}
   const chs=ag.s?.ch||{};const entries=Object.entries(chs).filter(([,v])=>v?.id);
-  // Fetch fresh credit balance
-  let hubCr="0";
-  for(const ep of hubEps){
-    try{const r=await fetch(ep+"/v1/credit/balance?address="+ag.ad);if(r.ok){const b=await r.json();if(BigInt(b.credit||"0")>BigInt(hubCr))hubCr=b.credit||"0";}}catch{}
-  }
+  // Fetch fresh credit balance per network
   const crDiv=document.getElementById('crBal');
-  if(BigInt(hubCr)>0n){crDiv.style.display='block';document.getElementById('crBalV').textContent=fT(hubCr,"eth")+" ETH";}else{crDiv.style.display='none';}
+  let crParts=[];
+  for(const ep of hubEps){
+    try{const r=await fetch(ep+"/v1/credit/balance?address="+ag.ad);if(r.ok){const b=await r.json();const c=b.credit||"0";if(BigInt(c)>0n){const nn=ep.includes("/hub/base")?"Base":"Sepolia";crParts.push(fT(c,"eth")+" ETH <span style=\"font-size:9px;font-weight:600;padding:2px 6px;border-radius:6px;background:var(--b2);color:var(--t2)\">"+nn+"</span>");}}}catch{}
+  }
+  if(crParts.length){crDiv.style.display='block';document.getElementById('crBalV').innerHTML=crParts.join('<br style="margin:4px 0">');}else{crDiv.style.display='none';}
   if(!entries.length){list.innerHTML='<div style="font-size:12px;color:var(--t3)">No channels found</div>';return;}
   let html='';
-  // Check on-chain status and filter closed channels
-  let p=null;try{p=await ag.gp();}catch{}
+  // Check on-chain status per-network and filter closed channels
   const live=[];
   for(const[k,v]of entries){
-    if(p&&v.id){try{const ct=new ethers.Contract(ag.ca,CAB,p);const oc=await ct.getChannel(v.id);if(oc.totalBalance.isZero()){delete ag.s.ch[k];ag._sv();continue;}}catch{}}
+    const ep=nE(v.hEp||k.replace("hub:",""));
+    const chNet=ep.includes("/hub/base")?"base":"sepolia";
+    const oN=ag.net,oP=ag._p,oPt=ag._pt;
+    if(chNet!==ag.net){ag.net=chNet;ag._p=null;ag._pt=0;}
+    try{const pp=await ag.gp();const ct=new ethers.Contract(ag.ca,CAB,pp);const oc=await ct.getChannel(v.id);if(oc.totalBalance.isZero()){delete ag.s.ch[k];ag._sv();ag.net=oN;ag._p=oP;ag._pt=oPt;continue;}}catch{}
+    ag.net=oN;ag._p=oP;ag._pt=oPt;
     live.push([k,v]);
   }
   for(const[k,v]of live){
@@ -878,11 +882,41 @@ async function discover(){
   if(!url)return alert("Enter a handle or URL");
   if(!ag)return alert("Set up wallet first");
   const isHandle=!url.includes("://")&&url.includes("@");
+  const isAddr=/^0x[0-9a-fA-F]{40}$/i.test(url.replace(/\s/g,""));
   if(isHandle){const [n,d]=url.split("@");if(n&&d&&d.includes("."))url="https://"+d+"/handle/"+encodeURIComponent(n);}
   const btn=document.getElementById('bDisc');
   btn.disabled=true;btn.innerHTML='<span class="sp"></span> Discovering...';
   try{
     const s=JSON.parse(localStorage.getItem("x402s.settings")||"{}"),rt=s.rt||"hub";
+    // Direct address payment — build synthetic offer
+    if(isAddr){
+      url=url.replace(/\s/g,"");
+      let payee;try{payee=ethers.utils.getAddress(url);}catch{throw new Error("Invalid address");}
+      if(payee.toLowerCase()===ag.ad.toLowerCase())throw new Error("Cannot pay yourself");
+      const initNet=ag.net||"sepolia";
+      const ep=hubEpFor(initNet);
+      const of={scheme:"statechannel-hub-v1",hEp:ep,pAd:payee,asset:"eth",network:initNet,intent:"pay_address",maxAmountRequired:"0",_userAmt:null,_userAsset:"eth",_hubEp:ep};
+      curOffer=of;tUrl=null;isHandlePay=false;
+      const rawIn=document.getElementById('iUrl').value.trim();
+      document.getElementById('oMerch').textContent=sA(payee);
+      const haw=document.getElementById('handleAmtWrap'),pnw=document.getElementById('payNetWrap');
+      haw.style.display='flex';pnw.style.display='none';
+      document.getElementById('hAmt').value='';
+      document.getElementById('hAsset').value='eth';
+      document.getElementById('hNet').value=initNet;
+      document.querySelectorAll('.np').forEach(b=>b.classList.toggle('on',b.dataset.net===initNet));
+      document.getElementById('oAmt').textContent='enter amount';
+      document.getElementById('oSym').textContent='';
+      document.getElementById('oDesc').textContent='Send to '+sA(payee);
+      document.getElementById('bPT').textContent='Enter amount above';
+      document.getElementById('oNet').textContent=fmtNet(initNet);
+      document.getElementById('oRoute').textContent='Hub (state channel)';
+      document.getElementById('oAddr').textContent=sA(ag.ad);
+      await refreshPayChanBal(ep,initNet);
+      show('vPay');
+      btn.disabled=false;btn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg><span>Pay</span>';
+      return;
+    }
     const d=await ag.disc(url);
     // Free handle registration — bypass payment flow entirely
     if(d.st===402&&d.raw?.free===true){
@@ -948,8 +982,10 @@ async function discover(){
 
 // Pay
 async function pay(){
-  if(!ag||!tUrl)return;
-  if(isHandlePay&&(!curOffer._userAmt||curOffer._userAmt==="0"))return alert("Enter an amount to send");
+  if(!ag)return;
+  const isAddrPay=curOffer?.intent==="pay_address";
+  if(!tUrl&&!isAddrPay)return;
+  if((isHandlePay||isAddrPay)&&(!curOffer._userAmt||curOffer._userAmt==="0"))return alert("Enter an amount to send");
   const btn=document.getElementById('bPay'),bt=document.getElementById('bPT');
   btn.classList.add('ld');btn.disabled=true;
   try{
@@ -981,6 +1017,48 @@ async function pay(){
       document.getElementById('okD').textContent="Zero hub fee (credit transfer)";
       setTimeout(()=>document.getElementById('okO').classList.add('on'),400);
       if(window.parent!==window)window.parent.postMessage({type:"x402:payment:success",payId:rb.paymentId,amount:amt},"*");
+    }else if(isAddrPay){
+    // Address payment — issue ticket directly through hub, no resource URL
+    const ov={amt:curOffer._userAmt,asset:curOffer._userAsset||"eth",sym:curOffer._userSym||"ETH",hEp:curOffer._hubEp,network:curOffer.network};
+    bt.innerHTML='<span class="sp"></span> Ensuring channel...';
+    const ep=nE(ov.hEp),ck="hub:"+ep;
+    const epNet=ep.includes("/hub/base")?"base":"sepolia";
+    const _oN=ag.net,_oP=ag._p,_oPt=ag._pt;
+    if(epNet!==ag.net){ag.net=epNet;ag._p=null;ag._pt=0;}
+    try{
+    const ofE={...curOffer,_userAmt:ov.amt,asset:ov.asset};
+    await ag.ensure(ofE,m=>{bt.innerHTML='<span class="sp"></span> '+m;});
+    const ch=ag.s.ch[ck];
+    if(!ch)throw new Error("Channel setup failed");
+    const n=ag.ni(),cid=n?.cid||11155111;
+    const da=ov.amt;
+    const pid="pay_"+Date.now().toString(36),inv="inv_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8);
+    const ctx=ethers.utils.keccak256(ethers.utils.defaultAbiCoder.encode(["address","string","string","string"],[curOffer.pAd||ZA,"GET",pid,inv]));
+    bt.innerHTML='<span class="sp"></span> Getting quote...';
+    const mf=String(BigInt(da)/10n||"1000000000");
+    const qr=await wT(fetch(ep+"/v1/tickets/quote",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({invoiceId:inv,paymentId:pid,channelId:ch.id,payee:curOffer.pAd,asset:ov.asset,amount:da,maxFee:mf,quoteExpiry:Math.floor(Date.now()/1000)+120,contextHash:ctx})}),30000);
+    if(!qr.ok){const e=await qr.json().catch(()=>({}));throw new Error(e.error||e.message||"Quote failed");}
+    const q=await qr.json(),td=q.totalDebit||q.amount||da;
+    const pc=BigInt(q.payerCredit||"0");delete q.payerCredit;
+    const netDb=BigInt(td)>pc?BigInt(td)-pc:0n;
+    const cA=BigInt(ch.bA||"0"),cB=BigInt(ch.bB||"0");
+    if(cA<netDb)throw new Error("Insufficient channel balance");
+    const ns={channelId:ch.id,stateNonce:(ch.n||0)+1,balA:(cA-netDb)+"",balB:(cB+netDb)+"",locksRoot:Z32,stateExpiry:Math.floor(Date.now()/1000)+3600,contextHash:ctx};
+    if(BigInt(ns.balA)+BigInt(ns.balB)!==cA+cB)throw new Error("Balance invariant violated");
+    bt.innerHTML='<span class="sp"></span> Signing...';
+    const sg=ag.sig(ns,cid);
+    bt.innerHTML='<span class="sp"></span> Issuing ticket...';
+    const ir=await wT(fetch(ep+"/v1/tickets/issue",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({quote:q,channelState:ns,sigA:sg})}),30000);
+    if(!ir.ok){const e=await ir.json().catch(()=>({}));throw new Error(e.error||e.message||"Issue failed");}
+    const is=await ir.json();
+    ch.n=ns.stateNonce;ch.bA=ns.balA;ch.bB=ns.balB;ag._sv();
+    ss(null);btn.classList.remove('ld');btn.classList.add('ok');
+    bt.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg> Paid';
+    document.getElementById('okS').textContent=fA(da,18)+" ETH sent to "+sA(curOffer.pAd)+". Zero gas.";
+    document.getElementById('okT').textContent="ticket:"+(is.ticketId||pid).slice(0,12)+"...";
+    document.getElementById('okD').textContent="Zero hub fee";
+    setTimeout(()=>document.getElementById('okO').classList.add('on'),400);
+    }finally{ag.net=_oN;ag._p=_oP;ag._pt=_oPt;}
     }else{
     const s=JSON.parse(localStorage.getItem("x402s.settings")||"{}"),rt=s.rt||"hub";
     const ov=isHandlePay&&curOffer?{amt:curOffer._userAmt,asset:curOffer._userAsset,sym:curOffer._userSym,hEp:curOffer._hubEp,network:curOffer.network}:curOffer?{hEp:curOffer._hubEp,network:curOffer.network}:null;
