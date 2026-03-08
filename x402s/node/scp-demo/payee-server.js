@@ -32,6 +32,9 @@ const DEFAULTS = {
   replayStorePath: process.env.PAYEE_REPLAY_STORE_PATH || "",
   replayTtlSec: Number(process.env.PAYEE_REPLAY_TTL_SEC || 2592000),
   replayMaxEntries: Number(process.env.PAYEE_REPLAY_MAX_ENTRIES || 50000),
+  rpcUrl: process.env.RPC_URL || "",
+  contractAddress: process.env.CONTRACT_ADDRESS || "",
+  enableDirect: process.env.PAYEE_ENABLE_DIRECT === "1",
   payeePrivateKey: process.env.PAYEE_PRIVATE_KEY || null
 };
 if (!DEFAULTS.payeePrivateKey) {
@@ -209,6 +212,10 @@ function sweepInvoices(invoiceStore) {
   }
 }
 
+function canVerifyDirectOnChain(cfg) {
+  return !!(cfg && cfg.rpcUrl && cfg.contractAddress);
+}
+
 function makeOffers(cfg, payeeAddress, routePath, routeCfg, invoiceStore) {
   sweepInvoices(invoiceStore);
   const resource = `http://${cfg.host}:${cfg.port}${routePath || cfg.resourcePath}`;
@@ -265,22 +272,24 @@ function makeOffers(cfg, payeeAddress, routePath, routeCfg, invoiceStore) {
         }
       }
     });
-    offers.push({
-      scheme: "statechannel-direct-v1",
-      network,
-      asset,
-      maxAmountRequired: price,
-      payTo: payeeAddress,
-      resource,
-      extensions: {
-        "statechannel-direct-v1": {
-          mode: "direct",
-          quoteExpiry: now() + 120,
-          invoiceId,
-          payeeAddress
+    if (cfg.enableDirect && canVerifyDirectOnChain(cfg)) {
+      offers.push({
+        scheme: "statechannel-direct-v1",
+        network,
+        asset,
+        maxAmountRequired: price,
+        payTo: payeeAddress,
+        resource,
+        extensions: {
+          "statechannel-direct-v1": {
+            mode: "direct",
+            quoteExpiry: now() + 120,
+            invoiceId,
+            payeeAddress
+          }
         }
-      }
-    });
+      });
+    }
   }
   return { accepts: offers };
 }
@@ -482,6 +491,9 @@ function createPayeeServer(options = {}) {
   if (!Number.isInteger(cfg.replayMaxEntries) || cfg.replayMaxEntries <= 0) {
     throw new Error("invalid replay max entries; expected positive integer");
   }
+  if (cfg.enableDirect && !canVerifyDirectOnChain(cfg)) {
+    throw new Error("direct payments require RPC_URL and CONTRACT_ADDRESS");
+  }
   const payeeWallet = new ethers.Wallet(cfg.payeePrivateKey);
   const payeeAddress = payeeWallet.address;
   const invoiceStore = new Map();
@@ -515,6 +527,9 @@ function createPayeeServer(options = {}) {
     payee: payeeAddress,
     hubs: ctx.hubUrls,
     confirmHub: !cfg.perfMode,
+    rpcUrl: cfg.rpcUrl,
+    contractAddress: cfg.contractAddress,
+    requireDirectOnChain: true,
     seenPayments: consumed,
     directChannels: ctx.directChannels
   });

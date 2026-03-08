@@ -12,9 +12,9 @@ const HUB_KEY = "0x59c6995e998f97a5a0044976f5d81f39bcb8c4f7f2d1b6c2c9f6f2c7d4b6f
 const ZERO32 = "0x" + "0".repeat(64);
 
 const ABI = [
-  "function openChannel(address hub, address asset, uint256 amount, uint64 challengePeriodSec, uint64 channelExpiry, bytes32 salt) external payable returns (bytes32 channelId)",
+  "function openChannel(address hub, address asset, uint256 amount, uint64 challengePeriodSec, uint64 channelExpiry, bytes32 salt, uint8 hubFlags) external payable returns (bytes32 channelId)",
   "function cooperativeClose((bytes32 channelId, uint64 stateNonce, uint256 balA, uint256 balB, bytes32 locksRoot, uint64 stateExpiry, bytes32 contextHash) st, bytes sigA, bytes sigB) external",
-  "function getChannel(bytes32 channelId) view returns ((address participantA, address participantB, address asset, uint64 challengePeriodSec, uint64 channelExpiry, uint256 totalBalance, bool isClosing, uint64 closeDeadline, uint64 latestNonce) params)",
+  "function getChannel(bytes32 channelId) view returns ((address participantA, address participantB, address asset, uint64 challengePeriodSec, uint64 channelExpiry, uint256 totalBalance, bool isClosing, uint64 closeDeadline, uint64 latestNonce, uint8 hubFlags) params)",
   "event ChannelOpened(bytes32 indexed channelId, address indexed participantA, address indexed participantB, address asset, uint64 challengePeriodSec, uint64 channelExpiry)",
   "event ChannelClosed(bytes32 indexed channelId, uint64 indexed finalNonce, uint256 payoutA, uint256 payoutB)"
 ];
@@ -90,7 +90,7 @@ async function main() {
   const saltA = ethers.utils.formatBytes32String(`wx-${now()}`);
   const openATx = await contract.openChannel(
     hubWallet.address, ethers.constants.AddressZero, depositA,
-    300, now() + 86400, saltA,
+    300, now() + 86400, saltA, 2,
     { value: depositA, gasLimit: 200000 }
   );
   const openARc = await openATx.wait(1);
@@ -103,7 +103,7 @@ async function main() {
   const saltH = ethers.utils.formatBytes32String(`hb-${now()}`);
   const openHTx = await hubContract.openChannel(
     payeeAddr, ethers.constants.AddressZero, depositH,
-    300, now() + 86400, saltH,
+    300, now() + 86400, saltH, 1,
     { value: depositH, gasLimit: 200000 }
   );
   const openHRc = await openHTx.wait(1);

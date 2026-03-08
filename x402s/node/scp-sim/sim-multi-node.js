@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { ethers } = require("ethers");
+const { startLocalChain, localAccount } = require("../../test/helpers/local-chain");
 
 const HUB_HOST = process.env.SIM_HUB_HOST || "127.0.0.1";
 const HUB_PORT = Number(process.env.SIM_HUB_PORT || 4321);
@@ -12,9 +13,16 @@ const AGENT_NODES = Number(process.env.SIM_AGENTS || 4);
 const ROUNDS = Number(process.env.SIM_ROUNDS || 2);
 const BASE_PAYEE_PORT = Number(process.env.SIM_PAYEE_BASE_PORT || 4340);
 const BASE_PRICE = BigInt(process.env.SIM_BASE_PRICE || "1000000");
-const ASSET =
-  process.env.DEFAULT_ASSET || "0x833589fCD6eDb6E08f4c7C32D4f71b54bDa02913";
-const NETWORK = process.env.NETWORK || "eip155:8453";
+const REQUESTED_NETWORK = (() => {
+  const raw = String(process.env.NETWORK || "").trim();
+  if (/^eip155:\d+$/.test(raw)) return raw;
+  return `eip155:${Number(process.env.SIM_CHAIN_ID || 8453)}`;
+})();
+const CHAIN_ID = Number(process.env.SIM_CHAIN_ID || REQUESTED_NETWORK.split(":")[1] || 8453);
+// Local simulation defaults to native ETH so it can self-bootstrap without mock ERC20 deployment.
+const ASSET = process.env.SIM_ASSET || ethers.constants.AddressZero;
+const HUB_PRIVATE_KEY = process.env.HUB_PRIVATE_KEY || keyFromSeed("sim-hub");
+const MIN_CHANNEL_DEPOSIT = BigInt(process.env.SIM_MIN_CHANNEL_DEPOSIT || "1000000000");
 
 const simStateDir = path.resolve(__dirname, "./state");
 const hubStorePath = path.join(simStateDir, "hub-store.sim.json");
@@ -27,15 +35,44 @@ function nowMs() {
   return Date.now();
 }
 
+function computeChannelDeposit() {
+  const peakPrice = BASE_PRICE + BigInt(Math.max(PAYEE_NODES - 1, 0) * 25000);
+  const feeHeadroom = 20000n;
+  const estimated = (peakPrice + feeHeadroom) * BigInt(Math.max(PAYEE_NODES * ROUNDS, 1)) * 2n;
+  return process.env.SIM_CHANNEL_DEPOSIT
+    ? BigInt(process.env.SIM_CHANNEL_DEPOSIT)
+    : estimated > MIN_CHANNEL_DEPOSIT
+      ? estimated
+      : MIN_CHANNEL_DEPOSIT;
+}
+
 async function run() {
   fs.mkdirSync(simStateDir, { recursive: true });
   if (fs.existsSync(hubStorePath)) fs.rmSync(hubStorePath, { force: true });
 
+  const payeeKeys = Array.from({ length: PAYEE_NODES }, (_unused, i) => keyFromSeed(`payee-${i}`));
+  const agentKeys = Array.from({ length: AGENT_NODES }, (_unused, i) => keyFromSeed(`agent-${i}`));
+  const chain = await startLocalChain({
+    chainId: CHAIN_ID,
+    accounts: [
+      localAccount("hub", HUB_PRIVATE_KEY, "100"),
+      ...payeeKeys.map((secretKey, i) => localAccount(`payee${i}`, secretKey, "10")),
+      ...agentKeys.map((secretKey, i) => localAccount(`agent${i}`, secretKey, "25"))
+    ]
+  });
+  const contract = await chain.deploy(chain.wallets.hub);
+  const channelDeposit = computeChannelDeposit();
+  const simNetwork = `eip155:${chain.chainId}`;
+
   process.env.HOST = HUB_HOST;
   process.env.PORT = String(HUB_PORT);
   process.env.STORE_PATH = hubStorePath;
-  process.env.NETWORK = NETWORK;
+  process.env.NETWORK = simNetwork;
   process.env.DEFAULT_ASSET = ASSET;
+  process.env.HUB_PRIVATE_KEY = HUB_PRIVATE_KEY;
+  process.env.PAYEE_PRIVATE_KEY = payeeKeys[0] || keyFromSeed("payee-0");
+  process.env.RPC_URL = chain.rpcUrl;
+  process.env.CONTRACT_ADDRESS = contract.address;
   delete require.cache[require.resolve("../scp-hub/server")];
   delete require.cache[require.resolve("../scp-demo/payee-server")];
   delete require.cache[require.resolve("../scp-agent/agent-client")];
@@ -49,7 +86,7 @@ async function run() {
 
   const payees = [];
   for (let i = 0; i < PAYEE_NODES; i += 1) {
-    const payeePrivateKey = keyFromSeed(`payee-${i}`);
+    const payeePrivateKey = payeeKeys[i];
     const payeeAddress = new ethers.Wallet(payeePrivateKey).address;
     const port = BASE_PAYEE_PORT + i;
     const price = (BASE_PRICE + BigInt(i * 25000)).toString();
@@ -58,7 +95,7 @@ async function run() {
       port,
       hubUrl: HUB_URL,
       payeePrivateKey,
-      network: NETWORK,
+      network: simNetwork,
       asset: ASSET,
       price
     });
@@ -76,17 +113,32 @@ async function run() {
   const agents = [];
   for (let i = 0; i < AGENT_NODES; i += 1) {
     const stateDir = path.join(simStateDir, `agent-${i}`);
+    if (fs.existsSync(stateDir)) fs.rmSync(stateDir, { recursive: true, force: true });
     fs.mkdirSync(stateDir, { recursive: true });
-    const privateKey = keyFromSeed(`agent-${i}`);
+    const privateKey = agentKeys[i];
     const agent = new ScpAgentClient({
       privateKey,
       stateDir,
-      networkAllowlist: [NETWORK],
+      networkAllowlist: [simNetwork],
       assetAllowlist: [ASSET],
       maxFeeDefault: "15000",
       maxAmountDefault: "10000000"
     });
-    agents.push({ id: `a${i}`, client: agent, stateDir });
+    agents.push({ id: `a${i}`, client: agent, stateDir, address: agent.wallet.address });
+  }
+
+  for (const agentObj of agents) {
+    const opened = await agentObj.client.openChannel(chain.wallets.hub.address, {
+      rpcUrl: chain.rpcUrl,
+      contractAddress: contract.address,
+      asset: ASSET,
+      amount: channelDeposit.toString(),
+      hubFlags: 2,
+      hubEndpoint: HUB_URL,
+      salt: ethers.utils.hexlify(crypto.randomBytes(32))
+    });
+    agentObj.channelId = opened.channelId;
+    agentObj.deposit = channelDeposit.toString();
   }
 
   const started = nowMs();
@@ -129,6 +181,7 @@ async function run() {
 
   await Promise.all(payees.map((p) => new Promise((r) => p.server.close(r))));
   await new Promise((r) => hub.close(r));
+  await chain.close();
 
   const ok = results.filter((x) => x.ok).length;
   const fail = results.length - ok;
@@ -139,14 +192,31 @@ async function run() {
   })();
 
   const summary = {
-    hub: { url: HUB_URL, store: hubStorePath },
+    chain: {
+      chainId: chain.chainId,
+      network: simNetwork,
+      rpcUrl: chain.rpcUrl,
+      contractAddress: contract.address,
+      asset: ASSET
+    },
+    hub: {
+      url: HUB_URL,
+      address: chain.wallets.hub.address,
+      store: hubStorePath
+    },
     payees: payees.map((p) => ({
       id: p.id,
       url: p.url,
       address: p.payeeAddress,
       price: p.price
     })),
-    agents: agents.map((a) => ({ id: a.id, stateDir: a.stateDir })),
+    agents: agents.map((a) => ({
+      id: a.id,
+      address: a.address,
+      channelId: a.channelId,
+      deposit: a.deposit,
+      stateDir: a.stateDir
+    })),
     totals: {
       attempted: results.length,
       ok,

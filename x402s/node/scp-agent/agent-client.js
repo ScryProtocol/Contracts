@@ -18,13 +18,13 @@ const RPC_PRESETS = {
 };
 
 const CHANNEL_ABI = [
-  "function openChannel(address participantB, address asset, uint256 amount, uint64 challengePeriodSec, uint64 channelExpiry, bytes32 salt) external payable returns (bytes32 channelId)",
+  "function openChannel(address participantB, address asset, uint256 amount, uint64 challengePeriodSec, uint64 channelExpiry, bytes32 salt, uint8 hubFlags) external payable returns (bytes32 channelId)",
   "function deposit(bytes32 channelId, uint256 amount) external payable",
   "function cooperativeClose(tuple(bytes32 channelId, uint256 stateNonce, uint256 balA, uint256 balB, bytes32 locksRoot, uint256 stateExpiry, bytes32 contextHash) st, bytes sigA, bytes sigB) external",
   "function startClose(tuple(bytes32 channelId, uint256 stateNonce, uint256 balA, uint256 balB, bytes32 locksRoot, uint256 stateExpiry, bytes32 contextHash) st, bytes sigFromCounterparty) external",
   "function rebalance(tuple(bytes32 channelId, uint256 stateNonce, uint256 balA, uint256 balB, bytes32 locksRoot, uint256 stateExpiry, bytes32 contextHash) state, bytes32 toChannelId, uint256 amount, bytes sigCounterparty) external",
   "function balance(bytes32 channelId) external view returns (tuple(uint256 totalBalance, uint256 balA, uint256 balB, uint64 latestNonce, bool isClosing))",
-  "function getChannel(bytes32 channelId) external view returns (tuple(address participantA, address participantB, address asset, uint64 challengePeriodSec, uint64 channelExpiry, uint256 totalBalance, bool isClosing, uint64 closeDeadline, uint64 latestNonce))",
+  "function getChannel(bytes32 channelId) external view returns (tuple(address participantA, address participantB, address asset, uint64 challengePeriodSec, uint64 channelExpiry, uint256 totalBalance, bool isClosing, uint64 closeDeadline, uint64 latestNonce, uint8 hubFlags))",
   "event ChannelOpened(bytes32 indexed channelId, address indexed participantA, address indexed participantB, address asset, uint64 challengePeriodSec, uint64 channelExpiry)",
   "event Deposited(bytes32 indexed channelId, address indexed sender, uint256 amount, uint256 newTotalBalance)",
   "event Rebalanced(bytes32 indexed fromChannelId, bytes32 indexed toChannelId, uint256 amount, uint256 fromNewTotal, uint256 toNewTotal)",
@@ -1115,6 +1115,9 @@ class ScpAgentClient {
     const challengePeriod = Number(options.challengePeriodSec || 86400);
     const channelExpiry = Number(options.channelExpiry || now() + 86400 * 30);
     const salt = options.salt || ethers.utils.formatBytes32String(`ag-${now()}-${participantB.slice(2, 8)}`);
+    const hubFlags = Number.isInteger(options.hubFlags)
+      ? options.hubFlags
+      : (options.hubEndpoint ? 2 : 0);
 
     const baseTxOpts = asset === ethers.constants.AddressZero
       ? { value: amount }
@@ -1122,7 +1125,7 @@ class ScpAgentClient {
     let gasLimit;
     try {
       const estimated = await contract.estimateGas.openChannel(
-        ethers.utils.getAddress(participantB), asset, amount, challengePeriod, channelExpiry, salt, baseTxOpts
+        ethers.utils.getAddress(participantB), asset, amount, challengePeriod, channelExpiry, salt, hubFlags, baseTxOpts
       );
       gasLimit = estimated.mul(130).div(100);
     } catch (_e) {
@@ -1131,18 +1134,18 @@ class ScpAgentClient {
     const txOpts = { ...baseTxOpts, gasLimit };
     const tx = await contract.openChannel(
       ethers.utils.getAddress(participantB), asset, amount,
-      challengePeriod, channelExpiry, salt, txOpts
+      challengePeriod, channelExpiry, salt, hubFlags, txOpts
     );
     const rc = await tx.wait(1);
     const ev = rc.events.find(e => e.event === "ChannelOpened");
     const channelId = ev.args.channelId;
 
     // Store in agent state
-    const channelKey = `onchain:${channelId}`;
-    this.state.channels[channelKey] = {
+    const baseChannel = {
       channelId,
       participantB: ethers.utils.getAddress(participantB),
       asset,
+      hubFlags,
       nonce: 0,
       balA: amount.toString(),
       balB: "0",
@@ -1152,6 +1155,20 @@ class ScpAgentClient {
       contractAddress,
       txHash: tx.hash
     };
+    const channelKey = `onchain:${channelId}`;
+    this.state.channels[channelKey] = { ...baseChannel };
+    if (options.hubEndpoint) {
+      this.state.channels[`hub:${options.hubEndpoint}`] = {
+        ...baseChannel,
+        endpoint: options.hubEndpoint
+      };
+    }
+    if (options.directPayee) {
+      this.state.channels[`direct:${String(options.directPayee).toLowerCase()}`] = {
+        ...baseChannel,
+        endpoint: options.endpoint || ""
+      };
+    }
     this.persist();
 
     return {
@@ -1159,6 +1176,7 @@ class ScpAgentClient {
       participantA: this.wallet.address,
       participantB: ethers.utils.getAddress(participantB),
       asset,
+      hubFlags,
       amount: amount.toString(),
       challengePeriodSec: challengePeriod,
       txHash: tx.hash

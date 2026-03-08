@@ -874,6 +874,24 @@ async function handleRequest(req, res) {
           const prev = BigInt(s.payerCredits[payerKey] || "0");
           s.payerCredits[payerKey] = (prev - _appliedCredit).toString();
           console.log("[credits] consumed", _appliedCredit.toString(), "from", payerKey, "remaining:", (prev - _appliedCredit).toString());
+          // SECURITY: mark matching payeeLedger entries as credit_consumed
+          // to prevent double payout via payee/settle after credit rebate
+          let remaining = _appliedCredit;
+          const pEntries = s.payeeLedger?.[payerKey] || [];
+          for (const pe of pEntries) {
+            if (remaining <= 0n) break;
+            if (pe.status !== "issued") continue;
+            const ea = BigInt(pe.amount || "0");
+            if (ea <= remaining) {
+              pe.status = "credit_consumed";
+              pe.creditConsumedAt = now();
+              remaining -= ea;
+            } else {
+              // Partial: split entry — mark consumed portion, keep remainder
+              pe.amount = (ea - remaining).toString();
+              remaining = 0n;
+            }
+          }
         }
 
         if (hcPrepared) {
@@ -1701,16 +1719,26 @@ async function handleRequest(req, res) {
         return sendJson(res, statusCode, makeError(errorCode, err.message || "tx failed", statusCode >= 500));
       }
 
-      // Mark entries as settled
+      // Mark entries as settled and debit payerCredits to prevent double payout
       await store.tx((s) => {
         const entries = s.payeeLedger[payee] || [];
+        let settledTotal = 0n;
         for (const entry of entries) {
           if (entry.status === "settling" && entry.settlementId === settlementId) {
             entry.status = "settled";
             entry.settleTx = txHash;
             entry.settledAt = now();
+            settledTotal += BigInt(entry.amount || "0");
             delete entry.settlementId;
           }
+        }
+        // SECURITY: debit payerCredits by the settled amount to prevent
+        // double payout via credit/withdraw after payee/settle
+        if (settledTotal > 0n && s.payerCredits) {
+          const cur = BigInt(s.payerCredits[payee] || "0");
+          const newCr = cur > settledTotal ? cur - settledTotal : 0n;
+          s.payerCredits[payee] = newCr.toString();
+          if (cur > 0n) console.log("[settle] debited payerCredits for", payee, "by", settledTotal.toString(), "was:", cur.toString(), "now:", newCr.toString());
         }
         if (idemScopeKey) {
           if (!s.settlements) s.settlements = {};
@@ -1966,6 +1994,16 @@ async function handleRequest(req, res) {
           if (!s.payerCredits) s.payerCredits = {};
           const cur = BigInt(s.payerCredits[pk] || "0");
           s.payerCredits[pk] = (cur > creditUsed ? cur - creditUsed : 0n).toString();
+          // SECURITY: mark payeeLedger entries as credit_consumed
+          let rem = creditUsed;
+          const pe2 = s.payeeLedger?.[pk] || [];
+          for (const e of pe2) {
+            if (rem <= 0n) break;
+            if (e.status !== "issued") continue;
+            const ea = BigInt(e.amount || "0");
+            if (ea <= rem) { e.status = "credit_consumed"; e.creditConsumedAt = now(); rem -= ea; }
+            else { e.amount = (ea - rem).toString(); rem = 0n; }
+          }
         }
       });
       console.log("[close] confirmed closed:", channelId, "creditConsumed:", creditUsed.toString());

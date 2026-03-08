@@ -15,7 +15,8 @@ const {
 
 let WebSocketServer = null;
 try {
-  ({ WebSocketServer } = require("ws"));
+  const wsModule = require("ws");
+  WebSocketServer = wsModule.WebSocketServer || wsModule.Server || null;
 } catch (_e) {
   WebSocketServer = null;
 }

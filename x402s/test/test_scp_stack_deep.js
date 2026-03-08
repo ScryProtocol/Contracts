@@ -4,6 +4,7 @@ const http = require("http");
 const crypto = require("crypto");
 const { expect } = require("chai");
 const { ethers } = require("ethers");
+const { startLocalChain, localAccount } = require("./helpers/local-chain");
 
 describe("SCP Deep Stack", function () {
   const HUB_HOST = "127.0.0.1";
@@ -30,6 +31,14 @@ describe("SCP Deep Stack", function () {
   let PAYEE_ADDRESS;
   let hub;
   let payee;
+  let chain;
+  let contract;
+  let hubOnChain;
+  let payerOnChain;
+  let payeeWallet;
+  let PAYEE_NETWORK = "eip155:8453";
+  const HUB_KEY = "0x59c6995e998f97a5a0044976f5d81f39bcb8c4f7f2d1b6c2c9f6f2c7d4b6f001";
+  const PAYEE_KEY = "0x8b3a350cf5c34c9194ca3a545d8048f270f09f626b0f7238f71d0f8f8f005555";
   const TEST_AGENT_KEY = "0x7d577fdd4a1ec2aa00e7cdbf95db7fdbd7a6fd531f4be75f4fca31f6d8b3af88";
   const testPayer = new ethers.Wallet(TEST_AGENT_KEY);
 
@@ -73,14 +82,67 @@ describe("SCP Deep Stack", function () {
     });
   }
 
+  async function openRealHubChannel(totalBalance = "1000000000") {
+    const amount = ethers.BigNumber.from(String(totalBalance));
+    const nowTs = (await chain.provider.getBlock("latest")).timestamp;
+    const salt = ethers.utils.hexlify(crypto.randomBytes(32));
+    const tx = await contract.connect(payerOnChain).openChannel(
+      hubOnChain.address,
+      ethers.constants.AddressZero,
+      amount,
+      300,
+      nowTs + 86400,
+      salt,
+      2,
+      { value: amount }
+    );
+    const rc = await tx.wait(1);
+    return {
+      channelId: rc.events.find((e) => e.event === "ChannelOpened").args.channelId,
+      totalBalance: BigInt(amount.toString())
+    };
+  }
+
+  async function primeAgentHubChannel(agent, deposit = "1000000000") {
+    if (agent.state.channels[`hub:${HUB_URL}`]) {
+      return agent.state.channels[`hub:${HUB_URL}`];
+    }
+    await agent.openChannel(hubOnChain.address, {
+      rpcUrl: chain.rpcUrl,
+      contractAddress: contract.address,
+      asset: ethers.constants.AddressZero,
+      amount: deposit,
+      hubFlags: 2,
+      hubEndpoint: HUB_URL,
+      salt: ethers.utils.hexlify(crypto.randomBytes(32))
+    });
+    return agent.state.channels[`hub:${HUB_URL}`];
+  }
+
+  async function payeeAuthHeaders(pathname, body) {
+    const timestamp = Math.floor(Date.now() / 1000);
+    const sig = await signPayeeAuth({
+      method: "POST",
+      path: pathname,
+      payee: PAYEE_ADDRESS,
+      timestamp,
+      body
+    }, payeeWallet);
+    return {
+      "x-scp-payee-signature": sig,
+      "x-scp-payee-timestamp": String(timestamp)
+    };
+  }
+
   async function makeValidPaymentBundle(paymentId) {
     const first = await reqJson("GET", PAYEE_URL);
     expect(first.statusCode).to.eq(402);
-    const offer = first.body.accepts[0];
+    const offer = first.body.accepts.find((o) => o.scheme === "statechannel-hub-v1");
     const ext = offer.extensions["statechannel-hub-v1"];
     const invoiceId = ext.invoiceId;
 
-    const channelId = ethers.utils.hexlify(crypto.randomBytes(32));
+    const opened = await openRealHubChannel();
+    const channelId = opened.channelId;
     const quoteReq = {
       invoiceId,
       paymentId,
@@ -95,7 +157,7 @@ describe("SCP Deep Stack", function () {
     const quote = await reqJson("POST", `${HUB_URL}/v1/tickets/quote`, quoteReq);
     expect(quote.statusCode).to.eq(200);
 
-    const startingTotal = 1000000000n;
+    const startingTotal = opened.totalBalance;
     const totalDebit = BigInt(quote.body.totalDebit);
     expect(totalDebit > 0n).to.eq(true);
     expect(totalDebit < startingTotal).to.eq(true);
@@ -142,18 +204,46 @@ describe("SCP Deep Stack", function () {
     if (fs.existsSync(storePath)) fs.rmSync(storePath, { force: true });
     if (fs.existsSync(agentStatePath)) fs.rmSync(agentStatePath, { force: true });
 
+    chain = await startLocalChain({
+      chainId: 8453,
+      accounts: [
+        localAccount("hub", HUB_KEY, "100"),
+        localAccount("payee", PAYEE_KEY, "100"),
+        localAccount("payer", TEST_AGENT_KEY, "100")
+      ]
+    });
+    contract = await chain.deploy(chain.wallets.hub);
+    hubOnChain = chain.wallets.hub;
+    payeeWallet = chain.wallets.payee;
+    payerOnChain = chain.wallets.payer;
+    PAYEE_NETWORK = `eip155:${chain.chainId}`;
+
     process.env.HOST = HUB_HOST;
     process.env.PORT = String(HUB_PORT);
     process.env.STORE_PATH = storePath;
     process.env.PAYEE_HOST = PAYEE_HOST;
     process.env.PAYEE_PORT = String(PAYEE_PORT);
     process.env.HUB_URL = HUB_URL;
+    process.env.NETWORK = PAYEE_NETWORK;
+    process.env.RPC_URL = chain.rpcUrl;
+    process.env.CONTRACT_ADDRESS = contract.address;
+    process.env.DEFAULT_ASSET = ethers.constants.AddressZero;
+    process.env.PAYEE_ENABLE_DIRECT = "1";
+    process.env.HUB_ADMIN_TOKEN = "deep-test-admin";
+    delete process.env.MAX_AMOUNT_ETH;
+    delete process.env.MAX_AMOUNT_USDC;
+    delete process.env.MAX_AMOUNT_USDT;
+    delete process.env.MAX_AMOUNT_BY_ASSET;
+    delete process.env.MAX_FEE_ETH;
+    delete process.env.MAX_FEE_USDC;
+    delete process.env.MAX_FEE_USDT;
+    delete process.env.MAX_FEE_BY_ASSET;
     // Test-only keys for deep stack integration tests
     if (!process.env.HUB_PRIVATE_KEY) {
-      process.env.HUB_PRIVATE_KEY = "0x59c6995e998f97a5a0044976f5d81f39bcb8c4f7f2d1b6c2c9f6f2c7d4b6f001";
+      process.env.HUB_PRIVATE_KEY = HUB_KEY;
     }
     if (!process.env.PAYEE_PRIVATE_KEY) {
-      process.env.PAYEE_PRIVATE_KEY = "0x8b3a350cf5c34c9194ca3a545d8048f270f09f626b0f7238f71d0f8f8f005555";
+      process.env.PAYEE_PRIVATE_KEY = PAYEE_KEY;
     }
 
     delete require.cache[require.resolve("../node/scp-hub/server")];
@@ -180,17 +270,18 @@ describe("SCP Deep Stack", function () {
   after(async function () {
     await new Promise((r) => payee.close(r));
     await new Promise((r) => hub.close(r));
+    await chain.close();
   });
 
   it("agent can complete full payment flow", async function () {
     const agent = new ScpAgentClient({
       privateKey: TEST_AGENT_KEY,
-      devMode: true,
       stateDir: agentStateDir,
-      networkAllowlist: ["eip155:8453"],
+      networkAllowlist: [PAYEE_NETWORK],
       maxFeeDefault: "5000",
       maxAmountDefault: "5000000"
     });
+    await primeAgentHubChannel(agent);
     const result = await agent.payResource(PAYEE_URL);
     expect(result.response.ok).to.eq(true);
     expect(result.response.receipt).to.have.property("paymentId");
@@ -227,14 +318,14 @@ describe("SCP Deep Stack", function () {
     );
     fs.mkdirSync(isolatedStateDir, { recursive: true });
     const agent = new ScpAgentClient({
-      privateKey: ethers.Wallet.createRandom().privateKey,
-      devMode: true,
+      privateKey: TEST_AGENT_KEY,
       stateDir: isolatedStateDir,
-      networkAllowlist: ["eip155:8453"],
+      networkAllowlist: [PAYEE_NETWORK],
       maxFeeDefault: "5000",
       maxAmountDefault: "5000000"
     });
     try {
+      await primeAgentHubChannel(agent);
       const first = await reqJson("GET", PAYEE_URL);
       expect(first.statusCode).to.eq(402);
       const offer = first.body.accepts.find((o) => o.scheme === "statechannel-hub-v1");
@@ -282,14 +373,14 @@ describe("SCP Deep Stack", function () {
     );
     fs.mkdirSync(isolatedStateDir, { recursive: true });
     const agent = new ScpAgentClient({
-      privateKey: ethers.Wallet.createRandom().privateKey,
-      devMode: true,
+      privateKey: TEST_AGENT_KEY,
       stateDir: isolatedStateDir,
-      networkAllowlist: ["eip155:8453"],
+      networkAllowlist: [PAYEE_NETWORK],
       maxFeeDefault: "5000",
       maxAmountDefault: "5000000"
     });
     try {
+      await primeAgentHubChannel(agent);
       const first = await reqJson("GET", PAYEE_URL);
       expect(first.statusCode).to.eq(402);
       const offer = first.body.accepts.find((o) => o.scheme === "statechannel-hub-v1");
@@ -352,12 +443,12 @@ describe("SCP Deep Stack", function () {
   it("enforces maxFee policy at agent", async function () {
     const agent = new ScpAgentClient({
       privateKey: TEST_AGENT_KEY,
-      devMode: true,
       stateDir: agentStateDir,
-      networkAllowlist: ["eip155:8453"],
+      networkAllowlist: [PAYEE_NETWORK],
       maxFeeDefault: "1",
       maxAmountDefault: "5000000"
     });
+    await primeAgentHubChannel(agent);
     let failed = false;
     try {
       await agent.payResource(PAYEE_URL);
@@ -782,12 +873,12 @@ describe("SCP Deep Stack", function () {
   it("agent discovers offers via /pay and completes payment", async function () {
     const agent = new ScpAgentClient({
       privateKey: TEST_AGENT_KEY,
-      devMode: true,
       stateDir: agentStateDir,
-      networkAllowlist: ["eip155:8453"],
+      networkAllowlist: [PAYEE_NETWORK],
       maxFeeDefault: "5000",
       maxAmountDefault: "5000000"
     });
+    await primeAgentHubChannel(agent);
     const result = await agent.payResource(PAY_URL);
     expect(result.response.ok).to.eq(true);
     expect(result.response.receipt).to.have.property("paymentId");
@@ -796,12 +887,12 @@ describe("SCP Deep Stack", function () {
   it("persists watcher proof material for both agent and hub", async function () {
     const agent = new ScpAgentClient({
       privateKey: TEST_AGENT_KEY,
-      devMode: true,
       stateDir: agentStateDir,
-      networkAllowlist: ["eip155:8453"],
+      networkAllowlist: [PAYEE_NETWORK],
       maxFeeDefault: "5000",
       maxAmountDefault: "5000000"
     });
+    await primeAgentHubChannel(agent);
     await agent.payResource(PAYEE_URL, { paymentId: `pay_watch_${Date.now()}` });
 
     const s = JSON.parse(fs.readFileSync(agentStatePath, "utf8"));
@@ -832,7 +923,9 @@ describe("SCP Deep Stack", function () {
     expect(first.statusCode).to.eq(402);
     const offer = first.body.accepts.find((o) => o.scheme === "statechannel-hub-v1");
     const ext = offer.extensions["statechannel-hub-v1"];
-    const channelId = ethers.utils.hexlify(crypto.randomBytes(32));
+    const opened = await openRealHubChannel();
+    const channelId = opened.channelId;
+    const startingTotal = opened.totalBalance;
     const baseContext = "0x5f4cf45e4c1533216f69fcf4f6864db7a0b1f14f9788c61f2604961e59fb745f";
 
     const q1 = await reqJson("POST", `${HUB_URL}/v1/tickets/quote`, {
@@ -847,11 +940,12 @@ describe("SCP Deep Stack", function () {
       contextHash: baseContext
     });
     expect(q1.statusCode).to.eq(200);
+    const q1Debit = BigInt(q1.body.totalDebit);
     const s1 = {
       channelId,
       stateNonce: 1,
-      balA: "999000000",
-      balB: "1000",
+      balA: (startingTotal - q1Debit).toString(),
+      balB: q1Debit.toString(),
       locksRoot: ethers.constants.HashZero,
       stateExpiry: Math.floor(Date.now() / 1000) + 120,
       contextHash: baseContext
@@ -875,19 +969,28 @@ describe("SCP Deep Stack", function () {
       contextHash: baseContext
     });
     expect(q2res.statusCode).to.eq(200);
+    const q2Debit = BigInt(q2res.body.totalDebit);
+    const expectedBalA = startingTotal - q1Debit - q2Debit;
+    const expectedBalB = q1Debit + q2Debit;
 
     const i2BadNonce = await reqJson("POST", `${HUB_URL}/v1/tickets/issue`, {
       quote: q2res.body,
-      channelState: { ...s1, stateNonce: 3, balA: "997000000", balB: "2001000" },
-      sigA: await signChannelState({ ...s1, stateNonce: 3, balA: "997000000", balB: "2001000" }, testPayer)
+      channelState: { ...s1, stateNonce: 3, balA: expectedBalA.toString(), balB: expectedBalB.toString() },
+      sigA: await signChannelState(
+        { ...s1, stateNonce: 3, balA: expectedBalA.toString(), balB: expectedBalB.toString() },
+        testPayer
+      )
     });
     expect(i2BadNonce.statusCode).to.eq(409);
     expect(i2BadNonce.body.errorCode).to.eq("SCP_005_NONCE_CONFLICT");
 
     const i2BadDelta = await reqJson("POST", `${HUB_URL}/v1/tickets/issue`, {
       quote: q2res.body,
-      channelState: { ...s1, stateNonce: 2, balA: "998000000", balB: "1001000" },
-      sigA: await signChannelState({ ...s1, stateNonce: 2, balA: "998000000", balB: "1001000" }, testPayer)
+      channelState: { ...s1, stateNonce: 2, balA: (startingTotal - q1Debit - 1n).toString(), balB: (q1Debit + 1n).toString() },
+      sigA: await signChannelState(
+        { ...s1, stateNonce: 2, balA: (startingTotal - q1Debit - 1n).toString(), balB: (q1Debit + 1n).toString() },
+        testPayer
+      )
     });
     expect(i2BadDelta.statusCode).to.eq(409);
     expect(i2BadDelta.body.errorCode).to.eq("SCP_009_POLICY_VIOLATION");
@@ -898,11 +1001,12 @@ describe("SCP Deep Stack", function () {
     const bundle = await makeValidPaymentBundle(`pay_refund_${Date.now()}`);
     const ticketId = bundle.issue.ticketId;
     const totalDebit = BigInt(bundle.quote.totalDebit);
-    const refund = await reqJson("POST", `${HUB_URL}/v1/refunds`, {
+    const refundBody = {
       ticketId,
       refundAmount: bundle.quote.ticketDraft.amount,
       reason: "test-refund"
-    });
+    };
+    const refund = await reqJson("POST", `${HUB_URL}/v1/refunds`, refundBody, await payeeAuthHeaders("/v1/refunds", refundBody));
     expect(refund.statusCode).to.eq(200);
     expect(refund.body.amount).to.eq(bundle.quote.ticketDraft.amount);
     expect(refund.body.refundedTotalDebit).to.eq(bundle.quote.totalDebit);
@@ -915,13 +1019,16 @@ describe("SCP Deep Stack", function () {
     expect(refundSigner.toLowerCase()).to.eq(hubInfo.body.address.toLowerCase());
     expect(refund.body.channelAck.stateHash).to.eq(hashChannelState(refund.body.channelState));
 
-    const ch = await reqJson("GET", `${HUB_URL}/v1/channels/${encodeURIComponent(bundle.state.channelId)}`);
-    expect(ch.statusCode).to.eq(200);
-    expect(Number(ch.body.latestNonce)).to.eq(Number(bundle.state.stateNonce) + 1);
-    expect(ch.body.latestState.balA).to.eq((BigInt(bundle.state.balA) + totalDebit).toString());
-    expect(ch.body.latestState.balB).to.eq((BigInt(bundle.state.balB) - totalDebit).toString());
+    const persistedStore = JSON.parse(fs.readFileSync(storePath, "utf8"));
+    const persistedChannel = persistedStore.channels[bundle.state.channelId];
+    expect(persistedChannel).to.be.an("object");
+    expect(Number(persistedChannel.latestNonce)).to.eq(Number(bundle.state.stateNonce) + 1);
+    expect(persistedChannel.latestState.balA).to.eq((BigInt(bundle.state.balA) + totalDebit).toString());
+    expect(persistedChannel.latestState.balB).to.eq((BigInt(bundle.state.balB) - totalDebit).toString());
 
-    const events = await reqJson("GET", `${HUB_URL}/v1/events?since=0&limit=100`);
+    const events = await reqJson("GET", `${HUB_URL}/v1/events?since=0&limit=100`, null, {
+      "x-scp-admin-token": "deep-test-admin"
+    });
     expect(events.statusCode).to.eq(200);
     const refunded = events.body.items.find((e) => e.event === "payment.refunded" && e.data.ticketId === refund.body.ticketId);
     expect(refunded).to.not.eq(undefined);

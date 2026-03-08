@@ -6,7 +6,38 @@ function toBigInt(value) {
   }
 }
 
+function refundedAmount(payment) {
+  if (!payment || typeof payment !== "object") return 0n;
+  if (payment.refundedAmount !== undefined) return toBigInt(payment.refundedAmount);
+  if (payment.status === "refunded") {
+    if (payment.refundAmount !== undefined) return toBigInt(payment.refundAmount);
+    return toBigInt(payment.amount);
+  }
+  return 0n;
+}
+
+function refundedTotalDebit(payment) {
+  if (!payment || typeof payment !== "object") return 0n;
+  if (payment.refundedTotalDebit !== undefined) return toBigInt(payment.refundedTotalDebit);
+  if (payment.status === "refunded" && payment.refundTotalDebit !== undefined) {
+    return toBigInt(payment.refundTotalDebit);
+  }
+  return 0n;
+}
+
+function netPaymentAmounts(payment) {
+  const amount = toBigInt(payment.amount);
+  const fee = toBigInt(payment.fee);
+  const refundedAmt = refundedAmount(payment);
+  const refundedDebit = refundedTotalDebit(payment);
+  const refundedFee = refundedDebit > refundedAmt ? refundedDebit - refundedAmt : 0n;
+  const netAmount = amount > refundedAmt ? amount - refundedAmt : 0n;
+  const netFee = fee > refundedFee ? fee - refundedFee : 0n;
+  return { netAmount, netFee, refundedAmt };
+}
+
 function toAgentReceipt(payment) {
+  const { netAmount, netFee, refundedAmt } = netPaymentAmounts(payment);
   return {
     paymentId: payment.paymentId,
     channelId: payment.channelId,
@@ -16,6 +47,10 @@ function toAgentReceipt(payment) {
     asset: payment.asset,
     amount: payment.amount,
     fee: payment.fee,
+    status: payment.status,
+    refundedAmount: refundedAmt.toString(),
+    netAmount: netAmount.toString(),
+    netFee: netFee.toString(),
     totalDebit: payment.totalDebit,
     stateNonce: payment.stateNonce,
     createdAt: payment.createdAt
@@ -23,7 +58,7 @@ function toAgentReceipt(payment) {
 }
 
 function issuedPayments(payments) {
-  return (payments || []).filter((p) => p && p.status === "issued");
+  return (payments || []).filter((p) => p && (p.status === "issued" || p.status === "partially_refunded"));
 }
 
 function buildAgentSummary(channelId, latestNonce, payments) {
@@ -32,8 +67,9 @@ function buildAgentSummary(channelId, latestNonce, payments) {
   let totalFees = 0n;
 
   for (const p of issuedPayments(payments)) {
-    const amount = toBigInt(p.amount);
-    const fee = toBigInt(p.fee);
+    const { netAmount, netFee } = netPaymentAmounts(p);
+    const amount = netAmount;
+    const fee = netFee;
     totalSpent += amount;
     totalFees += fee;
     rows.push({

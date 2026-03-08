@@ -63,7 +63,7 @@ describe("X402StateChannel", function () {
     const salt = ethers.utils.formatBytes32String(saltLabel);
     const tx = await hub
       .connect(a)
-      .openChannel(b.address, ethers.constants.AddressZero, amount, challenge, now + expiryDelta, salt, {
+      .openChannel(b.address, ethers.constants.AddressZero, amount, challenge, now + expiryDelta, salt, 0, {
         value: amount,
       });
     const rc = await tx.wait();
@@ -76,7 +76,7 @@ describe("X402StateChannel", function () {
     const salt = ethers.utils.formatBytes32String("eth-open");
     const openTx = await hub
       .connect(a)
-      .openChannel(b.address, ethers.constants.AddressZero, ONE_ETH, 3600, now + 7200, salt, {
+      .openChannel(b.address, ethers.constants.AddressZero, ONE_ETH, 3600, now + 7200, salt, 0, {
         value: ONE_ETH,
       });
 
@@ -103,7 +103,7 @@ describe("X402StateChannel", function () {
 
     const openTx = await hub
       .connect(a)
-      .openChannel(b.address, ethers.constants.AddressZero, amount, 600, now + 7200, salt, {
+      .openChannel(b.address, ethers.constants.AddressZero, amount, 600, now + 7200, salt, 0, {
         value: amount,
       });
     const openRc = await openTx.wait();
@@ -140,7 +140,7 @@ describe("X402StateChannel", function () {
 
     const openTx = await hub
       .connect(a)
-      .openChannel(b.address, ethers.constants.AddressZero, amount, 100, now + 7200, salt, {
+      .openChannel(b.address, ethers.constants.AddressZero, amount, 100, now + 7200, salt, 0, {
         value: amount,
       });
     const openRc = await openTx.wait();
@@ -187,7 +187,7 @@ describe("X402StateChannel", function () {
 
     const openTx = await hub
       .connect(a)
-      .openChannel(b.address, ethers.constants.AddressZero, ONE_ETH, 600, now + 7200, salt, {
+      .openChannel(b.address, ethers.constants.AddressZero, ONE_ETH, 600, now + 7200, salt, 0, {
         value: ONE_ETH,
       });
     const openRc = await openTx.wait();
@@ -219,7 +219,7 @@ describe("X402StateChannel", function () {
     await token.connect(a).approve(hub.address, amount);
 
     const salt = ethers.utils.formatBytes32String("erc20");
-    const openTx = await hub.connect(a).openChannel(b.address, token.address, amount, 600, now + 7200, salt);
+    const openTx = await hub.connect(a).openChannel(b.address, token.address, amount, 600, now + 7200, salt, 0);
     const openRc = await openTx.wait();
     const channelId = openRc.events.find((e) => e.event === "ChannelOpened").args.channelId;
 
@@ -254,7 +254,7 @@ describe("X402StateChannel", function () {
     const salt = ethers.utils.formatBytes32String("erc20-defer");
     const openTx = await hub
       .connect(a)
-      .openChannel(b.address, failingToken.address, amount, 600, now + 7200, salt);
+      .openChannel(b.address, failingToken.address, amount, 600, now + 7200, salt, 0);
     const openRc = await openTx.wait();
     const channelId = openRc.events.find((e) => e.event === "ChannelOpened").args.channelId;
 
@@ -306,11 +306,11 @@ describe("X402StateChannel", function () {
     const salt = ethers.utils.formatBytes32String("dup");
     await hub
       .connect(a)
-      .openChannel(b.address, ethers.constants.AddressZero, ONE_ETH, 600, now + 3600, salt, { value: ONE_ETH });
+      .openChannel(b.address, ethers.constants.AddressZero, ONE_ETH, 600, now + 3600, salt, 0, { value: ONE_ETH });
     await expect(
       hub
         .connect(a)
-        .openChannel(b.address, ethers.constants.AddressZero, ONE_ETH, 600, now + 3600, salt, { value: ONE_ETH })
+        .openChannel(b.address, ethers.constants.AddressZero, ONE_ETH, 600, now + 3600, salt, 0, { value: ONE_ETH })
     ).to.be.revertedWith("SCP: exists");
   });
 
@@ -443,7 +443,7 @@ describe("X402StateChannel", function () {
     const salt = ethers.utils.formatBytes32String("reopen-same-id");
     const openTx = await hub
       .connect(a)
-      .openChannel(b.address, ethers.constants.AddressZero, amount, 600, now + 7200, salt, {
+      .openChannel(b.address, ethers.constants.AddressZero, amount, 600, now + 7200, salt, 0, {
         value: amount,
       });
     const openRc = await openTx.wait();
@@ -465,7 +465,7 @@ describe("X402StateChannel", function () {
     await expect(
       hub
         .connect(a)
-        .openChannel(b.address, ethers.constants.AddressZero, amount, 600, now + 7200, salt, {
+        .openChannel(b.address, ethers.constants.AddressZero, amount, 600, now + 7200, salt, 0, {
           value: amount,
         })
     ).to.be.revertedWith("SCP: id used");
@@ -476,7 +476,7 @@ describe("X402StateChannel", function () {
     const amount = ethers.BigNumber.from("1000000");
     await token.mint(a.address, amount);
     await expect(
-      hub.connect(a).openChannel(b.address, token.address, amount, 600, now + 3600, ethers.utils.formatBytes32String("no-allow"))
+      hub.connect(a).openChannel(b.address, token.address, amount, 600, now + 3600, ethers.utils.formatBytes32String("no-allow"), 0)
     ).to.be.revertedWith("SCP: transferFrom");
   });
 
@@ -524,6 +524,7 @@ describe("X402StateChannel", function () {
           600,
           now + 3600,
           ethers.utils.formatBytes32String("bad-h"),
+          0,
           { value: ONE_ETH }
         )
     ).to.be.revertedWith("SCP: bad participantB");
@@ -538,6 +539,7 @@ describe("X402StateChannel", function () {
           0,
           now + 3600,
           ethers.utils.formatBytes32String("bad-c"),
+          0,
           { value: ONE_ETH }
         )
     ).to.be.revertedWith("SCP: bad challenge");

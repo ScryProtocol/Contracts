@@ -323,7 +323,7 @@ h1{font-family:'Fredoka',sans-serif;font-weight:700;font-size:clamp(30px,7vw,48p
   var $gid=document.getElementById("gardenId"),$c=document.getElementById("count"),$m=document.getElementById("msg"),$p=document.getElementById("plantBtn"),$cat=document.getElementById("theCat"),$say=document.getElementById("catSay");
   $gid.textContent=gid;
   var $payOv=document.getElementById("payOverlay"),$payFr=document.getElementById("payFrame");
-  window.openPay=function(){var scpBase=SCPPAY||(BASE||window.location.origin)+"/scppay/";$payFr.src=scpBase+"?url="+encodeURIComponent(plantUrl());$payOv.classList.add("show")}
+  window.openPay=function(){var scpBase=(BASE||window.location.origin)+"/scppay/";$payFr.src=scpBase+"?url="+encodeURIComponent(plantUrl());$payOv.classList.add("show")}
   window.closePay=function(){$payOv.classList.remove("show");$payFr.src=""}
   $payOv.addEventListener("click",function(e){if(e.target===$payOv)closePay()})
   window.addEventListener("message",function(e){if(e.data&&e.data.type==="x402:payment:success"){closePay();catSay("Tree planted!");petals(20);pollGarden()}})

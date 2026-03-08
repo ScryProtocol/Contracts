@@ -17,9 +17,9 @@ const DEPOSIT_ETH = process.env.DEPOSIT || "0.003";
 const PAYMENT_ETH = process.env.PAYMENT || "0.0002";
 
 const ABI = [
-  "function openChannel(address hub, address asset, uint256 amount, uint64 challengePeriodSec, uint64 channelExpiry, bytes32 salt) external payable returns (bytes32 channelId)",
+  "function openChannel(address hub, address asset, uint256 amount, uint64 challengePeriodSec, uint64 channelExpiry, bytes32 salt, uint8 hubFlags) external payable returns (bytes32 channelId)",
   "function cooperativeClose((bytes32 channelId, uint64 stateNonce, uint256 balA, uint256 balB, bytes32 locksRoot, uint64 stateExpiry, bytes32 contextHash) st, bytes sigA, bytes sigB) external",
-  "function getChannel(bytes32 channelId) view returns ((address participantA, address participantB, address asset, uint64 challengePeriodSec, uint64 channelExpiry, uint256 totalBalance, bool isClosing, uint64 closeDeadline, uint64 latestNonce) params)",
+  "function getChannel(bytes32 channelId) view returns ((address participantA, address participantB, address asset, uint64 challengePeriodSec, uint64 channelExpiry, uint256 totalBalance, bool isClosing, uint64 closeDeadline, uint64 latestNonce, uint8 hubFlags) params)",
   "event ChannelOpened(bytes32 indexed channelId, address indexed participantA, address indexed participantB, address asset, uint64 challengePeriodSec, uint64 channelExpiry)",
   "event ChannelClosed(bytes32 indexed channelId, uint64 indexed finalNonce, uint256 payoutA, uint256 payoutB)"
 ];
@@ -82,6 +82,8 @@ async function main() {
   // ═══════════════════════════════════════════
   process.env.HUB_PRIVATE_KEY = HUB_KEY;
   process.env.STORE_PATH = "/tmp/sepolia-multi-" + now() + ".json";
+  process.env.RPC_URL = RPC;
+  process.env.CONTRACT_ADDRESS = CONTRACT;
   const { createServer } = require("../node/scp-hub/server");
   const hubServer = createServer();
   const hubPort = await new Promise((r) => {
@@ -106,6 +108,7 @@ async function main() {
       300,
       now() + 86400,
       salt,
+      2,
       { value: depositAmount, gasLimit: 200000 }
     );
     const rc = await tx.wait(1);
