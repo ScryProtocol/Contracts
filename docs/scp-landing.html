@@ -1,19 +1,18 @@
-
+check 
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>x402s | Live SCP Payment Surfaces</title>
-<meta name="description" content="State-channel micropayments for agents and APIs. Inspect the hub, launch the browser payer, and hit real 402-protected routes on pogchamp.tv.">
-<meta property="og:title" content="x402s | Live State Channel Protocol">
-<meta property="og:description" content="A dark SCP landing page wired to real hub metadata, paid routes, browser tools, and state-channel demos on pogchamp.tv.">
+<title>x402s | State Channel Protocol for the Agentic Web</title>
+<meta name="description" content="Off-chain micropayments for AI agents. State channels replace per-request gas fees. Free, open-source, MIT licensed.">
+<meta property="og:title" content="x402s — State Channel Protocol for the Agentic Web">
+<meta property="og:description" content="Zero gas per request. Instant signed-state payment. HTTP-native. Built for autonomous agents.">
 <meta property="og:type" content="website">
-<meta property="og:image" content="https://pogchamp.tv/scp/og.png">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23050608'/%3E%3Cpath d='M56 9L22 56h24l-3 35 35-48H53l3-34z' fill='%2300ffab'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&amp;family=Instrument+Sans:wght@400;500;600;700&amp;family=Bricolage+Grotesque:opsz,wght@12..96,300..800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Instrument+Sans:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,300..800&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg: #050608;
@@ -279,6 +278,7 @@
     -webkit-text-fill-color: transparent;
     background-clip: text;
     background-size: 200% auto;
+    font-size: 0.6em;
     animation: fadeUp 0.7s 0.1s ease both, shimmer 6s ease-in-out infinite;
   }
   @keyframes shimmer {
@@ -798,85 +798,6 @@
   }
   .feature-card:hover .feature-accent { opacity: 0.6; }
 
-  .routes-grid {
-    margin-bottom: 18px;
-  }
-  .route-card {
-    display: flex;
-    flex-direction: column;
-  }
-  .route-card p {
-    margin-bottom: 18px;
-    flex: 1;
-  }
-  .route-method {
-    color: var(--accent);
-  }
-  .route-path {
-    font-family: var(--font-mono);
-    font-size: 0.68rem;
-    color: var(--text);
-    background: #080b10;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 12px 14px;
-    line-height: 1.6;
-    word-break: break-all;
-  }
-  .route-actions {
-    margin-top: 16px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .btn-inline {
-    font-family: var(--font-mono);
-    font-size: 0.65rem;
-    color: var(--text);
-    text-decoration: none;
-    border: 1px solid var(--border-bright);
-    border-radius: 999px;
-    padding: 8px 12px;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    transition: all 0.3s var(--ease-out-expo);
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .btn-inline:hover {
-    border-color: var(--accent);
-    color: var(--accent);
-    transform: translateY(-1px);
-    box-shadow: 0 0 22px #00ffab12;
-  }
-  .routes-foot {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 16px;
-  }
-  .route-note {
-    background: #080b10;
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 18px 20px;
-    color: var(--text-dim);
-    font-size: 0.86rem;
-    line-height: 1.6;
-  }
-  .route-note span {
-    display: block;
-    font-family: var(--font-mono);
-    font-size: 0.64rem;
-    color: var(--accent);
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    margin-bottom: 8px;
-  }
-  .route-inline {
-    color: var(--accent);
-  }
-
   /* ── Steps ── */
   .steps {
     display: grid;
@@ -1165,21 +1086,10 @@
     box-shadow: 0 8px 28px #00000030;
   }
   .a2a-icon {
-    font-family: var(--font-mono);
-    font-size: 0.64rem;
+    font-size: 1.4rem;
     margin-bottom: 14px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    display: block;
     line-height: 1;
-    min-width: 72px;
-    padding: 7px 10px;
-    border-radius: 999px;
-    border: 1px solid #ff9e6430;
-    background: #ff9e640f;
-    color: var(--orange);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
   }
   .a2a-card h3 {
     font-family: var(--font-display);
@@ -1425,7 +1335,6 @@
     .a2a-scenarios { grid-template-columns: 1fr; }
     .a2a-how { flex-direction: column; gap: 8px; }
     .a2a-how-sep { transform: rotate(90deg); }
-    .routes-foot { grid-template-columns: 1fr; }
     .flow-pane { display: none !important; }
     .flow-annot-pane { display: none !important; }
     .flow-pane-m.active { display: flex !important; }
@@ -1505,12 +1414,12 @@
 <nav id="mainNav">
   <a href="#" class="logo">x402s <span class="sep">/</span> <span class="sub">scp</span></a>
   <div class="nav-links">
-    <a href="#features" class="nav-link-text">Why</a>
-    <a href="#routes" class="nav-link-text">Live</a>
+    <a href="#features" class="nav-link-text">Features</a>
     <a href="#how" class="nav-link-text">Protocol</a>
-    <a href="#start" class="nav-link-text">Build</a>
+    <a href="#api" class="nav-link-text">API</a>
+    <a href="#a2a" class="nav-link-text">A2A</a>
     <a href="#roles" class="nav-link-text">Roles</a>
-    <a href="https://github.com/ScryProtocol/Contracts/tree/main/x402s" class="btn-nav" target="_blank" rel="noopener">
+    <a href="https://github.com" class="btn-nav" target="_blank" rel="noopener">
       <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
       GitHub
     </a>
@@ -1522,12 +1431,12 @@
 
 <!-- Mobile nav drawer -->
 <div class="mobile-nav" id="mobileNav">
-  <a href="#features">Why</a>
-  <a href="#routes">Live Routes</a>
+  <a href="#features">Features</a>
   <a href="#how">Protocol</a>
-  <a href="#start">Build</a>
+  <a href="#api">API</a>
+  <a href="#a2a">Agent ↔ Agent</a>
   <a href="#roles">Roles</a>
-  <a href="https://github.com/ScryProtocol/Contracts/tree/main/x402s" target="_blank" rel="noopener">GitHub ↗</a>
+  <a href="https://github.com" target="_blank" rel="noopener">GitHub ↗</a>
 </div>
 
 <div class="hero">
@@ -1541,18 +1450,18 @@
   </div>
 
   <h1>
-    Agents pay agents.<br>
+    State Channel Protocol<br>
     <span class="line2">No gas. No wait.</span>
   </h1>
 
   <p class="hero-sub">
     <strong>x402s</strong> brings off-chain micropayments to the agentic web.
-    Agent-to-API. Agent-to-agent. State channels replace on-chain transactions with signed state updates, and this page links straight into the live hub, payer, browser agent, and protected routes running on the host.
+    Agent-to-API. Agent-to-agent. State channels replace on-chain transactions, pay with signed state, not gas.
   </p>
 
   <div class="hero-actions">
-    <a href="/scppay" class="btn-primary" data-route="pay">Launch Live Demo</a>
-    <a href="#routes" class="btn-secondary">See Live Routes</a>
+    <a href="#start" class="btn-primary">Quick Start →</a>
+    <a href="#how" class="btn-secondary">How It Works</a>
   </div>
 
   <div class="flow-visual">
@@ -1587,11 +1496,6 @@
           <span class="flow-node-label">Agent 1</span>
         </div>
         <div class="flow-line c-green to-right"></div>
-        <div class="flow-node">
-          <div class="flow-node-icon hub">H</div>
-          <span class="flow-node-label">Hub</span>
-        </div>
-        <div class="flow-line c-purple to-right delay2"></div>
         <div class="flow-node">
           <div class="flow-node-icon a2a">A<sub>2</sub></div>
           <span class="flow-node-label">Agent 2</span>
@@ -1639,7 +1543,7 @@
         <div class="flow-annot"><em>PAYMENT-SIGNATURE</em> → <em>200 + receipt</em></div>
       </div>
       <div class="flow-annotations flow-annot-pane" id="annot-a2a">
-        <div class="flow-annot"><em>A₁ signs state</em> → <em>hub forwards</em></div>
+        <div class="flow-annot"><em>A₁ signs state</em> → </div>
         <div class="flow-annot"><em>A₂ delivers data</em> → <em>receipt + proof</em></div>
       </div>
     </div>
@@ -1647,106 +1551,23 @@
 
   <div class="metrics">
     <div class="metric">
-      <div class="metric-val accent">1<span class="u"> channel</span></div>
-      <div class="metric-label">Many reachable payees</div>
+      <div class="metric-val accent">Free</div>
+      <div class="metric-label">No platform fees</div>
     </div>
     <div class="metric">
-      <div class="metric-val">402</div>
-      <div class="metric-label">HTTP native flow</div>
+      <div class="metric-val">0<span class="u"> gas</span></div>
+      <div class="metric-label">Per request</div>
     </div>
     <div class="metric">
-      <div class="metric-val">Live</div>
-      <div class="metric-label">Hub + payee + apps</div>
+      <div class="metric-val">&lt;1<span class="u">s</span></div>
+      <div class="metric-label">Latency</div>
     </div>
     <div class="metric">
-      <div class="metric-val">ETH</div>
-      <div class="metric-label">Plus ERC-20 assets</div>
+      <div class="metric-val">ERC-20</div>
+      <div class="metric-label">Any asset</div>
     </div>
   </div>
 </div>
-
-<!-- Live Surfaces -->
-<section id="routes">
-  <div class="section-inner reveal">
-    <div class="section-label">Live Surfaces</div>
-    <h2 class="section-title">Everything on this page maps to a real route on this host.</h2>
-    <p class="section-desc">Inspect the hub, resolve a paid handle, open the lightweight payer, or launch the full browser agent. This landing page is a dark front door to the actual SCP stack behind <span class="route-inline">pogchamp.tv</span>.</p>
-    <div class="features-grid routes-grid">
-      <article class="feature-card route-card stagger">
-        <div class="feature-accent"></div>
-        <div class="feature-num"><span class="route-method">GET</span><span class="bar"></span>01</div>
-        <h3>Hub metadata</h3>
-        <p>Resolve the active SCP hub, contract address, and chain wiring before quoting or opening a channel.</p>
-        <div class="route-path" data-route-text="hub"></div>
-        <div class="route-actions">
-          <a class="btn-inline" data-route="hub" href="/hub/sepolia/.well-known/x402">Open route</a>
-        </div>
-      </article>
-      <article class="feature-card route-card stagger">
-        <div class="feature-accent"></div>
-        <div class="feature-num"><span class="route-method">GET</span><span class="bar"></span>02</div>
-        <h3>Paid handle</h3>
-        <p>Fetch the exact offer payload an agent evaluates before it retries a paid request with proof.</p>
-        <div class="route-path" data-route-text="handle"></div>
-        <div class="route-actions">
-          <a class="btn-inline" data-route="handle" href="/handle/pr0">Open route</a>
-        </div>
-      </article>
-      <article class="feature-card route-card stagger">
-        <div class="feature-accent"></div>
-        <div class="feature-num"><span class="route-method">GET</span><span class="bar"></span>03</div>
-        <h3>Protected meow route</h3>
-        <p>Validate the full `402 -> quote -> pay -> retry` loop against a simple protected endpoint.</p>
-        <div class="route-path" data-route-text="meow"></div>
-        <div class="route-actions">
-          <a class="btn-inline" data-route="meow" href="/meow">Hit route</a>
-        </div>
-      </article>
-      <article class="feature-card route-card stagger">
-        <div class="feature-accent"></div>
-        <div class="feature-num"><span class="route-method">UI</span><span class="bar"></span>04</div>
-        <h3>Browser payer</h3>
-        <p>Launch the lightweight payer for a single route and watch the browser-side payment loop in action.</p>
-        <div class="route-path" data-route-text="pay"></div>
-        <div class="route-actions">
-          <a class="btn-inline" data-route="pay" href="/scppay">Launch route</a>
-        </div>
-      </article>
-      <article class="feature-card route-card stagger">
-        <div class="feature-accent"></div>
-        <div class="feature-num"><span class="route-method">UI</span><span class="bar"></span>05</div>
-        <h3>Browser agent</h3>
-        <p>Inspect wallet state, channels, balances, offers, and payment history without leaving the browser.</p>
-        <div class="route-path" data-route-text="agent"></div>
-        <div class="route-actions">
-          <a class="btn-inline" data-route="agent" href="/scpapp/">Launch route</a>
-        </div>
-      </article>
-      <article class="feature-card route-card stagger">
-        <div class="feature-accent"></div>
-        <div class="feature-num"><span class="route-method">WS</span><span class="bar"></span>06</div>
-        <h3>Streaming music demo</h3>
-        <p>See recurring debits over a long-lived session, which is exactly the kind of flow that becomes awkward on-chain.</p>
-        <div class="route-path" data-route-text="music"></div>
-        <div class="route-actions">
-          <a class="btn-inline" data-route="music" href="/music">Open route</a>
-        </div>
-      </article>
-    </div>
-    <div class="routes-foot">
-      <div class="route-note">
-        <span>Origin aware</span>
-        Links auto-resolve for <code>pogchamp.tv</code>, <code>www.pogchamp.tv</code>, and the server IP so the page stays usable when you open it directly on the box.
-      </div>
-      <div class="route-note">
-        <span>Real stack</span>
-        The hub metadata, protected routes, browser tools, and channel flows shown here map directly to the code and nginx wiring in this repository.
-      </div>
-    </div>
-  </div>
-</section>
-
-<div class="section-divider"></div>
 
 <!-- Why -->
 <section id="features">
@@ -1884,22 +1705,22 @@
 
     <div class="a2a-scenarios">
       <div class="a2a-card stagger">
-        <div class="a2a-icon">DATA</div>
+        <div class="a2a-icon">🔍</div>
         <h3>Research agent buys data</h3>
         <p>Agent 1 needs market data. Agent 2 has a crawl pipeline. A₁ pays A₂ per-query through the hub. No API registration — just a 402 endpoint.</p>
       </div>
       <div class="a2a-card stagger">
-        <div class="a2a-icon">MODEL</div>
+        <div class="a2a-icon">🧠</div>
         <h3>Inference on demand</h3>
         <p>A coding agent hits a limit. It discovers a specialized model agent advertising inference via 402. Pay per call, get structured output back.</p>
       </div>
       <div class="a2a-card stagger">
-        <div class="a2a-icon">ORCH</div>
+        <div class="a2a-icon">🔗</div>
         <h3>Multi-agent orchestration</h3>
         <p>An orchestrator fans out tasks to specialist agents. Each sub-agent bills for its work. The hub settles all flows from one channel.</p>
       </div>
       <div class="a2a-card stagger">
-        <div class="a2a-icon">BOUNTY</div>
+        <div class="a2a-icon">⚡</div>
         <h3>Micro-bounties</h3>
         <p>An agent posts a task with a price. The first agent to return a valid result gets paid instantly — verified by the hub, no escrow contract needed.</p>
       </div>
@@ -1948,7 +1769,7 @@
           <div class="code-dot g"></div>
           <span class="code-tab">terminal</span>
         </div>
-        <button class="code-copy" type="button" data-copy-template="npm install&#10;npm run scp:wizard&#10;&#10;npm run scp:channel:open -- 0xHubAddress sepolia eth 0.01&#10;&#10;npm run scp:agent:pay -- {{meow}} hub&#10;npm run scp:dash">Copy</button>
+        <button class="code-copy" onclick="copyCode(this)" data-code="npm install&#10;npm run scp:wizard&#10;&#10;npm run scp:channel:open -- \&#10;  0xHubAddr base usdc 20&#10;&#10;npm run scp:agent:pay -- \&#10;  https://api.example/v1/data">Copy</button>
         <div class="code-body">
 <span class="cmt"># setup</span>
 <span class="fn">npm</span> install
@@ -1956,14 +1777,11 @@
 
 <span class="cmt"># open a channel</span>
 <span class="fn">npm</span> run <span class="str">scp:channel:open</span> <span class="flag">--</span> \
-  <span class="num">0xHubAddress</span> sepolia eth <span class="num">0.01</span>
+  <span class="num">0xHubAddr</span> base usdc <span class="num">20</span>
 
 <span class="cmt"># pay an API</span>
 <span class="fn">npm</span> run <span class="str">scp:agent:pay</span> <span class="flag">--</span> \
-  <span class="route-inline" data-route-text="meow">https://pogchamp.tv/meow</span> hub
-
-<span class="cmt"># inspect browser state</span>
-<span class="fn">npm</span> run <span class="str">scp:dash</span>
+  https://api.example/v1/data
         </div>
       </div>
     </div>
@@ -1992,7 +1810,7 @@
           <div class="code-dot g"></div>
           <span class="code-tab">payee-api.js</span>
         </div>
-        <button class="code-copy" type="button" data-copy="const sig = req.headers[&quot;payment-signature&quot;];&#10;&#10;if (!sig) {&#10;  const accepts = buildAccepts({&#10;    file: process.env.OFFERS_FILE,&#10;    path: req.path,&#10;    host: req.headers.host&#10;  });&#10;  return res.status(402).json({&#10;    error: &quot;payment required&quot;,&#10;    accepts&#10;  });&#10;}&#10;&#10;const result = await verify(sig, store);&#10;&#10;if (result.replayed)&#10;  return res.json(result.response);&#10;if (!result.ok)&#10;  return res.status(402).json({ error: result.error });&#10;&#10;const resp = {&#10;  ok: true, data,&#10;  receipt: { paymentId: result.paymentId }&#10;};&#10;verify.seen.set(result.paymentId, resp);&#10;return res.json(resp);">Copy</button>
+        <button class="code-copy" onclick="copyCode(this)" data-code="const sig = req.headers[&quot;payment-signature&quot;];&#10;&#10;if (!sig) {&#10;  const accepts = buildAccepts({&#10;    file: process.env.OFFERS_FILE,&#10;    path: req.path,&#10;    host: req.headers.host&#10;  });&#10;  return res.status(402).json({&#10;    error: &quot;payment required&quot;,&#10;    accepts&#10;  });&#10;}&#10;&#10;const result = await verify(sig, store);&#10;&#10;if (result.replayed)&#10;  return res.json(result.response);&#10;if (!result.ok)&#10;  return res.status(402).json({ error: result.error });&#10;&#10;const resp = {&#10;  ok: true, data,&#10;  receipt: { paymentId: result.paymentId }&#10;};&#10;verify.seen.set(result.paymentId, resp);&#10;return res.json(resp);">Copy</button>
         <div class="code-body">
 <span class="kw">const</span> sig = req.headers[<span class="str">"payment-signature"</span>];
 
@@ -2062,12 +1880,12 @@ verify.seen.set(result.paymentId, resp);
 <section class="cta-section">
   <div class="reveal">
     <h2>Build paid APIs and agents.</h2>
-    <p>Install, open one channel, and start paying real routes. The same primitives behind this page can sit in front of your own APIs and agent surfaces.</p>
+    <p>Install, open a channel, pay. The wizard handles setup — deploy on Sepolia, Base, or any EVM chain.</p>
     <div class="cta-actions">
-      <a href="/scpapp/" class="btn-primary" data-route="agent">Launch Browser Agent</a>
-      <a href="https://github.com/ScryProtocol/Contracts/blob/main/x402s/docs/X402S_SPEC_V2.md" class="btn-secondary" target="_blank" rel="noopener">Read the Spec</a>
+      <a href="https://github.com" class="btn-primary" target="_blank" rel="noopener">View on GitHub</a>
+      <a href="#" class="btn-secondary">Read the Spec</a>
     </div>
-    <div class="cta-cmd" data-copy="npm run scp:wizard">
+    <div class="cta-cmd" onclick="copyCmdLine(this)">
       <span class="prompt">$</span> npm run scp:wizard
       <span class="cta-cursor"></span>
     </div>
@@ -2075,12 +1893,12 @@ verify.seen.set(result.paymentId, resp);
 </section>
 
 <footer>
-  <div class="logo-foot">x402s © 2026</div>
+  <div class="logo-foot">x402s © 2025</div>
   <div class="foot-links">
-    <a href="https://github.com/ScryProtocol/Contracts/blob/main/x402s/README.md" target="_blank" rel="noopener">Guide</a>
-    <a href="https://github.com/ScryProtocol/Contracts/tree/main/x402s" target="_blank" rel="noopener">GitHub</a>
-    <a href="https://github.com/ScryProtocol/Contracts/blob/main/x402s/docs/X402S_SPEC_V2.md" target="_blank" rel="noopener">Spec</a>
-    <a href="https://github.com/ScryProtocol/Contracts/blob/main/x402s/docs/openapi/pay-eth-scp-v1.yaml" target="_blank" rel="noopener">OpenAPI</a>
+    <a href="#">Docs</a>
+    <a href="https://github.com" target="_blank" rel="noopener">GitHub</a>
+    <a href="#">Spec</a>
+    <a href="#">OpenAPI</a>
   </div>
 </footer>
 
@@ -2090,174 +1908,123 @@ verify.seen.set(result.paymentId, resp);
 </a>
 
 <script>
-  (function() {
-    const DEFAULT_HTTPS_ORIGIN = "https://pogchamp.tv";
-    const IP_HOST = "159.223.150.70";
-    const CANONICAL_HOST = "pogchamp.tv";
+  // Reveal on scroll
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) e.target.classList.add('visible');
+    });
+  }, { threshold: 0.06, rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
 
-    function resolveBaseOrigin() {
-      if (typeof window === "undefined" || !window.location) return DEFAULT_HTTPS_ORIGIN;
-      const loc = window.location;
-      if (loc.protocol === "file:") return DEFAULT_HTTPS_ORIGIN;
-      if (loc.hostname === IP_HOST) return "http://" + IP_HOST;
-      if (loc.hostname === "www." + CANONICAL_HOST) return "https://" + CANONICAL_HOST;
-      if (loc.protocol === "http:" || loc.protocol === "https:") return loc.origin;
-      return DEFAULT_HTTPS_ORIGIN;
+  // Scroll progress bar
+  const scrollBar = document.getElementById('scrollBar');
+  const mainNav = document.getElementById('mainNav');
+  const backToTop = document.getElementById('backToTop');
+
+  function onScroll() {
+    const scrollTop = window.scrollY;
+    const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+    const pct = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
+    scrollBar.style.width = pct + '%';
+
+    // Nav background
+    if (scrollTop > 40) {
+      mainNav.classList.add('scrolled');
+    } else {
+      mainNav.classList.remove('scrolled');
     }
 
-    const baseOrigin = resolveBaseOrigin().replace(/\/+$/, "");
-    const meowUrl = baseOrigin + "/meow";
-    const routes = {
-      hub: baseOrigin + "/hub/sepolia/.well-known/x402",
-      handle: baseOrigin + "/handle/pr0",
-      meow: meowUrl,
-      pay: baseOrigin + "/scppay?url=" + encodeURIComponent(meowUrl),
-      agent: baseOrigin + "/scpapp/",
-      music: baseOrigin + "/music"
-    };
-
-    document.querySelectorAll("[data-route]").forEach((el) => {
-      const key = el.getAttribute("data-route");
-      if (routes[key]) el.setAttribute("href", routes[key]);
-    });
-
-    document.querySelectorAll("[data-route-text]").forEach((el) => {
-      const key = el.getAttribute("data-route-text");
-      if (routes[key]) el.textContent = routes[key];
-    });
-
-    const obs = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) entry.target.classList.add("visible");
-      });
-    }, { threshold: 0.06, rootMargin: "0px 0px -40px 0px" });
-    document.querySelectorAll(".reveal").forEach((el) => obs.observe(el));
-
-    const scrollBar = document.getElementById("scrollBar");
-    const mainNav = document.getElementById("mainNav");
-    const backToTop = document.getElementById("backToTop");
-
-    function onScroll() {
-      const scrollTop = window.scrollY;
-      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
-      const pct = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
-      scrollBar.style.width = pct + "%";
-      mainNav.classList.toggle("scrolled", scrollTop > 40);
-      backToTop.classList.toggle("visible", scrollTop > 600);
+    // Back to top
+    if (scrollTop > 600) {
+      backToTop.classList.add('visible');
+    } else {
+      backToTop.classList.remove('visible');
     }
-    window.addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
 
-    const navToggle = document.getElementById("navToggle");
-    const mobileNav = document.getElementById("mobileNav");
-    let navOpen = false;
+  // Mobile nav toggle
+  const navToggle = document.getElementById('navToggle');
+  const mobileNav = document.getElementById('mobileNav');
+  let navOpen = false;
 
-    navToggle.addEventListener("click", () => {
-      navOpen = !navOpen;
-      mobileNav.classList.toggle("open", navOpen);
+  navToggle.addEventListener('click', () => {
+    navOpen = !navOpen;
+    mobileNav.classList.toggle('open', navOpen);
+  });
+
+  // Close mobile nav on link click
+  mobileNav.querySelectorAll('a').forEach(a => {
+    a.addEventListener('click', () => {
+      navOpen = false;
+      mobileNav.classList.remove('open');
     });
+  });
 
-    mobileNav.querySelectorAll("a").forEach((a) => {
-      a.addEventListener("click", () => {
-        navOpen = false;
-        mobileNav.classList.remove("open");
-      });
+  // Copy code
+  function copyCode(btn) {
+    const code = btn.getAttribute('data-code');
+    navigator.clipboard.writeText(code).then(() => {
+      btn.textContent = '✓ Copied';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = 'Copy';
+        btn.classList.remove('copied');
+      }, 2000);
     });
+  }
 
-    function copyText(text) {
-      if (navigator.clipboard && window.isSecureContext) {
-        return navigator.clipboard.writeText(text);
-      }
-      return new Promise((resolve, reject) => {
-        const area = document.createElement("textarea");
-        area.value = text;
-        area.setAttribute("readonly", "");
-        area.style.position = "absolute";
-        area.style.left = "-9999px";
-        document.body.appendChild(area);
-        area.select();
-        try {
-          document.execCommand("copy");
-          document.body.removeChild(area);
-          resolve();
-        } catch (error) {
-          document.body.removeChild(area);
-          reject(error);
-        }
-      });
-    }
-
-    function resolveTemplate(template) {
-      return String(template || "").replace(/\{\{([^}]+)\}\}/g, (_match, key) => routes[key.trim()] || "");
-    }
-
-    document.querySelectorAll("[data-copy], [data-copy-template]").forEach((node) => {
-      node.addEventListener("click", async () => {
-        const value = node.hasAttribute("data-copy-template")
-          ? resolveTemplate(node.getAttribute("data-copy-template"))
-          : node.getAttribute("data-copy") || "";
-        const original = node.innerHTML;
-        try {
-          await copyText(value);
-          if (node.classList.contains("code-copy")) {
-            node.textContent = "Copied";
-            node.classList.add("copied");
-          } else {
-            node.textContent = "$ copied";
-            node.style.borderColor = "#00ffab30";
-          }
-          window.setTimeout(() => {
-            if (node.classList.contains("code-copy")) {
-              node.textContent = "Copy";
-              node.classList.remove("copied");
-            } else {
-              node.innerHTML = original;
-              node.style.borderColor = "";
-            }
-          }, 1600);
-        } catch (_error) {
-          if (node.classList.contains("code-copy")) {
-            node.textContent = "Copy failed";
-            window.setTimeout(() => {
-              node.textContent = "Copy";
-            }, 1600);
-          }
-        }
-      });
+  // Copy command line
+  function copyCmdLine(el) {
+    navigator.clipboard.writeText('npm run scp:wizard').then(() => {
+      const orig = el.innerHTML;
+      el.innerHTML = '<span class="prompt">$</span> copied!';
+      el.style.borderColor = '#00ffab30';
+      setTimeout(() => {
+        el.innerHTML = orig;
+        el.style.borderColor = '';
+      }, 1800);
     });
+  }
 
-    document.querySelectorAll(".flow-tab").forEach((tab) => {
-      tab.addEventListener("click", () => {
-        const flow = tab.dataset.flow;
-        document.querySelectorAll(".flow-tab").forEach((t) => t.classList.remove("active"));
-        tab.classList.add("active");
+  // Flow tab switching
+  document.querySelectorAll('.flow-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const flow = tab.dataset.flow;
+      document.querySelectorAll('.flow-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
 
-        document.querySelectorAll(".flow-pane").forEach((p) => p.classList.remove("active"));
-        const desktopPane = document.getElementById("flow-" + flow);
-        if (desktopPane) desktopPane.classList.add("active");
+      // Desktop panes
+      document.querySelectorAll('.flow-pane').forEach(p => p.classList.remove('active'));
+      const desktopPane = document.getElementById('flow-' + flow);
+      if (desktopPane) desktopPane.classList.add('active');
 
-        document.querySelectorAll(".flow-pane-m").forEach((p) => p.classList.remove("active"));
-        const mobilePane = document.getElementById("flow-" + flow + "-m");
-        if (mobilePane) mobilePane.classList.add("active");
+      // Mobile panes
+      document.querySelectorAll('.flow-pane-m').forEach(p => p.classList.remove('active'));
+      const mobilePane = document.getElementById('flow-' + flow + '-m');
+      if (mobilePane) mobilePane.classList.add('active');
 
-        document.querySelectorAll(".flow-annot-pane").forEach((p) => p.classList.remove("active"));
-        const annotPane = document.getElementById("annot-" + flow);
-        if (annotPane) annotPane.classList.add("active");
-      });
+      // Annotations
+      document.querySelectorAll('.flow-annot-pane').forEach(p => p.classList.remove('active'));
+      const annotPane = document.getElementById('annot-' + flow);
+      if (annotPane) annotPane.classList.add('active');
     });
+  });
 
-    document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
-      anchor.addEventListener("click", function(e) {
-        const target = this.getAttribute("href");
-        if (target === "#") return;
-        const el = document.querySelector(target);
-        if (!el) return;
+  // Smooth anchor scrolling (offset for fixed nav)
+  document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+    anchor.addEventListener('click', function(e) {
+      const target = this.getAttribute('href');
+      if (target === '#') return;
+      const el = document.querySelector(target);
+      if (el) {
         e.preventDefault();
         const y = el.getBoundingClientRect().top + window.scrollY - 80;
-        window.scrollTo({ top: y, behavior: "smooth" });
-      });
+        window.scrollTo({ top: y, behavior: 'smooth' });
+      }
     });
-  })();
+  });
 </script>
 </body>
 </html>
