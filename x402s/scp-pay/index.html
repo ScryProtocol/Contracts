@@ -351,7 +351,7 @@ function toast(msg,type,dur){
   dur=dur||(type==='err'?4000:3000);const w=document.getElementById('toastWrap');
   const el=document.createElement('div');el.className='toast';
   const ic=type==='ok'?'<div class="toast-i tok"><svg viewBox="0 0 12 12" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M2.5 6.5L5 9l4.5-6"/></svg></div>':type==='err'?'<div class="toast-i terr"><svg viewBox="0 0 12 12" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M3 3l6 6M9 3l-6 6"/></svg></div>':'';
-  el.innerHTML=ic+'<span>'+msg+'</span>';
+  const sp=document.createElement('span');sp.textContent=msg;el.innerHTML=ic;el.appendChild(sp);
   w.appendChild(el);requestAnimationFrame(()=>requestAnimationFrame(()=>el.classList.add('on')));
   setTimeout(()=>{el.style.opacity='0';el.style.transform='translateY(-8px) scale(.96)';setTimeout(()=>el.remove(),250);},dur);
 }
@@ -662,7 +662,7 @@ async function goChannels(){
     html+='<div style="display:flex;justify-content:space-between"><span style="font-size:11px;color:var(--t2)">Hub Balance</span><span style="font-size:12px;font-weight:600;color:var(--t2)">'+fT(bB,sym.toLowerCase())+' '+sym+'</span></div>';
     html+='<div style="display:flex;justify-content:space-between"><span style="font-size:11px;color:var(--t2)">State Nonce</span><span style="font-size:11px;font-weight:600">'+n+'</span></div>';
     html+='<div style="display:flex;justify-content:space-between"><span style="font-size:11px;color:var(--t2)">Hub</span><span style="font-size:10px;font-family:var(--m);color:var(--t3)">'+sA(v.pB)+'</span></div>';
-    html+='<button class="bdanger" style="margin-top:4px" onclick="closeChannel(\''+k+'\')">Close Channel</button>';
+    html+='<button class="bdanger" style="margin-top:4px" onclick="closeChannel('+JSON.stringify(k).replace(/</g,'\\x3c')+')">Close Channel</button>';
     html+='</div>';
   }
   if(!live.length&&entries.length){list.innerHTML='<div style="font-size:12px;color:var(--t3)">No open channels (closed channels removed)</div>';return;}
@@ -848,10 +848,12 @@ function updateHandleAmt(){
   if(!curOffer)return;
   const v=document.getElementById('hAmt').value,sel=document.getElementById('hAsset').value;
   const dec=DD[sel]||18,sym=sel.toUpperCase();
-  const raw=v?BigInt(Math.round(parseFloat(v)*10**dec))+"":"0";
+  let raw="0";if(v){try{raw=ethers.utils.parseUnits(v,dec).toString();}catch{raw="0";}}
   // Update offer with user's chosen amount/asset
   curOffer._userAmt=raw;
-  curOffer._userAsset=sel==="eth"?"0x0000000000000000000000000000000000000000":"0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238";
+  const net=document.getElementById('hNet')?.value||ag?.net||"sepolia";
+  const cid=rN(net)?.cid||11155111;
+  curOffer._userAsset=sel==="eth"?ZA:(AZ[cid]?.[sel]||ZA);
   curOffer._userSym=sym;
   document.getElementById('oAmt').textContent=v||"0";
   document.getElementById('oSym').textContent=sym;
