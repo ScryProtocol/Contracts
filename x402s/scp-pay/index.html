@@ -257,6 +257,7 @@ html,body{font-family:var(--f);background:var(--bg);color:var(--t1);-webkit-font
     <div class="fl"><label>Pay</label><input id="iUrl" type="text" placeholder="pr0@pogchamp.tv, 0x..., or https://..."/></div>
   </div>
   <div class="ba"><button class="bt" id="bDisc" onclick="discover()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg><span>Pay</span></button>
+  <div id="autoPayBadge" style="display:none;margin-top:6px;font-size:10px;font-weight:600;color:var(--ok);text-align:center"></div>
   <div style="display:flex;gap:8px;margin-top:8px"><button class="b2" style="flex:1" onclick="goChannels()">Channels</button><button class="b2" style="flex:1" onclick="goPayments()">Payments</button></div></div>
 </div>
 
@@ -353,6 +354,13 @@ html,body{font-family:var(--f);background:var(--bg);color:var(--t1);-webkit-font
       <div class="fl"><label>Network</label><select id="sNet" onchange="saveSettings()"><option value="sepolia">Sepolia</option><option value="base-sepolia">Base Sepolia</option><option value="base">Base</option><option value="mainnet">Mainnet</option></select></div>
       <div class="fl"><label>Custom RPC (optional)</label><input id="sRpc" type="url" placeholder="https://..." onchange="saveSettings()"/><div class="fh">Use Alchemy / Infura / QuickNode for reliability.</div></div>
       <div class="fl"><label>Route</label><select id="sRt" onchange="saveSettings()"><option value="hub">Hub (state channel)</option><option value="auto">Auto</option></select></div>
+      <div class="fl"><label>Auto-Pay Limit (per hour)</label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input id="sAutoLim" type="number" step="0.0001" min="0" placeholder="0 = off" onchange="saveSettings()" style="flex:1"/>
+          <span style="font-size:12px;font-weight:600;color:var(--t2);white-space:nowrap">ETH / hr</span>
+        </div>
+        <div class="fh">Payments within the hourly limit auto-confirm without prompting. Set 0 to disable.</div>
+      </div>
     </div>
   </div>
   <div class="dv"></div>
@@ -371,7 +379,7 @@ html,body{font-family:var(--f);background:var(--bg);color:var(--t1);-webkit-font
   <div class="ba" style="padding-top:16px"><button class="b2" onclick="goReady()">&#8592; Back</button></div>
 </div>
 
-<div class="ft"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>Secured by</span><a href="https://github.com/Keychain-Inc/x402s" target="_blank">x402s protocol</a><span style="margin-left:6px;opacity:.4">v16</span></div>
+<div class="ft"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>Secured by</span><a href="https://github.com/Keychain-Inc/x402s" target="_blank">x402s protocol</a><span style="margin-left:6px;opacity:.4">v17</span></div>
 
 </div></div>
 <div class="toast-wrap" id="toastWrap"></div>
@@ -584,6 +592,7 @@ function loadWallet(){
       document.getElementById('rNetL').textContent=(ag.net||"sepolia").replace(/^./,c=>c.toUpperCase()).replace("-s"," S").replace("-","");
       show('vReady');
       refreshBal();
+      refreshAutoBadge();
       return true;
     }
   }catch{}
@@ -598,7 +607,8 @@ function saveSettings(){
   const net=document.getElementById('sNet').value;
   const rpc=document.getElementById('sRpc').value.trim();
   const rt=document.getElementById('sRt').value;
-  localStorage.setItem("x402s.settings",JSON.stringify({net,rpc,rt}));
+  const autoLim=parseFloat(document.getElementById('sAutoLim').value)||0;
+  localStorage.setItem("x402s.settings",JSON.stringify({net,rpc,rt,autoLim}));
   if(ag){
     const d=JSON.parse(localStorage.getItem(WK));
     ag=new Agent({pk:d.pk,net,rpc});
@@ -614,6 +624,7 @@ function loadSettings(){
     if(s.net)document.getElementById('sNet').value=s.net;
     if(s.rpc)document.getElementById('sRpc').value=s.rpc;
     if(s.rt)document.getElementById('sRt').value=s.rt;
+    if(s.autoLim)document.getElementById('sAutoLim').value=s.autoLim;
   }catch{}
 }
 
@@ -658,7 +669,8 @@ function goSet(){
   document.getElementById('bExp').textContent='Reveal';
   show('vSet');
 }
-function goReady(){show('vReady');refreshBal();}
+function goReady(){show('vReady');refreshBal();refreshAutoBadge();}
+function refreshAutoBadge(){const lim=getAutoLim(),b=document.getElementById('autoPayBadge');if(lim<=0){b.style.display='none';return;}const spent=getAutoSpent().toFixed(6).replace(/0+$/,'').replace(/\.$/,'');b.style.display='block';b.textContent='\u26A1 Auto-pay on \u2022 '+spent+' / '+lim+' ETH this hour';}
 async function goChannels(){
   show('vChan');
   const list=document.getElementById('chList');
@@ -941,6 +953,12 @@ async function refreshPayChanBal(ep,net){
   const crA=BigInt(hc);if(crA>0n){document.getElementById('crW').style.display='block';document.getElementById('crV').textContent="+"+fT(hc,"eth")+" ETH";}else{document.getElementById('crW').style.display='none';}
   if(curOffer){curOffer._creditOnly=!ch&&crA>0n;curOffer._hubCredit=hc;curOffer._hubEp=ep;}
 }
+// Auto-pay: track spending per hour
+function getAutoLim(){try{const s=JSON.parse(localStorage.getItem("x402s.settings")||"{}");return parseFloat(s.autoLim)||0;}catch{return 0;}}
+function getAutoSpent(){try{const d=JSON.parse(localStorage.getItem("x402s.autoPay")||"{}");const now=Date.now(),hr=3600000;const recent=(d.log||[]).filter(e=>now-e.ts<hr);return recent.reduce((s,e)=>s+e.eth,0);}catch{return 0;}}
+function recordAutoSpend(eth){try{const d=JSON.parse(localStorage.getItem("x402s.autoPay")||"{}");const now=Date.now(),hr=3600000;const log=((d.log||[]).filter(e=>now-e.ts<hr));log.push({ts:now,eth});localStorage.setItem("x402s.autoPay",JSON.stringify({log}));}catch{}}
+function canAutoPay(amtWei,dec=18){const lim=getAutoLim();if(lim<=0)return false;const eth=parseFloat(fA(amtWei,dec));const spent=getAutoSpent();return(spent+eth)<=lim;}
+
 // Discover
 async function discover(){
   let url=document.getElementById('iUrl').value.trim();
@@ -1041,6 +1059,11 @@ async function discover(){
     await refreshPayChanBal(ep,initNet);
     if(curOffer._creditOnly){document.getElementById('oRoute').textContent='Hub (credit → channel if needed)';}
     show('vPay');
+    // Auto-pay: if within hourly limit, confirm automatically
+    if(!isHandlePay&&!isAddrPay&&dr!=="0"&&canAutoPay(dr,dec)){
+      toast("Auto-paying "+ha+" "+sym+" (within limit)","ok");
+      setTimeout(()=>pay(),100);
+    }
   }catch(e){if(e.message!=="skip")toast("Failed: "+e.message,"err",5000);}
   btn.disabled=false;btn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg><span>Pay</span>';
 }
@@ -1081,6 +1104,7 @@ async function pay(){
       document.getElementById('okT').textContent="id:"+(rb.paymentId||"").slice(0,16)+"...";
       document.getElementById('okD').textContent="Zero hub fee (credit transfer)";
       setTimeout(()=>document.getElementById('okO').classList.add('on'),400);
+      recordAutoSpend(parseFloat(fA(amt,18)));
       if(window.parent!==window)window.parent.postMessage({type:"x402:payment:success",payId:rb.paymentId,amount:amt,payer:ag.ad},"*");
     }else if(isAddrPay){
     // Address payment — issue ticket directly through hub, no resource URL
@@ -1123,6 +1147,7 @@ async function pay(){
     document.getElementById('okT').textContent="ticket:"+(is.ticketId||pid).slice(0,12)+"...";
     document.getElementById('okD').textContent="Zero hub fee";
     setTimeout(()=>document.getElementById('okO').classList.add('on'),400);
+    recordAutoSpend(parseFloat(fA(da,18)));
     }finally{ag.net=_oN;ag._p=_oP;ag._pt=_oPt;}
     }else{
     const s=JSON.parse(localStorage.getItem("x402s.settings")||"{}"),rt=s.rt||"hub";
@@ -1137,6 +1162,7 @@ async function pay(){
     document.getElementById('okT').textContent="ticket:"+(r.tk?.ticketId||r.pid||"").slice(0,12)+"...";
     document.getElementById('okD').textContent=r.fee&&r.fee!=="0"?"Hub fee: "+fA(r.fee,dec)+" "+sym:"Zero hub fee";
     setTimeout(()=>document.getElementById('okO').classList.add('on'),400);
+    recordAutoSpend(parseFloat(fA(r.amt,dec)));
     if(window.parent!==window)window.parent.postMessage({type:"x402:payment:success",ticketId:r.tk?.ticketId,payId:r.pid,amount:r.amt,payer:ag.ad},"*");
     }
   }catch(e){
@@ -1156,10 +1182,10 @@ if(pp.get('url'))document.getElementById('iUrl').value=pp.get('url');
 
 // iframe config — transparent bg when embedded
 if(window.parent!==window){document.documentElement.style.background='transparent';document.body.style.background='transparent';}
-window.addEventListener('message',e=>{if(e.data?.type==='x402:config'){if(e.data.url)document.getElementById('iUrl').value=e.data.url;}});
+window.addEventListener('message',e=>{if(e.data?.type==='x402:config'){if(e.data.url)document.getElementById('iUrl').value=e.data.url;if(e.data.autoLim){try{const s=JSON.parse(localStorage.getItem("x402s.settings")||"{}");s.autoLim=parseFloat(e.data.autoLim);localStorage.setItem("x402s.settings",JSON.stringify(s));}catch{}}}});
 
 // Boot
-console.log("[x402s] scp-pay v16 loaded");
+console.log("[x402s] scp-pay v17 loaded");
 loadSettings();
 if(!loadWallet())show('vWel');
 </script>
