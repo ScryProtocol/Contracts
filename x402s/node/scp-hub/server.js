@@ -111,11 +111,13 @@ if (IS_PRODUCTION && !REDIS_URL && !ALLOW_UNSAFE_PROD_STORAGE) {
 
 // Provider + funded wallet for on-chain settlement (lazy init)
 let hubSigner = null;
+let hubSignerTs = 0;
 function getHubSigner() {
-  if (hubSigner) return hubSigner;
+  if (hubSigner && Date.now() - hubSignerTs < 300000) return hubSigner;
   if (!RPC_URL) return null;
   const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
   hubSigner = wallet.connect(provider);
+  hubSignerTs = Date.now();
   return hubSigner;
 }
 
@@ -1179,9 +1181,20 @@ async function handleRequest(req, res) {
           const prov = new ethers.providers.JsonRpcProvider(RPC_URL);
           const ct = new ethers.Contract(CONTRACT_ADDRESS, CHANNEL_ABI, prov);
           const currentBlock = await prov.getBlockNumber();
-          const fromBlock = Math.max(0, currentBlock - 50000);
+          const scanFrom = Math.max(0, currentBlock - 50000);
           const filterA = ct.filters.ChannelOpened(null, payer);
-          const logsA = await ct.queryFilter(filterA, fromBlock, currentBlock);
+          // Chunk scan in 5k blocks to stay within free-tier RPC limits
+          const logsA = [];
+          const CHUNK = 5000;
+          for (let from = scanFrom; from <= currentBlock; from += CHUNK) {
+            const to = Math.min(from + CHUNK - 1, currentBlock);
+            try {
+              const chunk = await ct.queryFilter(filterA, from, to);
+              logsA.push(...chunk);
+            } catch (e) {
+              console.warn("[lookup] chunk scan failed for blocks", from, "-", to, ":", e.message);
+            }
+          }
           for (const log of logsA) {
             const { channelId, participantA, participantB, asset } = log.args;
             try {
@@ -2043,12 +2056,13 @@ async function handleRequest(req, res) {
       let txResult = null;
       await store.tx((s) => {
         if (!s.spentCreditNonces) s.spentCreditNonces = {};
-        if (s.spentCreditNonces[cpNonce]) { txResult = "replay"; return; }
+        const creditReplayKey = `${payerKey}:${cpNonce}`;
+        if (s.spentCreditNonces[creditReplayKey]) { txResult = "replay"; return; }
         if (!s.payerCredits) s.payerCredits = {};
         const pc = BigInt(s.payerCredits[payerKey] || "0");
         if (pc < amt) { txResult = "insufficient"; return; }
         // Mark nonce spent + debit + credit + record — all atomic
-        s.spentCreditNonces[cpNonce] = now();
+        s.spentCreditNonces[creditReplayKey] = now();
         s.payerCredits[payerKey] = (pc - amt).toString();
         const pp = BigInt(s.payerCredits[payeeKey] || "0");
         s.payerCredits[payeeKey] = (pp + amt).toString();
@@ -2114,18 +2128,19 @@ async function handleRequest(req, res) {
       let debitOk = false;
       await store.tx((s) => {
         if (!s.spentWithdrawNonces) s.spentWithdrawNonces = {};
-        if (s.spentWithdrawNonces[nonce]) return; // replay — debitOk stays false
+        const withdrawReplayKey = `${addr.toLowerCase()}:${nonce}`;
+        if (s.spentWithdrawNonces[withdrawReplayKey]) return; // replay — debitOk stays false
         if (!s.payerCredits) s.payerCredits = {};
         const cur = BigInt(s.payerCredits[addr] || "0");
         if (cur < BigInt(amount)) return; // insufficient — debitOk stays false
         // Debit BEFORE sending (prevents TOCTOU)
         s.payerCredits[addr] = (cur - BigInt(amount)).toString();
-        s.spentWithdrawNonces[nonce] = now();
+        s.spentWithdrawNonces[withdrawReplayKey] = now();
         debitOk = true;
       });
       if (!debitOk) {
         // Distinguish replay from insufficient
-        const isReplay = await store.tx((s) => !!(s.spentWithdrawNonces?.[nonce]));
+        const isReplay = await store.tx((s) => !!(s.spentWithdrawNonces?.[`${addr.toLowerCase()}:${nonce}`]));
         if (isReplay) return sendJson(res, 409, makeError("SCP_009_POLICY_VIOLATION", "nonce already used"));
         return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "insufficient credit"));
       }

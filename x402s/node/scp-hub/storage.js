@@ -49,7 +49,7 @@ class MemoryBackend {
     }
   }
   async tx(mutator) {
-    mutator(this.state);
+    return await mutator(this.state);
   }
   async listPayments() {
     return this.state.payments || {};
@@ -248,11 +248,11 @@ class RedisBackend {
       await this.r.watch(this.stateKey);
       try {
         const state = await this._loadState();
-        await mutator(state);
+        const mutatorResult = await mutator(state);
         const multi = this.r.multi();
         multi.set(this.stateKey, JSON.stringify(state));
         const result = await multi.exec();
-        if (result !== null) return;
+        if (result !== null) return mutatorResult;
       } catch (err) {
         lastErr = err;
         try {

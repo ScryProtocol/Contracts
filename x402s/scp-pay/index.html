@@ -375,6 +375,7 @@ function gS(o){if(!o?.asset)return"ETH";const a=(o.asset+"").toLowerCase();if(a=
 function fA(r,d=6){if(!r||r==="0")return"0";try{const n=BigInt(r),p=10n**BigInt(d),w=n/p,f=(n%p).toString().padStart(d,"0");if(w===0n){const i=f.search(/[1-9]/);return i<0?"0":"0."+f.slice(0,Math.min(d,i+6)).replace(/0+$/,"");}const fr=f.slice(0,4).replace(/0+$/,"");return fr?w+"."+fr:""+w;}catch{return r;}}
 function fT(r,s){return fA(r,DD[s?.toLowerCase()]||18);}
 function sA(a){return a?a.slice(0,6)+"..."+a.slice(-4):"-";}
+function esc(s){const d=document.createElement('div');d.textContent=String(s??"");return d.innerHTML;}
 function oD(o){const h=o?.extensions?.["statechannel-hub-v1"],s=h&&typeof h.stream==="object"?h.stream:null,fb=(o?.maxAmountRequired??"0")+"",fa=/^[0-9]+$/.test(fb)?fb:"0",ra=(s?.amount??"")+"";return/^[0-9]+$/.test(ra)?ra:fa;}
 function wT(p,ms){let t;return Promise.race([p,new Promise((_,r)=>{t=setTimeout(()=>r(new Error("Timeout "+ms+"ms")),ms);})]).finally(()=>clearTimeout(t));}
 
@@ -633,7 +634,7 @@ async function goChannels(){
   const crDiv=document.getElementById('crBal');
   let crParts=[];
   for(const ep of hubEps){
-    try{const r=await fetch(ep+"/v1/credit/balance?address="+ag.ad);if(r.ok){const b=await r.json();const c=b.credit||"0";if(BigInt(c)>0n){const nn=ep.includes("/hub/base")?"Base":"Sepolia";crParts.push(fT(c,"eth")+" ETH <span style=\"font-size:9px;font-weight:600;padding:2px 6px;border-radius:6px;background:var(--b2);color:var(--t2)\">"+nn+"</span>");}}}catch{}
+    try{const r=await fetch(ep+"/v1/credit/balance?address="+ag.ad);if(r.ok){const b=await r.json();const c=b.credit||"0";if(BigInt(c)>0n){const nn=ep.includes("/hub/base")?"Base":"Sepolia";crParts.push(esc(fT(c,"eth"))+" ETH <span style=\"font-size:9px;font-weight:600;padding:2px 6px;border-radius:6px;background:var(--b2);color:var(--t2)\">"+esc(nn)+"</span>");}}}catch{}
   }
   if(crParts.length){crDiv.style.display='block';document.getElementById('crBalV').innerHTML=crParts.join('<br style="margin:4px 0">');}else{crDiv.style.display='none';}
   if(!entries.length){list.innerHTML='<div style="font-size:12px;color:var(--t3)">No channels found</div>';return;}
@@ -657,11 +658,11 @@ async function goChannels(){
     const sym=gS({asset:v.ast});
     const chNet=ep.includes("/hub/base")?"Base":ep.includes("/hub/sepolia")?"Sepolia":"";
     html+='<div class="ci" style="flex-direction:column;align-items:stretch;gap:6px;padding:12px">';
-    html+='<div style="display:flex;justify-content:space-between;align-items:center"><span class="ci-l">Channel</span><span style="display:flex;align-items:center;gap:6px">'+(chNet?'<span style="font-size:9px;font-weight:600;padding:2px 6px;border-radius:6px;background:var(--b2);color:var(--t2)">'+chNet+'</span>':'')+'<span style="font-size:10px;color:var(--t3);font-family:var(--m)">'+sA(v.id)+'</span></span></div>';
-    html+='<div style="display:flex;justify-content:space-between"><span style="font-size:11px;color:var(--t2)">Your Balance</span><span style="font-size:12px;font-weight:700">'+fT(bA,sym.toLowerCase())+' '+sym+'</span></div>';
-    html+='<div style="display:flex;justify-content:space-between"><span style="font-size:11px;color:var(--t2)">Hub Balance</span><span style="font-size:12px;font-weight:600;color:var(--t2)">'+fT(bB,sym.toLowerCase())+' '+sym+'</span></div>';
-    html+='<div style="display:flex;justify-content:space-between"><span style="font-size:11px;color:var(--t2)">State Nonce</span><span style="font-size:11px;font-weight:600">'+n+'</span></div>';
-    html+='<div style="display:flex;justify-content:space-between"><span style="font-size:11px;color:var(--t2)">Hub</span><span style="font-size:10px;font-family:var(--m);color:var(--t3)">'+sA(v.pB)+'</span></div>';
+    html+='<div style="display:flex;justify-content:space-between;align-items:center"><span class="ci-l">Channel</span><span style="display:flex;align-items:center;gap:6px">'+(chNet?'<span style="font-size:9px;font-weight:600;padding:2px 6px;border-radius:6px;background:var(--b2);color:var(--t2)">'+esc(chNet)+'</span>':'')+'<span style="font-size:10px;color:var(--t3);font-family:var(--m)">'+esc(sA(v.id))+'</span></span></div>';
+    html+='<div style="display:flex;justify-content:space-between"><span style="font-size:11px;color:var(--t2)">Your Balance</span><span style="font-size:12px;font-weight:700">'+esc(fT(bA,sym.toLowerCase()))+' '+esc(sym)+'</span></div>';
+    html+='<div style="display:flex;justify-content:space-between"><span style="font-size:11px;color:var(--t2)">Hub Balance</span><span style="font-size:12px;font-weight:600;color:var(--t2)">'+esc(fT(bB,sym.toLowerCase()))+' '+esc(sym)+'</span></div>';
+    html+='<div style="display:flex;justify-content:space-between"><span style="font-size:11px;color:var(--t2)">State Nonce</span><span style="font-size:11px;font-weight:600">'+esc(n)+'</span></div>';
+    html+='<div style="display:flex;justify-content:space-between"><span style="font-size:11px;color:var(--t2)">Hub</span><span style="font-size:10px;font-family:var(--m);color:var(--t3)">'+esc(sA(v.pB))+'</span></div>';
     html+='<button class="bdanger" style="margin-top:4px" onclick="closeChannel('+JSON.stringify(k).replace(/</g,'\\x3c')+')">Close Channel</button>';
     html+='</div>';
   }
@@ -702,11 +703,11 @@ async function goPayments(){
     const st=p.status||'issued';
     const stCol=st==='issued'?'var(--ok)':st==='refunded'?'var(--er)':'var(--b6)';
     html+='<div class="ci" style="flex-direction:column;align-items:stretch;gap:4px;padding:10px">';
-    html+='<div style="display:flex;justify-content:space-between"><span style="font-size:11px;font-weight:700">'+net+' '+sym+'</span><span style="font-size:10px;font-weight:600;color:'+stCol+'">'+st+'</span></div>';
-    if(p.payee)html+='<div style="display:flex;justify-content:space-between"><span style="font-size:10px;color:var(--t3)">To</span><span style="font-size:10px;font-family:var(--m);color:var(--t2)">'+sA(p.payee)+'</span></div>';
-    if(fee!=='0')html+='<div style="display:flex;justify-content:space-between"><span style="font-size:10px;color:var(--t3)">Fee</span><span style="font-size:10px;color:var(--t2)">'+fee+' '+sym+'</span></div>';
-    html+='<div style="display:flex;justify-content:space-between"><span style="font-size:10px;color:var(--t3)">Date</span><span style="font-size:10px;color:var(--t2)">'+dt+'</span></div>';
-    if(p.paymentId)html+='<div style="font-size:9px;font-family:var(--m);color:var(--t3);overflow:hidden;text-overflow:ellipsis">'+p.paymentId+'</div>';
+    html+='<div style="display:flex;justify-content:space-between"><span style="font-size:11px;font-weight:700">'+esc(net)+' '+esc(sym)+'</span><span style="font-size:10px;font-weight:600;color:'+stCol+'">'+esc(st)+'</span></div>';
+    if(p.payee)html+='<div style="display:flex;justify-content:space-between"><span style="font-size:10px;color:var(--t3)">To</span><span style="font-size:10px;font-family:var(--m);color:var(--t2)">'+esc(sA(p.payee))+'</span></div>';
+    if(fee!=='0')html+='<div style="display:flex;justify-content:space-between"><span style="font-size:10px;color:var(--t3)">Fee</span><span style="font-size:10px;color:var(--t2)">'+esc(fee)+' '+esc(sym)+'</span></div>';
+    html+='<div style="display:flex;justify-content:space-between"><span style="font-size:10px;color:var(--t3)">Date</span><span style="font-size:10px;color:var(--t2)">'+esc(dt)+'</span></div>';
+    if(p.paymentId)html+='<div style="font-size:9px;font-family:var(--m);color:var(--t3);overflow:hidden;text-overflow:ellipsis">'+esc(p.paymentId)+'</div>';
     html+='</div>';
   }
   list.innerHTML=html;
