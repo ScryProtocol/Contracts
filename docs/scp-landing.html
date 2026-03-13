@@ -1,4 +1,3 @@
-check 
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -134,6 +133,127 @@ check
     0%, 100% { transform: translateY(0) translateX(0); }
     50% { transform: translateY(15px) translateX(20px); }
   }
+
+  /* ── Onboarding cards ── */
+  .onboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    max-width: 820px;
+    margin: 0 auto;
+  }
+  .onboard-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 28px 24px;
+    transition: border-color 0.5s var(--ease-out-expo), transform 0.5s var(--ease-out-expo), box-shadow 0.5s var(--ease-out-expo);
+    position: relative;
+    overflow: hidden;
+  }
+  .onboard-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 20%; right: 20%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent-mid), transparent);
+    opacity: 0;
+    transition: opacity 0.5s;
+  }
+  .onboard-card:hover {
+    border-color: var(--border-bright);
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px #00000030;
+  }
+  .onboard-card:hover::before { opacity: 1; }
+  .onboard-emoji { font-size: 1.5rem; margin-bottom: 10px; display: block; }
+  .onboard-card h3 {
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+    letter-spacing: -0.01em;
+  }
+  .onboard-card p {
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+  .onboard-card code {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--accent);
+    background: var(--accent-dim);
+    padding: 2px 7px;
+    border-radius: 4px;
+    letter-spacing: -0.01em;
+  }
+  .onboard-link {
+    display: inline-block;
+    margin-top: 14px;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    color: var(--accent);
+    text-decoration: none;
+    letter-spacing: 0.04em;
+    transition: color 0.3s, transform 0.3s;
+  }
+  .onboard-link:hover { transform: translateX(3px); }
+
+  /* ── Nova constellation ── */
+  .nova-wrap {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -54%);
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.55;
+    mix-blend-mode: screen;
+  }
+  .nova-wrap svg line.edge {
+    transition: stroke-dashoffset 0.55s cubic-bezier(0.4,0,0.2,1);
+  }
+  .nova-wrap svg circle.node {
+    transform-origin: center;
+    opacity: 0;
+  }
+  .nova-wrap svg circle.node.visible {
+    animation: novaPop 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards;
+  }
+  @keyframes novaPop {
+    0%   { transform: scale(0); opacity: 0; }
+    60%  { transform: scale(1.35); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  @keyframes novaTwink {
+    0%,100% { opacity: var(--nop, 0.28); }
+    50%     { opacity: calc(var(--nop, 0.28) * 0.15); }
+  }
+  @keyframes novaBreathe {
+    0%,100% { r: 22; opacity: 0.06; }
+    50%     { r: 28; opacity: 0.03; }
+  }
+  @keyframes novaBreathe2 {
+    0%,100% { r: 13; opacity: 0.10; }
+    50%     { r: 17; opacity: 0.05; }
+  }
+  @keyframes novaCherry {
+    0%,100% { opacity: 1; }
+    50%     { opacity: 0.55; }
+  }
+  @keyframes novaWordFade {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .nova-cherry-halo1 { animation: novaBreathe 3s ease-in-out infinite; fill: var(--accent); opacity: 0.04; }
+  .nova-cherry-halo2 { animation: novaBreathe2 3s ease-in-out 0.5s infinite; fill: var(--accent); opacity: 0.07; }
+  .nova-cherry-core  { transition: opacity 0.5s ease; fill: white; }
+  .nova-cherry-core.bloom { animation: novaCherry 3s ease-in-out infinite; }
+  .nova-word { opacity: 0; }
+  .nova-word.visible { animation: novaWordFade 1s ease forwards; }
+  .nova-word text { fill: var(--accent); opacity: 0.25; }
+  @media (max-width: 600px) { .nova-wrap { transform: translate(-50%, -54%) scale(0.7); } }
 
   /* ── Nav ── */
   nav {
@@ -798,6 +918,98 @@ check
   }
   .feature-card:hover .feature-accent { opacity: 0.6; }
 
+  /* ── Vs table ── */
+  .vs-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    font-size: 0.84rem;
+  }
+  .vs-table thead th {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 16px 20px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+  .vs-table thead th:first-child { width: 30%; }
+  .vs-table thead th.col-old { color: var(--red); }
+  .vs-table thead th.col-new { color: var(--accent); }
+  .vs-table tbody td {
+    padding: 13px 20px;
+    border-bottom: 1px solid #141820a0;
+    color: var(--text-dim);
+    line-height: 1.45;
+    vertical-align: top;
+  }
+  .vs-table tbody tr:last-child td { border-bottom: none; }
+  .vs-table tbody td:first-child {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    letter-spacing: 0.03em;
+  }
+  .vs-table tbody td.win {
+    color: var(--accent);
+    font-weight: 500;
+  }
+  .vs-table tbody tr {
+    transition: background 0.3s;
+  }
+  .vs-table tbody tr:hover {
+    background: var(--bg-card-hover);
+  }
+  .vs-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 32px;
+  }
+  .vs-insight {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px 22px;
+    transition: all 0.4s var(--ease-out-expo);
+  }
+  .vs-insight:hover {
+    border-color: var(--border-bright);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 28px #00000030;
+  }
+  .vs-insight h4 {
+    font-family: var(--font-display);
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--text);
+  }
+  .vs-insight p {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+  .vs-insight .vs-q {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--accent);
+    margin-bottom: 10px;
+    letter-spacing: 0.04em;
+  }
+  @media (max-width: 700px) {
+    .vs-cards { grid-template-columns: 1fr; }
+    .vs-table { font-size: 0.76rem; }
+    .vs-table thead th, .vs-table tbody td { padding: 10px 12px; }
+  }
+
   /* ── Steps ── */
   .steps {
     display: grid;
@@ -1444,11 +1656,49 @@ check
   <div class="glow-orb g2"></div>
   <div class="glow-orb g3"></div>
 
+  <!-- Nova constellation -->
+  <div class="nova-wrap" id="nova">
+    <svg width="320" height="420" viewBox="0 0 320 420" style="overflow:visible">
+      <defs>
+        <filter id="nGlow"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <filter id="nBigGlow"><feGaussianBlur stdDeviation="9" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <radialGradient id="novaAura" cx="50%" cy="30%" r="50%">
+          <stop offset="0%" stop-color="#00ffab" stop-opacity="0.06"/>
+          <stop offset="60%" stop-color="#58a6ff" stop-opacity="0.02"/>
+          <stop offset="100%" stop-color="transparent" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <!-- subtle accent aura behind the constellation -->
+      <ellipse cx="160" cy="180" rx="180" ry="220" fill="url(#novaAura)" style="animation:novaBreathe 6s ease-in-out infinite;opacity:0.7"/>
+      <!-- ambient stars -->
+      <g id="novaStars"></g>
+      <!-- edges -->
+      <g id="novaEdges"></g>
+      <!-- nodes -->
+      <g id="novaNodes"></g>
+      <!-- cherry apex -->
+      <g id="novaCherry" style="opacity:0">
+        <circle cx="160" cy="62" r="22" class="nova-cherry-halo1"/>
+        <circle cx="160" cy="62" r="13" class="nova-cherry-halo2"/>
+        <line x1="160" y1="44" x2="160" y2="80" stroke="rgba(255,255,255,0.55)" stroke-width="0.9" stroke-linecap="round"/>
+        <line x1="142" y1="62" x2="178" y2="62" stroke="rgba(255,255,255,0.55)" stroke-width="0.9" stroke-linecap="round"/>
+        <line x1="149" y1="51" x2="171" y2="73" stroke="rgba(255,255,255,0.25)" stroke-width="0.7" stroke-linecap="round"/>
+        <line x1="171" y1="51" x2="149" y2="73" stroke="rgba(255,255,255,0.25)" stroke-width="0.7" stroke-linecap="round"/>
+      </g>
+      <circle cx="160" cy="62" r="4" fill="white" filter="url(#nBigGlow)" class="nova-cherry-core" id="novaCoreCircle" style="opacity:0"/>
+      <!-- wordmark -->
+      <g class="nova-word" id="novaWord">
+        <line x1="118" y1="360" x2="202" y2="360" stroke="rgba(255,255,255,0.12)" stroke-width="0.6"/>
+        <text x="160" y="380" text-anchor="middle" font-family="'Futura','Century Gothic','Trebuchet MS',sans-serif" font-size="9" letter-spacing="7" fill="rgba(255,255,255,0.35)" font-weight="300">NOVA</text>
+        <line x1="118" y1="394" x2="202" y2="394" stroke="rgba(255,255,255,0.12)" stroke-width="0.6"/>
+      </g>
+    </svg>
+  </div>
+
   <div class="hero-status">
     <span class="pulse"></span>
     Free &amp; Open Source · MIT Licensed · HTTP 402
   </div>
-
   <h1>
     State Channel Protocol<br>
     <span class="line2">No gas. No wait.</span>
@@ -1456,11 +1706,12 @@ check
 
   <p class="hero-sub">
     <strong>x402s</strong> brings off-chain micropayments to the agentic web.
-    Agent-to-API. Agent-to-agent. State channels replace on-chain transactions, pay with signed state, not gas.
+    Agent-to-API. Agent-to-agent. State channels replace on-chain transactions — pay with signed state, not gas.
   </p>
 
   <div class="hero-actions">
     <a href="#start" class="btn-primary">Quick Start →</a>
+    <a href="https://pogchamp.tv/scp-pay/" class="btn-secondary" target="_blank" rel="noopener">Try scp-pay ↗</a>
     <a href="#how" class="btn-secondary">How It Works</a>
   </div>
 
@@ -1568,6 +1819,32 @@ check
     </div>
   </div>
 </div>
+
+<!-- New Users -->
+<section id="new" style="padding-top:80px;padding-bottom:40px">
+  <div class="section-inner reveal">
+    <div class="onboard-grid">
+      <div class="onboard-card stagger">
+        <span class="onboard-emoji">&#x1F30D;</span>
+        <h3>Browser — scp-pay</h3>
+        <p>No install. Create a wallet, get a handle like <code>you@pogchamp.tv</code>, and send payments in your browser.</p>
+        <a href="https://pogchamp.tv/scp-pay/" target="_blank" rel="noopener" class="onboard-link">Open scp-pay &#8599;</a>
+      </div>
+      <div class="onboard-card stagger">
+        <span class="onboard-emoji">&#x2318;</span>
+        <h3>CLI — Agent Mode</h3>
+        <p>Run the wizard, open channels, pay APIs from the command line. Ideal for developers and autonomous agents.</p>
+        <a href="#start" class="onboard-link">Quick Start &#8595;</a>
+      </div>
+      <div class="onboard-card stagger">
+        <span class="onboard-emoji">&#x1F4B8;</span>
+        <h3>Handles — Get Paid</h3>
+        <p>Claim <code>name@pogchamp.tv</code> free. Anyone can send you payments to your handle — no address needed.</p>
+        <a href="https://pogchamp.tv/scp-pay/?url=pr0@pogchamp.tv" target="_blank" rel="noopener" class="onboard-link">Try a payment &#8599;</a>
+      </div>
+    </div>
+  </div>
+</section>
 
 <!-- Why -->
 <section id="features">
@@ -1754,11 +2031,12 @@ check
       <div class="code-text">
         <div class="section-label">Quickstart</div>
         <h3>Five minutes to<br>first payment</h3>
-        <p>Install, configure, open a channel, and pay. The wizard handles setup; you handle the API calls.</p>
+        <p>Install, configure, open a channel, and pay. The wizard handles setup; you handle the API calls. Or just open <a href="https://pogchamp.tv/scp-pay/" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;border-bottom:1px solid var(--accent-dim)">scp-pay</a> in your browser — no install needed.</p>
         <div class="tags">
           <span class="tag green">CLI</span>
           <span class="tag green">SDK</span>
-          <span class="tag blue">HTTP Server</span>
+          <span class="tag blue">scp-pay</span>
+          <span class="tag blue">Handles</span>
           <span class="tag blue">Dashboard</span>
         </div>
       </div>
@@ -1769,15 +2047,18 @@ check
           <div class="code-dot g"></div>
           <span class="code-tab">terminal</span>
         </div>
-        <button class="code-copy" onclick="copyCode(this)" data-code="npm install&#10;npm run scp:wizard&#10;&#10;npm run scp:channel:open -- \&#10;  0xHubAddr base usdc 20&#10;&#10;npm run scp:agent:pay -- \&#10;  https://api.example/v1/data">Copy</button>
+        <button class="code-copy" onclick="copyCode(this)" data-code="npm install&#10;npm run scp:wizard&#10;&#10;npm run scp:channel:open -- \&#10;  0xHubAddr sepolia eth 0.01&#10;&#10;npm run scp:channel:status&#10;npm run scp:agent:pay -- \&#10;  https://api.example/v1/data">Copy</button>
         <div class="code-body">
 <span class="cmt"># setup</span>
 <span class="fn">npm</span> install
 <span class="fn">npm</span> run <span class="str">scp:wizard</span>
 
-<span class="cmt"># open a channel</span>
+<span class="cmt"># open a channel (Sepolia testnet)</span>
 <span class="fn">npm</span> run <span class="str">scp:channel:open</span> <span class="flag">--</span> \
-  <span class="num">0xHubAddr</span> base usdc <span class="num">20</span>
+  <span class="num">0xHubAddr</span> sepolia eth <span class="num">0.01</span>
+
+<span class="cmt"># check channel + hub health</span>
+<span class="fn">npm</span> run <span class="str">scp:channel:status</span>
 
 <span class="cmt"># pay an API</span>
 <span class="fn">npm</span> run <span class="str">scp:agent:pay</span> <span class="flag">--</span> \
@@ -1893,7 +2174,7 @@ verify.seen.set(result.paymentId, resp);
 </section>
 
 <footer>
-  <div class="logo-foot">x402s © 2025</div>
+  <div class="logo-foot">x402s © 2025–2026</div>
   <div class="foot-links">
     <a href="#">Docs</a>
     <a href="https://github.com" target="_blank" rel="noopener">GitHub</a>
@@ -1962,28 +2243,67 @@ verify.seen.set(result.paymentId, resp);
     });
   });
 
+  function writeToClipboard(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text);
+    }
+
+    return new Promise((resolve, reject) => {
+      const input = document.createElement('textarea');
+      input.value = text;
+      input.setAttribute('readonly', '');
+      input.style.position = 'fixed';
+      input.style.opacity = '0';
+      document.body.appendChild(input);
+      input.select();
+
+      try {
+        if (document.execCommand('copy')) {
+          resolve();
+        } else {
+          reject(new Error('Copy command failed'));
+        }
+      } catch (err) {
+        reject(err);
+      } finally {
+        document.body.removeChild(input);
+      }
+    });
+  }
+
   // Copy code
   function copyCode(btn) {
     const code = btn.getAttribute('data-code');
-    navigator.clipboard.writeText(code).then(() => {
+    writeToClipboard(code).then(() => {
       btn.textContent = '✓ Copied';
       btn.classList.add('copied');
       setTimeout(() => {
         btn.textContent = 'Copy';
         btn.classList.remove('copied');
       }, 2000);
+    }).catch(() => {
+      btn.textContent = 'Copy failed';
+      setTimeout(() => {
+        btn.textContent = 'Copy';
+      }, 2000);
     });
   }
 
   // Copy command line
   function copyCmdLine(el) {
-    navigator.clipboard.writeText('npm run scp:wizard').then(() => {
+    writeToClipboard('npm run scp:wizard').then(() => {
       const orig = el.innerHTML;
       el.innerHTML = '<span class="prompt">$</span> copied!';
       el.style.borderColor = '#00ffab30';
       setTimeout(() => {
         el.innerHTML = orig;
         el.style.borderColor = '';
+      }, 1800);
+    }).catch(() => {
+      const orig = el.innerHTML;
+      el.innerHTML = '<span class="prompt">$</span> copy failed';
+      setTimeout(() => {
+        el.innerHTML = orig;
       }, 1800);
     });
   }
@@ -2025,6 +2345,106 @@ verify.seen.set(result.paymentId, resp);
       }
     });
   });
+
+  // ── Nova constellation animation ──
+  (function() {
+    const NODES = [
+      { id:"apex",  x:160, y:62,  r:4,   tier:0 },
+      { id:"tl",    x:108, y:98,  r:2.4, tier:1 },
+      { id:"tr",    x:212, y:98,  r:2.4, tier:1 },
+      { id:"ml",    x:88,  y:148, r:2.0, tier:2 },
+      { id:"mr",    x:232, y:148, r:2.0, tier:2 },
+      { id:"bl",    x:108, y:192, r:2.2, tier:1 },
+      { id:"br",    x:212, y:192, r:2.2, tier:1 },
+      { id:"waist", x:160, y:192, r:1.6, tier:3 },
+      { id:"tip",   x:160, y:318, r:3,   tier:0 }
+    ];
+    const EDGES = [
+      ["apex","tl",1],["apex","tr",1],["tl","ml",0.9],["tr","mr",0.9],
+      ["ml","bl",0.8],["mr","br",0.8],["tl","tr",0.5],["ml","mr",0.4],
+      ["bl","br",0.7],["bl","waist",0.5],["br","waist",0.5],
+      ["bl","tip",1],["br","tip",1],["waist","tip",0.6],
+      ["bl","mr",0.2],["br","ml",0.2]
+    ];
+    const AMBIENT = [
+      [28,44,0.8,3.8],[292,30,0.7,4.5],[14,180,0.6,5.2],[306,155,0.9,3.2],
+      [38,300,0.7,6.0],[288,290,0.6,4.1],[55,355,0.5,5.5],[265,360,0.6,3.7],
+      [74,82,0.5,4.8],[246,88,0.7,5.0],[160,28,0.5,6.2]
+    ];
+    function gn(id) { return NODES.find(function(n){return n.id===id;}); }
+    function elen(a,b) { return Math.hypot(b.x-a.x,b.y-a.y); }
+    var ns = document.getElementById('novaStars');
+    var ne = document.getElementById('novaEdges');
+    var nn = document.getElementById('novaNodes');
+
+    // Ambient stars
+    AMBIENT.forEach(function(s,i) {
+      var c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      c.setAttribute('cx',s[0]);c.setAttribute('cy',s[1]);c.setAttribute('r',s[2]);
+      c.setAttribute('fill','white');
+      c.style.cssText = '--nop:0.28;animation:novaTwink '+s[3]+'s ease-in-out '+(i*0.37)+'s infinite';
+      ns.appendChild(c);
+    });
+
+    // Edges
+    var edgeEls = [];
+    EDGES.forEach(function(e) {
+      var a=gn(e[0]),b=gn(e[1]),op=e[2],len=elen(a,b);
+      var l = document.createElementNS('http://www.w3.org/2000/svg','line');
+      l.classList.add('edge');
+      l.setAttribute('x1',a.x);l.setAttribute('y1',a.y);
+      l.setAttribute('x2',b.x);l.setAttribute('y2',b.y);
+      l.setAttribute('stroke','rgba(255,255,255,'+(op*0.22).toFixed(2)+')');
+      l.setAttribute('stroke-width',op>0.7?1:0.7);
+      l.setAttribute('stroke-linecap','round');
+      l.setAttribute('stroke-dasharray',len);
+      l.setAttribute('stroke-dashoffset',len);
+      l.style.transition = 'none';
+      ne.appendChild(l);
+      edgeEls.push({el:l,len:len});
+    });
+
+    // Nodes (skip apex — handled by cherry)
+    var nodeEls = {};
+    NODES.forEach(function(n) {
+      if(n.id==='apex') return;
+      var c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      c.classList.add('node');
+      c.setAttribute('cx',n.x);c.setAttribute('cy',n.y);c.setAttribute('r',n.r);
+      c.setAttribute('fill','white');
+      if(n.tier===0) c.setAttribute('filter','url(#nGlow)');
+      nn.appendChild(c);
+      nodeEls[n.id] = c;
+    });
+
+    // Stagger edge draw-in
+    edgeEls.forEach(function(e,i) {
+      setTimeout(function() {
+        e.el.style.transition = 'stroke-dashoffset 0.55s cubic-bezier(0.4,0,0.2,1)';
+        e.el.setAttribute('stroke-dashoffset','0');
+      }, 400 + i * 90);
+    });
+
+    // Stagger node pop-in
+    NODES.forEach(function(n,i) {
+      if(n.id==='apex') return;
+      setTimeout(function() {
+        if(nodeEls[n.id]) nodeEls[n.id].classList.add('visible');
+      }, 420 + i * 80);
+    });
+
+    // Cherry bloom
+    var cherryTime = 400 + EDGES.length * 90 + 300;
+    var coreCircle = document.getElementById('novaCoreCircle');
+    setTimeout(function() {
+      coreCircle.style.opacity = '1';
+    }, 420);
+    setTimeout(function() {
+      document.getElementById('novaCherry').style.opacity = '1';
+      coreCircle.classList.add('bloom');
+      document.getElementById('novaWord').classList.add('visible');
+    }, cherryTime);
+  })();
 </script>
 </body>
 </html>

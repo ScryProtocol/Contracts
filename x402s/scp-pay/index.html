@@ -1154,7 +1154,8 @@ function cpTx(){const el=document.getElementById('okT'),o=el.textContent;navigat
 const pp=new URLSearchParams(location.search);
 if(pp.get('url'))document.getElementById('iUrl').value=pp.get('url');
 
-// iframe config
+// iframe config — transparent bg when embedded
+if(window.parent!==window){document.documentElement.style.background='transparent';document.body.style.background='transparent';}
 window.addEventListener('message',e=>{if(e.data?.type==='x402:config'){if(e.data.url)document.getElementById('iUrl').value=e.data.url;}});
 
 // Boot

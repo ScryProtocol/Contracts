@@ -18,7 +18,7 @@ const RPC_PRESETS = {
 };
 
 const CHANNEL_ABI = [
-  "function openChannel(address participantB, address asset, uint256 amount, uint64 challengePeriodSec, uint64 channelExpiry, bytes32 salt) external payable returns (bytes32 channelId)",
+  "function openChannel(address participantB, address asset, uint256 amount, uint64 challengePeriodSec, uint64 channelExpiry, bytes32 salt, uint8 hubFlags) external payable returns (bytes32 channelId)",
   "function deposit(bytes32 channelId, uint256 amount) external payable",
   "function cooperativeClose(tuple(bytes32 channelId, uint256 stateNonce, uint256 balA, uint256 balB, bytes32 locksRoot, uint256 stateExpiry, bytes32 contextHash) st, bytes sigA, bytes sigB) external",
   "function startClose(tuple(bytes32 channelId, uint256 stateNonce, uint256 balA, uint256 balB, bytes32 locksRoot, uint256 stateExpiry, bytes32 contextHash) st, bytes sigFromCounterparty) external",
@@ -1220,7 +1220,7 @@ class ScpAgentClient {
     let gasLimit;
     try {
       const estimated = await contract.estimateGas.openChannel(
-        ethers.utils.getAddress(participantB), asset, amount, challengePeriod, channelExpiry, salt, baseTxOpts
+        ethers.utils.getAddress(participantB), asset, amount, challengePeriod, channelExpiry, salt, hubFlags, baseTxOpts
       );
       gasLimit = estimated.mul(130).div(100);
     } catch (_e) {
@@ -1234,7 +1234,7 @@ class ScpAgentClient {
     const txOpts = { ...baseTxOpts, gasLimit };
     const tx = await contract.openChannel(
       ethers.utils.getAddress(participantB), asset, amount,
-      challengePeriod, channelExpiry, salt, txOpts
+      challengePeriod, channelExpiry, salt, hubFlags, txOpts
     );
     const rc = await tx.wait(1);
     const ev = rc.events.find(e => e.event === "ChannelOpened");

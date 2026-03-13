@@ -3,43 +3,45 @@
     {
       "network": "base",
       "asset": ["usdc", "eth"],
-      "maxAmountRequired": ["0.50", "0.005"],
-      "stream": { "t": 5 },
+      "maxAmountRequired": ["0.50", "0.0002"],
       "mode": "hub",
       "hubName": "pay.eth",
-      "hubEndpoint": "http://127.0.0.1:4021"
+      "hubEndpoint": "https://pogchamp.tv/hub/base"
     },
     {
-      "network": "eth",
+      "network": "sepolia",
       "asset": ["usdc", "eth"],
-      "maxAmountRequired": ["0.50", "0.005"],
-      "stream": { "t": 5 },
+      "maxAmountRequired": ["0.50", "0.0002"],
       "mode": "hub,direct",
       "hubName": "pay.eth",
-      "hubEndpoint": "http://127.0.0.1:4021"
+      "hubEndpoint": "https://pogchamp.tv/hub/sepolia"
     }
   ],
   "pathPrices": {
     "/weather": {
       "usdc": "0.50",
-      "eth": "0.005"
+      "eth": "0.0002"
+    },
+    "/chat": {
+      "usdc": "0.01",
+      "eth": "0.00001"
     },
     "/meow": {
       "usdc": "0.30",
-      "eth": "0.003"
+      "eth": "0.00012"
     },
-    "/boop": {
-      "usdc": "0.20",
-      "eth": "0.002"
+    "/music/chunk": {
+      "usdc": "0.001",
+      "eth": "0.0000004"
     }
   },
   "pathPaymentModes": {
     "/weather": "per_request",
+    "/chat": "per_request",
     "/meow": "pay_once",
-    "/boop": "pay_once"
+    "/music/chunk": "per_request"
   },
   "pathPayOnceTtls": {
-    "/meow": 86400,
-    "/boop": 3600
+    "/meow": 86400
   }
 }

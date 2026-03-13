@@ -5,7 +5,7 @@ const NETWORKS = {
   ethereum:     { chainId: 1,        rpc: "https://eth.llamarpc.com",   name: "Ethereum" },
   eth:          { chainId: 1,        rpc: "https://eth.llamarpc.com",   name: "Ethereum" },
   base:         { chainId: 8453,     rpc: "https://mainnet.base.org",   name: "Base" },
-  sepolia:      { chainId: 11155111, rpc: "https://rpc.sepolia.org",    name: "Sepolia" },
+  sepolia:      { chainId: 11155111, rpc: "https://ethereum-sepolia-rpc.publicnode.com", name: "Sepolia" },
   "base-sepolia": { chainId: 84532, rpc: "https://sepolia.base.org",   name: "Base Sepolia" }
 };
 

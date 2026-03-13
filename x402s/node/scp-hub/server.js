@@ -86,7 +86,8 @@ const CHANNEL_ABI = [
   "function getChannel(bytes32 channelId) external view returns (tuple(address participantA, address participantB, address asset, uint64 challengePeriodSec, uint64 channelExpiry, uint256 totalBalance, bool isClosing, uint64 closeDeadline, uint64 latestNonce))",
   "event ChannelOpened(bytes32 indexed channelId, address indexed participantA, address indexed participantB, address asset, uint64 challengePeriodSec, uint64 channelExpiry)",
   "event Deposited(bytes32 indexed channelId, address indexed sender, uint256 amount, uint256 newTotalBalance)",
-  "event Rebalanced(bytes32 indexed fromChannelId, bytes32 indexed toChannelId, uint256 amount, uint256 fromNewTotal, uint256 toNewTotal)"
+  "event Rebalanced(bytes32 indexed fromChannelId, bytes32 indexed toChannelId, uint256 amount, uint256 fromNewTotal, uint256 toNewTotal)",
+  "function getChannelsByParticipant(address participant) external view returns (bytes32[] memory)"
 ];
 const STORE_PATH = process.env.STORE_PATH || path.resolve(__dirname, "./data/store.json");
 const WORKERS = Number(process.env.HUB_WORKERS || 0);
@@ -119,6 +120,18 @@ function getHubSigner() {
   hubSigner = wallet.connect(provider);
   hubSignerTs = Date.now();
   return hubSigner;
+}
+
+// Read-only contract for view calls (no wallet `from` in eth_call)
+let _roContract = null;
+let _roContractTs = 0;
+function getReadOnlyContract() {
+  if (_roContract && Date.now() - _roContractTs < 300000) return _roContract;
+  if (!RPC_URL || !CONTRACT_ADDRESS) return null;
+  const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
+  _roContract = new ethers.Contract(CONTRACT_ADDRESS, CHANNEL_ABI, provider);
+  _roContractTs = Date.now();
+  return _roContract;
 }
 
 const store = createStorage(REDIS_URL ? { redisUrl: REDIS_URL } : STORE_PATH);
@@ -643,11 +656,10 @@ async function handleRequest(req, res) {
         }
         // Re-validate on-chain liveness for continuation issues
         let onChainData = null;
-        const cHubSigner = getHubSigner();
-        if (cHubSigner && CONTRACT_ADDRESS) {
+        const roContract = getReadOnlyContract();
+        if (roContract) {
           try {
-            const contract = new ethers.Contract(CONTRACT_ADDRESS, CHANNEL_ABI, cHubSigner);
-            onChainData = await contract.getChannel(body.channelState.channelId);
+            onChainData = await roContract.getChannel(body.channelState.channelId);
             if (onChainData.isClosing) {
               return sendJson(res, 409, makeError("SCP_009_POLICY_VIOLATION", "channel is closing on-chain"));
             }
@@ -673,10 +685,9 @@ async function handleRequest(req, res) {
         let prevTotal = prevBalA + prevBalB;
         // Reconcile on-chain deposits: if totalBalance increased, assign drift to payer (balA)
         if (stateTotal !== prevTotal) {
-          if (!onChainData && cHubSigner && CONTRACT_ADDRESS) {
+          if (!onChainData && roContract) {
             try {
-              const contract = new ethers.Contract(CONTRACT_ADDRESS, CHANNEL_ABI, cHubSigner);
-              onChainData = await contract.getChannel(body.channelState.channelId);
+              onChainData = await roContract.getChannel(body.channelState.channelId);
             } catch (e) {
               console.warn("[issue] on-chain reconciliation failed:", e.message);
             }
@@ -716,15 +727,14 @@ async function handleRequest(req, res) {
         if (Number(body.channelState.stateNonce) < 1) {
           return sendJson(res, 409, makeError("SCP_005_NONCE_CONFLICT", "first stateNonce must be >= 1"));
         }
-        const hubSigner = getHubSigner();
-        if (!hubSigner || !CONTRACT_ADDRESS) {
+        const roContract2 = getReadOnlyContract();
+        if (!roContract2) {
           return sendJson(res, 503, makeError("SCP_010_SETTLEMENT_UNAVAILABLE",
             "on-chain verification required for first payment on a channel (set RPC_URL, CONTRACT_ADDRESS)"));
         }
         let onChainData;
         try {
-          const contract = new ethers.Contract(CONTRACT_ADDRESS, CHANNEL_ABI, hubSigner);
-          onChainData = await contract.getChannel(body.channelState.channelId);
+          onChainData = await roContract2.getChannel(body.channelState.channelId);
         } catch (e) {
           return sendJson(res, 409, makeError("SCP_007_CHANNEL_NOT_FOUND",
             "on-chain channel lookup failed: " + (e.message || "unknown error")));
@@ -1174,38 +1184,23 @@ async function handleRequest(req, res) {
       if (!isHexAddress(payer)) {
         return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "payer query must be 0x address"));
       }
-      // Scan on-chain ChannelOpened events for this payer
+      // Look up channels via contract view function (single eth_call, no event scanning)
       const channels = [];
       if (RPC_URL && CONTRACT_ADDRESS) {
         try {
           const prov = new ethers.providers.JsonRpcProvider(RPC_URL);
           const ct = new ethers.Contract(CONTRACT_ADDRESS, CHANNEL_ABI, prov);
-          const currentBlock = await prov.getBlockNumber();
-          const scanFrom = Math.max(0, currentBlock - 50000);
-          const filterA = ct.filters.ChannelOpened(null, payer);
-          // Chunk scan in 5k blocks to stay within free-tier RPC limits
-          const logsA = [];
-          const CHUNK = 5000;
-          for (let from = scanFrom; from <= currentBlock; from += CHUNK) {
-            const to = Math.min(from + CHUNK - 1, currentBlock);
-            try {
-              const chunk = await ct.queryFilter(filterA, from, to);
-              logsA.push(...chunk);
-            } catch (e) {
-              console.warn("[lookup] chunk scan failed for blocks", from, "-", to, ":", e.message);
-            }
-          }
-          for (const log of logsA) {
-            const { channelId, participantA, participantB, asset } = log.args;
+          const channelIds = await ct.getChannelsByParticipant(payer);
+          for (const channelId of channelIds) {
             try {
               const chData = await ct.getChannel(channelId);
-              channels.push({ channelId, participantA, participantB, asset, totalBalance: chData.totalBalance.toString(), latestNonce: Number(chData.latestNonce || 0), isClosing: !!chData.isClosing });
+              channels.push({ channelId, participantA: chData.participantA, participantB: chData.participantB, asset: chData.asset, totalBalance: chData.totalBalance.toString(), latestNonce: Number(chData.latestNonce || 0), isClosing: !!chData.isClosing });
             } catch (_e) {
-              channels.push({ channelId, participantA, participantB, asset });
+              channels.push({ channelId });
             }
           }
         } catch (e) {
-          console.log("[lookup] on-chain scan error:", e.message);
+          console.log("[lookup] on-chain lookup error:", e.message);
         }
       }
       // Also check hub store for channels with this payer
@@ -1905,8 +1900,8 @@ async function handleRequest(req, res) {
       // Fetch on-chain totalBalance to ensure balA+balB matches contract
       let onChainTotal;
       try {
-        const contract = new ethers.Contract(CONTRACT_ADDRESS, CHANNEL_ABI, hubSigner);
-        const onChainData = await contract.getChannel(channelId);
+        const _roC = getReadOnlyContract() || new ethers.Contract(CONTRACT_ADDRESS, CHANNEL_ABI, hubSigner);
+        const onChainData = await _roC.getChannel(channelId);
         onChainTotal = onChainData.totalBalance.toBigInt();
         if (onChainTotal === 0n) {
           return sendJson(res, 409, makeError("SCP_007_CHANNEL_NOT_FOUND", "channel already closed on-chain"));
@@ -1985,8 +1980,9 @@ async function handleRequest(req, res) {
       await parseBody(req); // consume body but ignore caller-supplied values
       // Verify on-chain that channel is actually closed
       try {
-        const contract = new ethers.Contract(CONTRACT_ADDRESS, CHANNEL_ABI, getHubSigner());
-        const onChainData = await contract.getChannel(channelId);
+        const _roC = getReadOnlyContract();
+        if (!_roC) return sendJson(res, 503, makeError("SCP_010_SETTLEMENT_UNAVAILABLE", "RPC not configured"));
+        const onChainData = await _roC.getChannel(channelId);
         if (!onChainData.totalBalance.isZero()) {
           return sendJson(res, 409, makeError("SCP_009_POLICY_VIOLATION", "channel still open on-chain"));
         }

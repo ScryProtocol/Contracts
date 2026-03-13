@@ -287,6 +287,44 @@ describe("SCP Deep Stack", function () {
     expect(result.response.receipt).to.have.property("paymentId");
   });
 
+  it("recovers a hub endpoint alias from an onchain-only channel", async function () {
+    const isolatedStateDir = path.resolve(
+      __dirname,
+      `../node/scp-agent/state/deep-test-hub-alias-${Date.now()}-${Math.random().toString(16).slice(2)}`
+    );
+    fs.mkdirSync(isolatedStateDir, { recursive: true });
+    const agent = new ScpAgentClient({
+      privateKey: TEST_AGENT_KEY,
+      stateDir: isolatedStateDir,
+      networkAllowlist: [PAYEE_NETWORK],
+      maxFeeDefault: "5000",
+      maxAmountDefault: "5000000"
+    });
+    try {
+      const opened = await agent.openChannel(hubOnChain.address, {
+        rpcUrl: chain.rpcUrl,
+        contractAddress: contract.address,
+        asset: ethers.constants.AddressZero,
+        amount: "1000000000",
+        hubFlags: 2,
+        salt: ethers.utils.hexlify(crypto.randomBytes(32))
+      });
+      expect(agent.state.channels[`onchain:${opened.channelId}`]).to.be.an("object");
+      expect(agent.state.channels[`hub:${HUB_URL}`]).to.eq(undefined);
+
+      const result = await agent.payResource(PAYEE_URL);
+      expect(result.response.ok).to.eq(true);
+
+      const mapped = agent.state.channels[`hub:${HUB_URL}`];
+      expect(mapped).to.be.an("object");
+      expect(mapped.channelId).to.eq(opened.channelId);
+      expect(Number(mapped.nonce)).to.eq(1);
+    } finally {
+      agent.close();
+      fs.rmSync(isolatedStateDir, { recursive: true, force: true });
+    }
+  });
+
   it("hub API returns CORS headers for preflight, success, and error responses", async function () {
     const origin = "http://example.local";
     const preflight = await reqJson("OPTIONS", `${HUB_URL}/v1/tickets/quote`, null, {

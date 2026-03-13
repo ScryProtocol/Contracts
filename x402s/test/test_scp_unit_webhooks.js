@@ -44,7 +44,7 @@ describe("SCP Webhooks Unit", function () {
     expect(badUrl.error).to.contain("invalid webhook url");
 
     const badEvents = manager.register({
-      url: "http://127.0.0.1:9999/hook",
+      url: "http://example.com:9999/hook",
       events: ["unknown.event"],
       channelId: "*"
     });
@@ -55,7 +55,7 @@ describe("SCP Webhooks Unit", function () {
   it("updates and removes hooks with validation", function () {
     const manager = new WebhookManager(createStoreStub());
     const reg = manager.register({
-      url: "http://127.0.0.1:9999/hook",
+      url: "http://example.com:9999/hook",
       events: [EVENT.PAYMENT_RECEIVED],
       channelId: "chan-1",
       secret: "abc123"
@@ -64,7 +64,7 @@ describe("SCP Webhooks Unit", function () {
     expect(id).to.be.a("string");
 
     const updated = manager.update(id, {
-      url: "http://127.0.0.1:9999/new",
+      url: "http://example.com:9999/new",
       events: [EVENT.BALANCE_LOW],
       status: "paused"
     });

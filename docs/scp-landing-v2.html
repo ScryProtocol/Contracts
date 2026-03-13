@@ -1,0 +1,2649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>x402s — State Channel Protocol</title>
+<meta name="description" content="Off-chain micropayments for the agentic web. Zero gas per request. Instant settlement. Open source.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #06080c;
+  --bg-surface: #0c1018;
+  --bg-raised: #111820;
+  --bg-hover: #182030;
+  --cyan: #00e5ff;
+  --cyan-dim: #00e5ff18;
+  --cyan-glow: #00e5ff30;
+  --cyan-muted: #00e5ff60;
+  --red: #ff3c5a;
+  --red-dim: #ff3c5a20;
+  --amber: #ffb84d;
+  --amber-dim: #ffb84d18;
+  --teal: #00e5ff;
+  --teal-dim: #00e5ff15;
+  --code-str: #7ec8e3;
+  --code-num: #b8d4e3;
+  --text: #c8cdd6;
+  --text-bright: #e8ecf2;
+  --text-muted: #404858;
+  --text-dim: #5a6478;
+  --text-30: #c8cdd64d;
+  --text-12: #c8cdd61f;
+  --text-06: #c8cdd60f;
+  --border: #151c28;
+  --border-light: #1e2838;
+  --display: 'Syne', system-ui, sans-serif;
+  --sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', 'Menlo', monospace;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  font-weight: 300;
+}
+
+/* Grain */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 200px;
+}
+
+::selection { background: var(--cyan-dim); color: var(--cyan); }
+
+a { color: inherit; }
+
+/* ── Scroll Progress ── */
+#scrollProgress {
+  position: fixed;
+  top: 0; left: 0;
+  height: 2px;
+  width: 0%;
+  background: linear-gradient(90deg, var(--cyan), var(--cyan-muted));
+  z-index: 200;
+  transition: none;
+}
+
+/* ── Nav ── */
+nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  padding: 0 clamp(24px, 5vw, 80px);
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: background 0.4s, border-color 0.4s;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+}
+nav.scrolled {
+  background: rgba(6,8,12,0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-color: var(--text-06);
+}
+.nav-logo {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  color: var(--text-bright);
+}
+.nav-logo span { color: var(--text-muted); }
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+.nav-links a {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--text-dim);
+  text-decoration: none;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition: color 0.3s;
+}
+.nav-links a:hover { color: var(--cyan); }
+.nav-gh {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1px solid var(--text-12);
+  transition: border-color 0.3s, color 0.3s;
+  border-radius: 0;
+}
+.nav-gh:hover { border-color: var(--cyan); color: var(--cyan); }
+.nav-gh svg { width: 14px; height: 14px; }
+
+/* ── Hamburger ── */
+.nav-hamburger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 32px;
+  height: 32px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  z-index: 120;
+}
+.nav-hamburger span {
+  display: block;
+  width: 100%;
+  height: 2px;
+  background: var(--text-dim);
+  transition: transform 0.3s var(--ease), opacity 0.3s;
+}
+.nav-hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.nav-hamburger.open span:nth-child(2) { opacity: 0; }
+.nav-hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+.nav-drawer {
+  display: none;
+  position: fixed;
+  top: 0; right: 0;
+  width: 280px;
+  height: 100vh;
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border);
+  padding: 96px 32px 32px;
+  flex-direction: column;
+  gap: 24px;
+  z-index: 110;
+  transform: translateX(100%);
+  transition: transform 0.4s var(--ease);
+}
+.nav-drawer.open {
+  transform: translateX(0);
+}
+.nav-drawer a {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--text-dim);
+  text-decoration: none;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition: color 0.3s;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.nav-drawer a:hover { color: var(--cyan); }
+
+@media (max-width: 768px) {
+  .nav-links { display: none; }
+  .nav-hamburger { display: flex; }
+  .nav-drawer { display: flex; }
+}
+
+/* ── Hero ── */
+.hero {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 120px clamp(24px, 5vw, 80px) 80px;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  width: 600px;
+  height: 600px;
+  top: 15%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: radial-gradient(circle, var(--cyan-dim) 0%, transparent 70%);
+  pointer-events: none;
+  animation: heroGlow 8s ease-in-out infinite;
+}
+@keyframes heroGlow {
+  0%, 100% { opacity: 0.4; transform: translateX(-50%) scale(1); }
+  50% { opacity: 0.6; transform: translateX(-50%) scale(1.15); }
+}
+
+.hero-badge {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cyan);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 40px;
+  opacity: 0;
+  animation: fadeUp 1s var(--ease) 0.2s forwards;
+}
+.hero-badge::before, .hero-badge::after {
+  content: '';
+  width: 32px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--cyan));
+}
+.hero-badge::after {
+  background: linear-gradient(90deg, var(--cyan), transparent);
+}
+
+.hero h1 {
+  font-family: var(--display);
+  font-size: clamp(3rem, 8vw, 6.5rem);
+  font-weight: 500;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  text-align: center;
+  max-width: 900px;
+  color: var(--text-bright);
+  opacity: 0;
+  animation: fadeUp 1s var(--ease) 0.4s forwards;
+}
+.hero h1 em {
+  font-style: normal;
+  font-weight: 500;
+  color: var(--cyan);
+}
+
+.hero-sub {
+  font-family: var(--sans);
+  font-size: clamp(0.95rem, 1.8vw, 1.15rem);
+  font-weight: 300;
+  color: var(--text-dim);
+  text-align: center;
+  max-width: 620px;
+  line-height: 1.7;
+  margin-top: 32px;
+  opacity: 0;
+  animation: fadeUp 1s var(--ease) 0.6s forwards;
+}
+.hero-sub strong {
+  font-weight: 500;
+  color: var(--text);
+}
+
+.hero-actions {
+  display: flex;
+  gap: 16px;
+  margin-top: 48px;
+  opacity: 0;
+  animation: fadeUp 1s var(--ease) 0.8s forwards;
+}
+.btn-primary {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  padding: 14px 32px;
+  background: var(--cyan);
+  color: var(--bg);
+  text-decoration: none;
+  transition: transform 0.3s var(--ease), box-shadow 0.3s;
+  border-radius: 0;
+}
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px var(--cyan-glow);
+}
+.btn-ghost {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  padding: 14px 32px;
+  border: 1px solid var(--text-12);
+  color: var(--text-dim);
+  text-decoration: none;
+  transition: border-color 0.3s, color 0.3s;
+  border-radius: 0;
+}
+.btn-ghost:hover { border-color: var(--text-30); color: var(--text); }
+
+/* Metrics strip */
+.metrics {
+  display: flex;
+  justify-content: center;
+  gap: 48px;
+  margin-top: 64px;
+  opacity: 0;
+  animation: fadeUp 1s var(--ease) 1s forwards;
+}
+.metric { text-align: center; }
+.metric-val {
+  font-family: var(--display);
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.metric-val.gold { color: var(--cyan); }
+.metric-val .u {
+  font-size: 0.7em;
+  font-weight: 300;
+  color: var(--text-dim);
+}
+.metric-label {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-top: 6px;
+}
+
+@media (max-width: 600px) {
+  .metrics { gap: 24px; flex-wrap: wrap; }
+  .hero-actions { flex-direction: column; width: 100%; max-width: 300px; }
+  .btn-primary, .btn-ghost { text-align: center; }
+}
+
+/* ── Section scaffolding ── */
+section { padding: clamp(60px, 10vw, 120px) clamp(24px, 5vw, 80px); }
+.section-inner { max-width: 1080px; margin: 0 auto; }
+.section-rule {
+  width: 48px;
+  height: 1px;
+  background: var(--cyan);
+  margin-bottom: 24px;
+}
+.section-label {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cyan);
+  margin-bottom: 16px;
+}
+.section-title {
+  font-family: var(--display);
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  max-width: 600px;
+  color: var(--text-bright);
+}
+.section-title em { font-style: normal; font-weight: 800; color: var(--cyan); }
+.section-desc {
+  font-size: 1rem;
+  font-weight: 300;
+  color: var(--text-dim);
+  line-height: 1.7;
+  margin-top: 20px;
+  max-width: 520px;
+}
+
+/* ── Divider ── */
+.divider {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 clamp(24px, 5vw, 80px);
+}
+.divider-line {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--text-06) 20%, var(--text-06) 80%, transparent 100%);
+}
+
+/* ── Reveal ── */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.8s var(--ease), transform 0.8s var(--ease);
+}
+.reveal.visible { opacity: 1; transform: none; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ── Glitch border ── */
+@keyframes glitchBorder {
+  0% { border-color: var(--border); }
+  10% { border-color: var(--cyan); }
+  15% { border-color: var(--red); }
+  20% { border-color: var(--cyan-muted); }
+  25% { border-color: var(--border); }
+  100% { border-color: var(--border); }
+}
+
+/* ── Onboarding ── */
+.onboard-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--text-06);
+  margin-top: 56px;
+}
+.onboard-card {
+  background: var(--bg-surface);
+  padding: 40px 32px;
+  transition: background 0.5s;
+  position: relative;
+  border-radius: 0;
+}
+.onboard-card:hover { background: var(--bg-raised); }
+.onboard-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 32px; right: 32px;
+  height: 1px;
+  background: var(--cyan);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.5s var(--ease);
+}
+.onboard-card:hover::after { transform: scaleX(1); }
+.onboard-num {
+  font-family: var(--display);
+  font-size: 3rem;
+  font-weight: 700;
+  color: var(--text-06);
+  line-height: 1;
+  margin-bottom: 20px;
+}
+.onboard-card h3 {
+  font-family: var(--display);
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+  letter-spacing: -0.01em;
+  color: var(--text-bright);
+}
+.onboard-card p {
+  font-size: 0.88rem;
+  font-weight: 300;
+  color: var(--text-dim);
+  line-height: 1.7;
+}
+.onboard-card code {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--cyan);
+}
+.onboard-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 20px;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--cyan);
+  text-decoration: none;
+  letter-spacing: 0.04em;
+  transition: gap 0.3s var(--ease);
+}
+.onboard-cta:hover { gap: 12px; }
+.onboard-cta svg { width: 12px; height: 12px; }
+
+@media (max-width: 768px) {
+  .onboard-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Protocol flow diagram ── */
+.flow-diagram {
+  margin-top: 56px;
+  position: relative;
+}
+.flow-svg-wrap {
+  width: 100%;
+  overflow-x: auto;
+  padding: 24px 0;
+}
+.flow-svg-wrap svg {
+  display: block;
+  margin: 0 auto;
+}
+.flow-entity {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.flow-label {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+.flow-step-label {
+  font-family: var(--display);
+  font-size: 12px;
+  font-weight: 600;
+}
+@keyframes flowPulse {
+  0% { opacity: 0; transform: translateX(-8px); }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(8px); }
+}
+.flow-arrow-anim {
+  animation: flowPulse 3s ease-in-out infinite;
+}
+.flow-arrow-anim.d2 { animation-delay: 0.8s; }
+.flow-arrow-anim.d3 { animation-delay: 1.6s; }
+.flow-arrow-anim.d4 { animation-delay: 2.4s; }
+
+/* Protocol steps below diagram */
+.proto-steps {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  margin-top: 40px;
+  counter-reset: step;
+}
+.proto-step {
+  padding: 28px 24px 28px 0;
+  border-top: 1px solid var(--text-06);
+  counter-increment: step;
+}
+.proto-step::before {
+  content: counter(step, decimal-leading-zero);
+  font-family: var(--display);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--cyan);
+  display: block;
+  margin-bottom: 16px;
+}
+.proto-step h3 {
+  font-family: var(--display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+  color: var(--text-bright);
+}
+.proto-step p {
+  font-size: 0.82rem;
+  font-weight: 300;
+  color: var(--text-dim);
+  line-height: 1.65;
+}
+.proto-step code {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--cyan);
+  background: var(--teal-dim);
+  padding: 2px 6px;
+  border-radius: 0;
+}
+
+@media (max-width: 768px) { .proto-steps { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 480px) { .proto-steps { grid-template-columns: 1fr; } }
+
+/* ── Comparison ── */
+.comparison {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--text-06);
+  margin-top: 40px;
+}
+.compare {
+  background: var(--bg);
+  padding: 36px 32px;
+  border-radius: 0;
+}
+.compare h3 {
+  font-family: var(--display);
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-bright);
+}
+.compare h3 .dot { width: 6px; height: 6px; border-radius: 50%; }
+.compare.old h3 .dot { background: var(--red); }
+.compare.new h3 .dot { background: var(--cyan); }
+.compare ul {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.compare li {
+  font-size: 0.85rem;
+  font-weight: 300;
+  color: var(--text-dim);
+  padding-left: 16px;
+  position: relative;
+}
+.compare li::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 8px;
+  width: 4px; height: 4px;
+  border-radius: 50%;
+}
+.compare.old li::before { background: var(--text-12); }
+.compare.new li::before { background: var(--cyan); }
+
+@media (max-width: 600px) { .comparison { grid-template-columns: 1fr; } }
+
+/* ── Networks ── */
+.chain-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--text-06);
+  margin-top: 40px;
+}
+.chain-card {
+  background: var(--bg-surface);
+  padding: 32px 24px;
+  transition: background 0.4s;
+  position: relative;
+  border-radius: 0;
+}
+.chain-card:hover { background: var(--bg-raised); }
+.chain-icon {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  font-size: 1.5rem;
+}
+.chain-card h4 {
+  font-family: var(--display);
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: var(--text-bright);
+}
+.chain-card .chain-id {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+.chain-card .chain-assets {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+.chain-asset {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border: 1px solid var(--text-06);
+  color: var(--text-dim);
+  border-radius: 0;
+}
+.chain-card.testnet { opacity: 0.7; }
+.chain-card.testnet:hover { opacity: 1; }
+
+.contract-strip {
+  margin-top: 32px;
+  padding: 20px 28px;
+  background: var(--bg-surface);
+  border: 1px solid var(--text-06);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  cursor: pointer;
+  transition: border-color 0.4s, background 0.4s;
+  position: relative;
+  overflow: hidden;
+  border-radius: 0;
+}
+.contract-strip::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, var(--cyan-dim), transparent 30%, transparent 70%, var(--cyan-dim));
+  opacity: 0;
+  transition: opacity 0.4s;
+  pointer-events: none;
+}
+.contract-strip:hover {
+  border-color: var(--cyan-dim);
+  background: var(--bg-raised);
+}
+.contract-strip:hover::before { opacity: 1; }
+.contract-strip-label {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.contract-strip-addr {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--cyan);
+  cursor: pointer;
+  transition: opacity 0.3s;
+  word-break: break-all;
+}
+.contract-strip-addr:hover { opacity: 0.7; }
+.contract-strip-note {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+@media (max-width: 768px) {
+  .chain-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 480px) {
+  .chain-grid { grid-template-columns: 1fr; }
+  .contract-strip { flex-direction: column; align-items: flex-start; }
+}
+
+/* ── Handle system ── */
+.handle-demo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  align-items: center;
+  margin-top: 56px;
+}
+.handle-visual {
+  position: relative;
+  padding: 48px 32px;
+  background: var(--bg-surface);
+  border: 1px solid var(--text-06);
+  text-align: center;
+  overflow: hidden;
+  border-radius: 0;
+}
+.handle-visual::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 0%, var(--cyan-dim) 0%, transparent 60%);
+  pointer-events: none;
+}
+.handle-input-mock {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  font-family: var(--mono);
+  font-size: 1.4rem;
+  font-weight: 400;
+  position: relative;
+  z-index: 1;
+}
+.handle-input-mock .handle-name { color: var(--cyan); }
+.handle-input-mock .handle-at { color: var(--text-muted); }
+.handle-input-mock .handle-domain { color: var(--text-dim); }
+
+.handle-arrow {
+  margin: 24px auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+}
+.handle-arrow-line {
+  width: 1px;
+  height: 32px;
+  background: linear-gradient(to bottom, var(--cyan), var(--text-12));
+}
+.handle-arrow-label {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.handle-resolved {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  background: var(--bg-raised);
+  padding: 12px 20px;
+  display: inline-block;
+  position: relative;
+  z-index: 1;
+  word-break: break-all;
+  text-align: left;
+  line-height: 1.6;
+  border-left: 2px solid var(--cyan-dim);
+  transition: border-color 0.4s;
+  border-radius: 0;
+}
+.handle-visual:hover .handle-resolved {
+  border-color: var(--cyan);
+}
+.handle-resolved .hl { color: var(--cyan); }
+
+.handle-text h3 {
+  font-family: var(--display);
+  font-size: clamp(1.5rem, 3vw, 2.2rem);
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: 16px;
+  color: var(--text-bright);
+}
+.handle-text h3 em { font-style: normal; font-weight: 800; color: var(--cyan); }
+.handle-text p {
+  font-size: 0.9rem;
+  font-weight: 300;
+  color: var(--text-dim);
+  line-height: 1.7;
+  margin-bottom: 12px;
+}
+.handle-text .handle-features {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 20px;
+}
+.handle-text .handle-features li {
+  font-size: 0.82rem;
+  font-weight: 300;
+  color: var(--text-dim);
+  padding-left: 16px;
+  position: relative;
+}
+.handle-text .handle-features li::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 8px;
+  width: 4px; height: 4px;
+  background: var(--cyan);
+  border-radius: 50%;
+}
+
+@media (max-width: 768px) {
+  .handle-demo { grid-template-columns: 1fr; }
+}
+
+/* ── Features ── */
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--text-06);
+  margin-top: 56px;
+}
+.feat {
+  background: var(--bg);
+  padding: 36px 28px;
+  transition: background 0.4s;
+  border-radius: 0;
+}
+.feat:hover { background: var(--bg-surface); }
+.feat-icon {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+  margin-bottom: 16px;
+}
+.feat h3 {
+  font-family: var(--display);
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: var(--text-bright);
+}
+.feat p {
+  font-size: 0.82rem;
+  font-weight: 300;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+@media (max-width: 768px) { .features-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 480px) { .features-grid { grid-template-columns: 1fr; } }
+
+/* ── Trust / Security ── */
+.trust-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--text-06);
+  margin-top: 40px;
+}
+.trust-card {
+  background: var(--bg-surface);
+  padding: 32px 24px;
+  transition: background 0.4s;
+  border-radius: 0;
+}
+.trust-card:hover { background: var(--bg-raised); }
+.trust-role {
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  display: inline-block;
+  margin-bottom: 14px;
+  border-radius: 0;
+}
+.trust-role.agent { color: var(--cyan); border: 1px solid var(--cyan-dim); }
+.trust-role.payee { color: var(--cyan); border: 1px solid var(--teal-dim); }
+.trust-role.hub { color: var(--text-dim); border: 1px solid var(--text-12); }
+.trust-card h4 {
+  font-family: var(--display);
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+  color: var(--text-bright);
+}
+.trust-card p {
+  font-size: 0.82rem;
+  font-weight: 300;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+@media (max-width: 768px) { .trust-grid { grid-template-columns: 1fr; } }
+
+/* ── Code block ── */
+.code-section {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr;
+  gap: 48px;
+  align-items: start;
+  margin-top: 56px;
+}
+.code-text h3 {
+  font-family: var(--display);
+  font-size: clamp(1.5rem, 3vw, 2.2rem);
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: 16px;
+  color: var(--text-bright);
+}
+.code-text h3 em { font-style: normal; font-weight: 800; color: var(--cyan); }
+.code-text p {
+  font-size: 0.9rem;
+  font-weight: 300;
+  color: var(--text-dim);
+  line-height: 1.7;
+}
+.code-block {
+  background: var(--bg-surface);
+  border: 1px solid var(--text-06);
+  position: relative;
+  overflow: hidden;
+  border-radius: 0;
+}
+.code-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--text-06);
+}
+.code-dot { width: 8px; height: 8px; border-radius: 50%; }
+.code-dot.r { background: #ff5f57; }
+.code-dot.y { background: #febc2e; }
+.code-dot.g { background: #28c840; }
+.code-tab {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  margin-left: 8px;
+  letter-spacing: 0.04em;
+}
+.code-body {
+  padding: 20px 24px;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  line-height: 1.8;
+  color: var(--text-dim);
+  overflow-x: auto;
+  white-space: pre;
+}
+.code-body .kw { color: var(--red); font-weight: 500; }
+.code-body .fn { color: var(--cyan); }
+.code-body .str { color: var(--code-str); }
+.code-body .cmt { color: var(--text-muted); font-style: italic; }
+.code-body .num { color: var(--code-num); }
+.code-copy {
+  position: absolute;
+  top: 8px; right: 12px;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--text-06);
+  padding: 4px 12px;
+  cursor: pointer;
+  transition: color 0.3s, border-color 0.3s;
+  border-radius: 0;
+}
+.code-copy:hover { color: var(--cyan); border-color: var(--cyan-dim); }
+
+@media (max-width: 768px) { .code-section { grid-template-columns: 1fr; } }
+
+/* ── Roles ── */
+.roles-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--text-06);
+  margin-top: 40px;
+}
+.role {
+  background: var(--bg);
+  padding: 36px 28px;
+  transition: background 0.4s;
+  border-radius: 0;
+}
+.role:hover { background: var(--bg-surface); }
+.role-tag {
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  display: inline-block;
+  margin-bottom: 16px;
+  border-radius: 0;
+}
+.role-tag.most { color: var(--cyan); border: 1px solid var(--cyan-dim); }
+.role-tag.dev { color: var(--cyan); border: 1px solid var(--teal-dim); }
+.role-tag.infra { color: var(--text-dim); border: 1px solid var(--text-06); }
+.role h3 {
+  font-family: var(--display);
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+  color: var(--text-bright);
+}
+.role p {
+  font-size: 0.82rem;
+  font-weight: 300;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+.role code {
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--text-06);
+}
+
+@media (max-width: 768px) { .roles-grid { grid-template-columns: 1fr; } }
+
+/* ── CTA ── */
+.cta {
+  padding: clamp(80px, 12vw, 160px) clamp(24px, 5vw, 80px);
+  text-align: center;
+}
+.cta h2 {
+  font-family: var(--display);
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-bright);
+}
+.cta h2 em { font-style: normal; font-weight: 800; color: var(--cyan); }
+.cta p {
+  font-size: 1rem;
+  font-weight: 300;
+  color: var(--text-dim);
+  margin-top: 16px;
+  max-width: 480px;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.7;
+}
+.cta-actions {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 40px;
+}
+.cta-cmd {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 32px;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  padding: 14px 28px;
+  border: 1px solid var(--text-06);
+  cursor: pointer;
+  transition: border-color 0.3s, color 0.3s;
+  border-radius: 0;
+}
+.cta-cmd:hover { border-color: var(--cyan-dim); color: var(--text-dim); }
+.cta-cmd .prompt { color: var(--cyan); }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+.cta-cursor {
+  display: inline-block;
+  width: 7px; height: 16px;
+  background: var(--cyan);
+  animation: blink 1.1s step-end infinite;
+  vertical-align: middle;
+}
+
+/* ── Footer ── */
+footer {
+  padding: 40px clamp(24px, 5vw, 80px);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--text-06);
+}
+.foot-logo {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.foot-links { display: flex; gap: 24px; }
+.foot-links a {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  letter-spacing: 0.04em;
+  transition: color 0.3s;
+}
+.foot-links a:hover { color: var(--cyan); }
+
+@media (max-width: 600px) {
+  footer { flex-direction: column; gap: 16px; text-align: center; }
+}
+
+/* ── Nova constellation ── */
+.nova-wrap {
+  position: absolute;
+  top: 48%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.5;
+  mix-blend-mode: screen;
+}
+@keyframes novaTwink {
+  0%,100% { opacity: var(--nop, 0.3); }
+  50% { opacity: calc(var(--nop, 0.3) * 0.15); }
+}
+@keyframes novaBreathe {
+  0%,100% { r: 22; opacity: 0.05; }
+  50% { r: 28; opacity: 0.025; }
+}
+@keyframes novaBreathe2 {
+  0%,100% { r: 13; opacity: 0.08; }
+  50% { r: 17; opacity: 0.04; }
+}
+@keyframes novaNodePop {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.35); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes novaCherry {
+  0%,100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+@keyframes novaWordFade {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.nova-wrap svg line.edge {
+  transition: stroke-dashoffset 0.55s cubic-bezier(0.4,0,0.2,1);
+}
+.nova-wrap svg circle.node {
+  transform-origin: center;
+  opacity: 0;
+  transform: scale(0);
+}
+.nova-wrap svg circle.node.visible {
+  animation: novaNodePop 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards;
+}
+.nova-cherry-halo1 { animation: novaBreathe 3s ease-in-out infinite; fill: var(--cyan); opacity: 0.04; }
+.nova-cherry-halo2 { animation: novaBreathe2 3s ease-in-out 0.5s infinite; fill: var(--cyan); opacity: 0.07; }
+.nova-cherry-core { transition: opacity 0.5s ease; fill: var(--cyan); }
+.nova-cherry-core.bloom { animation: novaCherry 3s ease-in-out infinite; }
+.nova-word { opacity: 0; }
+.nova-word.visible { animation: novaWordFade 1s ease forwards; }
+
+@media (max-width: 600px) {
+  .nova-wrap { transform: translate(-50%, -50%) scale(0.65); }
+}
+
+/* ── Animated dividers ── */
+.divider-line {
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 1.2s var(--ease);
+}
+.divider.visible .divider-line {
+  transform: scaleX(1);
+}
+
+/* ── Section rule draw ── */
+.section-rule {
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.8s var(--ease) 0.2s;
+}
+.reveal.visible .section-rule {
+  transform: scaleX(1);
+}
+
+/* ── Stagger children ── */
+.stagger-children > * {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.6s var(--ease), transform 0.6s var(--ease);
+}
+.stagger-children.visible > *:nth-child(1) { transition-delay: 0.05s; }
+.stagger-children.visible > *:nth-child(2) { transition-delay: 0.12s; }
+.stagger-children.visible > *:nth-child(3) { transition-delay: 0.19s; }
+.stagger-children.visible > *:nth-child(4) { transition-delay: 0.26s; }
+.stagger-children.visible > *:nth-child(5) { transition-delay: 0.33s; }
+.stagger-children.visible > *:nth-child(6) { transition-delay: 0.40s; }
+.stagger-children.visible > *:nth-child(7) { transition-delay: 0.47s; }
+.stagger-children.visible > *:nth-child(8) { transition-delay: 0.54s; }
+.stagger-children.visible > *:nth-child(9) { transition-delay: 0.61s; }
+.stagger-children.visible > *:nth-child(10) { transition-delay: 0.68s; }
+.stagger-children.visible > *:nth-child(11) { transition-delay: 0.75s; }
+.stagger-children.visible > *:nth-child(12) { transition-delay: 0.82s; }
+.stagger-children.visible > * {
+  opacity: 1;
+  transform: none;
+}
+
+/* ── Code block scan-line ── */
+.code-block::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--cyan-dim), transparent);
+  top: -2px;
+  animation: codeScan 4s ease-in-out infinite;
+  opacity: 0.4;
+  pointer-events: none;
+}
+@keyframes codeScan {
+  0% { top: 0; opacity: 0; }
+  5% { opacity: 0.4; }
+  95% { opacity: 0.4; }
+  100% { top: 100%; opacity: 0; }
+}
+
+/* ── Chain card glow ── */
+.chain-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.5s;
+  pointer-events: none;
+}
+.chain-card:nth-child(1)::before { background: radial-gradient(ellipse at 50% 0%, rgba(0,229,255,0.06) 0%, transparent 70%); }
+.chain-card:nth-child(2)::before { background: radial-gradient(ellipse at 50% 0%, rgba(0,229,255,0.06) 0%, transparent 70%); }
+.chain-card:nth-child(3)::before { background: radial-gradient(ellipse at 50% 0%, rgba(0,229,255,0.04) 0%, transparent 70%); }
+.chain-card:nth-child(4)::before { background: radial-gradient(ellipse at 50% 0%, rgba(0,229,255,0.04) 0%, transparent 70%); }
+.chain-card:hover::before { opacity: 1; }
+
+/* ── Feature card hover accent ── */
+.feat::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 0; height: 1px;
+  background: var(--cyan);
+  transition: width 0.5s var(--ease);
+}
+.feat {
+  position: relative;
+}
+.feat:hover::before { width: 100%; }
+
+/* ── Metric counter ── */
+.metric-val {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Handle typing cursor ── */
+.handle-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.2em;
+  background: var(--cyan);
+  vertical-align: text-bottom;
+  animation: blink 1.1s step-end infinite;
+  margin-left: 2px;
+}
+
+/* ── Protocol flow message dot ── */
+@keyframes flowDot {
+  0% { offset-distance: 0%; opacity: 0; }
+  5% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { offset-distance: 100%; opacity: 0; }
+}
+.flow-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  position: absolute;
+  opacity: 0;
+}
+
+/* ── Hero parallax ── */
+.hero {
+  perspective: 1000px;
+}
+
+/* ── Back to top ── */
+.btt {
+  position: fixed;
+  bottom: 28px; right: 28px;
+  width: 40px; height: 40px;
+  background: var(--bg-raised);
+  border: 1px solid var(--text-06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  text-decoration: none;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s, color 0.3s, border-color 0.3s;
+  z-index: 50;
+  border-radius: 0;
+}
+.btt.visible { opacity: 1; pointer-events: auto; }
+.btt:hover { color: var(--cyan); border-color: var(--cyan-dim); }
+.btt svg { width: 16px; height: 16px; }
+
+/* ── Spec quote ── */
+.spec-quote {
+  margin-top: 40px;
+  padding: 28px 32px;
+  border-left: 2px solid var(--cyan);
+  background: var(--bg-surface);
+  border-radius: 0;
+}
+.spec-quote p {
+  font-family: var(--sans);
+  font-size: 1.1rem;
+  font-weight: 400;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+.spec-quote cite {
+  display: block;
+  margin-top: 12px;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-style: normal;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+
+/* ══════ VISUAL POLISH ══════ */
+
+/* Subtle grid background */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background-image:
+    linear-gradient(rgba(0,229,255,0.012) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,229,255,0.012) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+/* Hero ambient orb */
+.hero::after {
+  content: '';
+  position: absolute;
+  width: 800px;
+  height: 400px;
+  bottom: -100px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse, rgba(0,229,255,0.03) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* Card glow on hover */
+.onboard-card:hover {
+  box-shadow: 0 0 40px rgba(0,229,255,0.04), inset 0 1px 0 rgba(0,229,255,0.06);
+}
+.feat:hover {
+  box-shadow: 0 0 30px rgba(0,229,255,0.03);
+}
+.trust-card:hover {
+  box-shadow: 0 0 30px rgba(0,229,255,0.04);
+}
+.chain-card:hover {
+  box-shadow: 0 0 30px rgba(0,229,255,0.04);
+}
+.role:hover {
+  box-shadow: 0 0 30px rgba(0,229,255,0.03);
+}
+
+/* Onboard numbers — ghost watermark style */
+.onboard-num {
+  color: rgba(0,229,255,0.06) !important;
+  text-shadow: 0 0 40px rgba(0,229,255,0.08);
+}
+
+/* Feature icons — numbered with subtle cyan */
+.feat-icon {
+  color: var(--cyan-muted) !important;
+  font-weight: 600 !important;
+  font-size: 0.65rem !important;
+}
+
+/* Stronger hero glow pulse */
+.hero::before {
+  width: 700px;
+  height: 700px;
+  background: radial-gradient(circle, rgba(0,229,255,0.06) 0%, rgba(0,229,255,0.02) 40%, transparent 70%);
+}
+
+/* CTA drama — atmospheric glow */
+.cta {
+  position: relative;
+}
+.cta::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 500px;
+  height: 300px;
+  background: radial-gradient(ellipse, rgba(0,229,255,0.04) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* Code block — subtle left border accent */
+.code-block {
+  border-left: 2px solid var(--cyan-dim) !important;
+}
+.code-block:hover {
+  border-left-color: rgba(0,229,255,0.3) !important;
+  box-shadow: 0 0 40px rgba(0,229,255,0.03);
+}
+
+/* Spec quote glow */
+.spec-quote {
+  position: relative;
+  overflow: hidden;
+}
+.spec-quote::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 2px;
+  height: 100%;
+  background: var(--cyan);
+  box-shadow: 0 0 12px rgba(0,229,255,0.4), 0 0 30px rgba(0,229,255,0.15);
+}
+
+/* Contract strip — stronger hover glow */
+.contract-strip:hover {
+  box-shadow: 0 0 60px rgba(0,229,255,0.06);
+}
+
+/* Handle visual — CRT-style scan line */
+.handle-visual::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,229,255,0.008) 2px,
+    rgba(0,229,255,0.008) 4px
+  );
+  z-index: 2;
+}
+
+/* Trust role differentiation */
+.trust-role.payee {
+  color: var(--amber) !important;
+  border-color: var(--amber-dim) !important;
+}
+
+/* Role tag differentiation */
+.role-tag.dev {
+  color: var(--amber) !important;
+  border-color: var(--amber-dim) !important;
+}
+
+/* Hub API method badges */
+.feat-icon[style*="GET"] {
+  background: rgba(0,229,255,0.06);
+  padding: 2px 8px;
+  display: inline-block;
+}
+.feat-icon[style*="POST"] {
+  background: rgba(255,184,77,0.06);
+  padding: 2px 8px;
+  display: inline-block;
+}
+
+/* Better btn-primary glow */
+.btn-primary {
+  box-shadow: 0 0 20px rgba(0,229,255,0.15);
+  text-transform: uppercase;
+}
+.btn-primary:hover {
+  box-shadow: 0 8px 40px rgba(0,229,255,0.25), 0 0 60px rgba(0,229,255,0.1);
+}
+
+/* Section titles — subtle text shadow */
+.section-title {
+  text-shadow: 0 0 60px rgba(0,229,255,0.05);
+}
+.section-title em {
+  text-shadow: 0 0 30px rgba(0,229,255,0.2);
+}
+
+/* Metric values glow */
+.metric-val.gold {
+  text-shadow: 0 0 20px rgba(0,229,255,0.3);
+}
+
+/* Smooth scroll padding */
+html {
+  scroll-padding-top: 80px;
+}
+
+/* Better divider */
+.divider-line {
+  background: linear-gradient(90deg, transparent 0%, rgba(0,229,255,0.06) 20%, rgba(0,229,255,0.06) 80%, transparent 100%) !important;
+}
+
+/* Proto step hover */
+.proto-step {
+  transition: background 0.3s;
+  padding-left: 16px;
+}
+.proto-step:hover {
+  background: var(--bg-surface);
+}
+
+/* Chain asset badges — subtle glow on hover */
+.chain-asset {
+  transition: border-color 0.3s, color 0.3s;
+}
+.chain-card:hover .chain-asset {
+  border-color: var(--cyan-dim);
+  color: var(--text);
+}
+
+/* Footer subtle top glow */
+footer {
+  border-image: linear-gradient(90deg, transparent 0%, rgba(0,229,255,0.08) 50%, transparent 100%) 1;
+}
+
+/* CTA cursor glow */
+.cta-cursor {
+  box-shadow: 0 0 8px rgba(0,229,255,0.4);
+}
+
+/* Handle cursor glow */
+.handle-cursor {
+  box-shadow: 0 0 6px rgba(0,229,255,0.4);
+}
+
+/* Onboard CTA arrow animation */
+.onboard-cta {
+  transition: gap 0.3s var(--ease), text-shadow 0.3s;
+}
+.onboard-cta:hover {
+  text-shadow: 0 0 12px rgba(0,229,255,0.3);
+}
+
+/* Back-to-top glow */
+.btt:hover {
+  box-shadow: 0 0 20px rgba(0,229,255,0.1);
+}
+
+/* Code header — darker for contrast */
+.code-header {
+  background: rgba(0,0,0,0.2);
+}
+
+/* Comparison panel subtle differentiation */
+.compare.old {
+  border-right: 1px solid var(--text-06);
+}
+.compare.new {
+  position: relative;
+}
+.compare.new::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 2px;
+  background: linear-gradient(90deg, var(--cyan-dim), transparent);
+  pointer-events: none;
+}
+
+#heroCanvas {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 60%;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.6;
+}
+</style>
+</head>
+<body>
+
+<div id="scrollProgress"></div>
+<canvas id="heroCanvas"></canvas>
+
+<nav id="mainNav">
+  <a href="#" class="nav-logo">x402s<span>/scp</span></a>
+  <div class="nav-links">
+    <a href="#start">Start</a>
+    <a href="#protocol">Protocol</a>
+    <a href="#networks">Networks</a>
+    <a href="#handles">Handles</a>
+    <a href="#features">Features</a>
+    <a href="https://github.com/nicholascpark/Contracts/tree/main/x402s" class="nav-gh" target="_blank" rel="noopener">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      GitHub
+    </a>
+  </div>
+  <button class="nav-hamburger" id="navHamburger" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+
+<div class="nav-drawer" id="navDrawer">
+  <a href="#start">Start</a>
+  <a href="#protocol">Protocol</a>
+  <a href="#networks">Networks</a>
+  <a href="#handles">Handles</a>
+  <a href="#features">Features</a>
+  <a href="https://github.com/nicholascpark/Contracts/tree/main/x402s" target="_blank" rel="noopener">GitHub</a>
+</div>
+
+<div class="hero">
+  <div class="hero-badge">HTTP 402 &middot; State Channels &middot; MIT</div>
+  <h1>State Channel Protocol</h1>
+  <p class="hero-sub">
+    <strong>x402s</strong> lets anyone pay anyone with signed state updates instead of onchain transactions. It’s a universal, gas-free payment layer for APIs, agents, microservices and users of all kinds. Zero gas per request, sub-second settlement, one channel to reach every payee. Built on the <strong>x402</strong> open standard.
+  </p>
+  <div class="hero-actions">
+    <a href="#start" class="btn-primary">Quick Start</a>
+    <a href="https://pogchamp.tv/scp-pay/" class="btn-ghost" target="_blank" rel="noopener">Open scp-pay</a>
+  </div>
+  <div class="metrics" id="metricsStrip">
+    <div class="metric">
+      <div class="metric-val gold" data-counter="0" data-suffix="">0</div>
+      <div class="metric-label">Gas per request</div>
+    </div>
+    <div class="metric">
+      <div class="metric-val"><span data-counter="1" data-prefix="<">0</span><span class="u">s</span></div>
+      <div class="metric-label">Payment latency</div>
+    </div>
+    <div class="metric">
+      <div class="metric-val"><span data-counter="4">0</span><span class="u"> chains</span></div>
+      <div class="metric-label">Same contract</div>
+    </div>
+    <div class="metric">
+      <div class="metric-val" style="font-variant-numeric:normal">ERC-20</div>
+      <div class="metric-label">Any asset</div>
+    </div>
+  </div>
+</div>
+
+<!-- Start Here -->
+<section id="start">
+  <div class="section-inner reveal">
+    <div class="section-rule"></div>
+    <div class="section-label">Start here</div>
+    <div class="section-title">Three ways <em>in</em></div>
+    <div class="onboard-grid stagger-children">
+      <div class="onboard-card">
+        <div class="onboard-num">01</div>
+        <h3>Browser Wallet</h3>
+        <p>No install. <strong>scp-pay</strong> generates a wallet, discovers 402 offers, opens channels, and pays &mdash; all in one page. Claim a handle like <code>you@pogchamp.tv</code> for free.</p>
+        <a href="https://pogchamp.tv/scp-pay/" target="_blank" rel="noopener" class="onboard-cta">Open scp-pay <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
+      </div>
+      <div class="onboard-card">
+        <div class="onboard-num">02</div>
+        <h3>CLI &amp; Agent</h3>
+        <p>Run <code>scp:wizard</code> to configure keys and hub. Open channels, check status, pay APIs, and view receipts &mdash; all from the terminal or via autonomous agents.</p>
+        <a href="#quickstart" class="onboard-cta">Quick start <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
+      </div>
+      <div class="onboard-card">
+        <div class="onboard-num">03</div>
+        <h3>LLM Skill</h3>
+        <p>Drop the <code>x402s/skill/</code> folder into Claude or any agent framework. The agent auto-discovers offers, opens channels, and pays &mdash; no code changes needed.</p>
+        <a href="#features" class="onboard-cta">Learn more <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider reveal"><div class="divider-line"></div></div>
+
+<!-- Why -->
+<section id="why">
+  <div class="section-inner reveal">
+    <div class="section-rule"></div>
+    <div class="section-label">Why</div>
+    <div class="section-title">Agent payments<br>without the <em>friction</em></div>
+    <p class="section-desc">On-chain per-request payments are impractical at scale &mdash; gas costs, confirmation latency, and throughput limits make them unviable for API micropayments. State channels fix this.</p>
+    <div class="comparison">
+      <div class="compare old">
+        <h3><span class="dot"></span> On-chain per call</h3>
+        <ul>
+          <li>Gas fee every request</li>
+          <li>Block confirmation latency</li>
+          <li>Chain congestion risk</li>
+          <li>Public spending graph</li>
+          <li>One tx per payee per payment</li>
+        </ul>
+      </div>
+      <div class="compare new">
+        <h3><span class="dot"></span> x402s State Channels</h3>
+        <ul>
+          <li>Zero gas per request</li>
+          <li>Instant signed-state payment</li>
+          <li>Private off-chain flow</li>
+          <li>One channel &rarr; many payees</li>
+          <li>On-chain only at open / close</li>
+          <li>Dispute-protected settlement</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="spec-quote">
+      <p>x402s is compatible with the broader x402 open standard for internet-native payments, extending it with an off-chain state channel layer for throughput and cost efficiency.</p>
+      <cite>&mdash; X402S Specification v2.0.0</cite>
+    </div>
+  </div>
+</section>
+
+<div class="divider reveal"><div class="divider-line"></div></div>
+
+<!-- Protocol -->
+<section id="protocol">
+  <div class="section-inner reveal">
+    <div class="section-rule"></div>
+    <div class="section-label">Protocol</div>
+    <div class="section-title">Hub-routed <em>payment</em> flow</div>
+    <p class="section-desc">Agent opens one channel with a hub. The hub routes payments to any connected payee. Four messages to go from 402 to 200.</p>
+
+    <!-- Animated flow diagram -->
+    <div class="flow-diagram">
+      <div class="flow-svg-wrap">
+        <svg width="780" height="340" viewBox="0 0 780 340" fill="none">
+          <!-- Entity columns -->
+          <circle cx="130" cy="22" r="16" fill="none" stroke="#00e5ff30" stroke-width="0.5">
+            <animate attributeName="r" values="16;19;16" dur="3s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="1;0.3;1" dur="3s" repeatCount="indefinite"/>
+          </circle>
+          <circle cx="390" cy="22" r="16" fill="none" stroke="#c8cdd620" stroke-width="0.5">
+            <animate attributeName="r" values="16;19;16" dur="3s" repeatCount="indefinite" begin="0.5s"/>
+            <animate attributeName="opacity" values="1;0.3;1" dur="3s" repeatCount="indefinite" begin="0.5s"/>
+          </circle>
+          <circle cx="650" cy="22" r="16" fill="none" stroke="#00e5ff30" stroke-width="0.5">
+            <animate attributeName="r" values="16;19;16" dur="3s" repeatCount="indefinite" begin="1s"/>
+            <animate attributeName="opacity" values="1;0.3;1" dur="3s" repeatCount="indefinite" begin="1s"/>
+          </circle>
+          <text x="130" y="30" text-anchor="middle" class="flow-entity" fill="#00e5ff">Agent (A)</text>
+          <text x="390" y="30" text-anchor="middle" class="flow-entity" fill="#e8ecf2">Hub (H)</text>
+          <text x="650" y="30" text-anchor="middle" class="flow-entity" fill="#00e5ff">Payee (B)</text>
+
+          <!-- Lifelines -->
+          <line x1="130" y1="44" x2="130" y2="330" stroke="#c8cdd61f" stroke-width="1" stroke-dasharray="4 6"/>
+          <line x1="390" y1="44" x2="390" y2="330" stroke="#c8cdd61f" stroke-width="1" stroke-dasharray="4 6"/>
+          <line x1="650" y1="44" x2="650" y2="330" stroke="#c8cdd61f" stroke-width="1" stroke-dasharray="4 6"/>
+
+          <!-- Step 1: Discover -->
+          <text x="40" y="80" class="flow-step-label" fill="#00e5ff80">discover</text>
+          <line x1="134" y1="76" x2="646" y2="76" stroke="#c8cdd64d" stroke-width="0.8" marker-end="url(#arrowCream)"/>
+          <text x="390" y="70" text-anchor="middle" class="flow-label" fill="#c8cdd699">GET /resource</text>
+          <line x1="646" y1="96" x2="134" y2="96" stroke="#ff3c5a66" stroke-width="0.8" marker-end="url(#arrowRose)"/>
+          <text x="390" y="110" text-anchor="middle" class="flow-label" fill="#ff3c5a99">402 + offers[]</text>
+
+          <!-- Step 2: Quote -->
+          <text x="40" y="155" class="flow-step-label" fill="#00e5ff80">quote</text>
+          <line x1="134" y1="150" x2="386" y2="150" stroke="#00e5ff66" stroke-width="0.8" marker-end="url(#arrowGold)"/>
+          <text x="260" y="144" text-anchor="middle" class="flow-label" fill="#00e5ff99">POST /v1/tickets/quote</text>
+          <line x1="386" y1="170" x2="134" y2="170" stroke="#00e5ff66" stroke-width="0.8" marker-end="url(#arrowTeal)"/>
+          <text x="260" y="185" text-anchor="middle" class="flow-label" fill="#00e5ff99">{ fee, totalDebit, draft }</text>
+
+          <!-- Step 3: Issue -->
+          <text x="40" y="225" class="flow-step-label" fill="#00e5ff80">issue</text>
+          <line x1="134" y1="220" x2="386" y2="220" stroke="#00e5ff66" stroke-width="0.8" marker-end="url(#arrowGold)"/>
+          <text x="260" y="214" text-anchor="middle" class="flow-label" fill="#00e5ff99">POST /v1/tickets/issue + sigA</text>
+          <line x1="386" y1="240" x2="134" y2="240" stroke="#00e5ff66" stroke-width="0.8" marker-end="url(#arrowTeal)"/>
+          <text x="260" y="255" text-anchor="middle" class="flow-label" fill="#00e5ff99">{ ticket, ack }</text>
+
+          <!-- Step 4: Pay -->
+          <text x="40" y="295" class="flow-step-label" fill="#00e5ff80">pay</text>
+          <line x1="134" y1="290" x2="646" y2="290" stroke="#00e5ff66" stroke-width="0.8" marker-end="url(#arrowGold)"/>
+          <text x="390" y="284" text-anchor="middle" class="flow-label" fill="#00e5ff99">GET /resource + PAYMENT-SIGNATURE</text>
+          <line x1="646" y1="310" x2="134" y2="310" stroke="#00e5ff66" stroke-width="0.8" marker-end="url(#arrowTeal)"/>
+          <text x="390" y="325" text-anchor="middle" class="flow-label" fill="#00e5ff99">200 + data + receipt</text>
+
+          <!-- Animated message dots -->
+          <circle r="3" fill="#00e5ff" opacity="0">
+            <animateMotion dur="2s" repeatCount="indefinite" begin="0s" path="M134,76 L646,76" />
+            <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.85;1" dur="2s" repeatCount="indefinite" begin="0s" />
+          </circle>
+          <circle r="3" fill="#ff3c5a" opacity="0">
+            <animateMotion dur="2s" repeatCount="indefinite" begin="1s" path="M646,96 L134,96" />
+            <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.85;1" dur="2s" repeatCount="indefinite" begin="1s" />
+          </circle>
+          <circle r="2.5" fill="#00e5ff" opacity="0">
+            <animateMotion dur="1.6s" repeatCount="indefinite" begin="2.2s" path="M134,150 L386,150" />
+            <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.85;1" dur="1.6s" repeatCount="indefinite" begin="2.2s" />
+          </circle>
+          <circle r="2.5" fill="#00e5ff" opacity="0">
+            <animateMotion dur="1.6s" repeatCount="indefinite" begin="3s" path="M386,170 L134,170" />
+            <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.85;1" dur="1.6s" repeatCount="indefinite" begin="3s" />
+          </circle>
+          <circle r="2.5" fill="#00e5ff" opacity="0">
+            <animateMotion dur="1.6s" repeatCount="indefinite" begin="4.4s" path="M134,220 L386,220" />
+            <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.85;1" dur="1.6s" repeatCount="indefinite" begin="4.4s" />
+          </circle>
+          <circle r="2.5" fill="#00e5ff" opacity="0">
+            <animateMotion dur="1.6s" repeatCount="indefinite" begin="5.2s" path="M386,240 L134,240" />
+            <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.85;1" dur="1.6s" repeatCount="indefinite" begin="5.2s" />
+          </circle>
+          <circle r="3" fill="#00e5ff" opacity="0">
+            <animateMotion dur="2s" repeatCount="indefinite" begin="6.6s" path="M134,290 L646,290" />
+            <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.85;1" dur="2s" repeatCount="indefinite" begin="6.6s" />
+          </circle>
+          <circle r="3" fill="#00e5ff" opacity="0">
+            <animateMotion dur="2s" repeatCount="indefinite" begin="7.6s" path="M646,310 L134,310" />
+            <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.85;1" dur="2s" repeatCount="indefinite" begin="7.6s" />
+          </circle>
+
+          <!-- Arrow markers -->
+          <defs>
+            <marker id="arrowCream" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="none" stroke="#c8cdd64d" stroke-width="1"/></marker>
+            <marker id="arrowRose" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="none" stroke="#ff3c5a66" stroke-width="1"/></marker>
+            <marker id="arrowGold" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="none" stroke="#00e5ff66" stroke-width="1"/></marker>
+            <marker id="arrowTeal" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="none" stroke="#00e5ff66" stroke-width="1"/></marker>
+          </defs>
+        </svg>
+      </div>
+    </div>
+
+    <div class="proto-steps stagger-children">
+      <div class="proto-step">
+        <h3>Discover</h3>
+        <p>Agent GETs a resource. Payee returns <code>402</code> with payment offers: network, asset, amount, route mode.</p>
+      </div>
+      <div class="proto-step">
+        <h3>Quote</h3>
+        <p>Agent sends the chosen offer to the hub. Hub calculates fee, returns a draft with <code>totalDebit</code> ready to sign.</p>
+      </div>
+      <div class="proto-step">
+        <h3>Issue</h3>
+        <p>Agent signs the next channel state via EIP-712. Hub validates nonce monotonicity, balance invariant, and fee bounds. Returns a ticket.</p>
+      </div>
+      <div class="proto-step">
+        <h3>Pay + Verify</h3>
+        <p>Agent retries with <code>PAYMENT-SIGNATURE</code> header. Payee verifies ticket, returns <code>200</code> with receipt.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider reveal"><div class="divider-line"></div></div>
+
+<!-- Networks -->
+<section id="networks">
+  <div class="section-inner reveal">
+    <div class="section-rule"></div>
+    <div class="section-label">Networks</div>
+    <div class="section-title">One contract,<br><em>every</em> chain</div>
+    <p class="section-desc">Deterministic CREATE2 deployment. Same address, same interface, every supported EVM chain.</p>
+
+    <div class="chain-grid stagger-children">
+      <div class="chain-card">
+        <div class="chain-icon">&#x039E;</div>
+        <h4>Ethereum</h4>
+        <div class="chain-id">Chain 1</div>
+        <div class="chain-assets">
+          <span class="chain-asset">ETH</span>
+          <span class="chain-asset">USDC</span>
+          <span class="chain-asset">USDT</span>
+        </div>
+      </div>
+      <div class="chain-card">
+        <div class="chain-icon" style="color:var(--cyan)">&#x25CF;</div>
+        <h4>Base</h4>
+        <div class="chain-id">Chain 8453</div>
+        <div class="chain-assets">
+          <span class="chain-asset">ETH</span>
+          <span class="chain-asset">USDC</span>
+          <span class="chain-asset">USDT</span>
+        </div>
+      </div>
+      <div class="chain-card testnet">
+        <div class="chain-icon" style="opacity:0.6">&#x039E;</div>
+        <h4>Sepolia</h4>
+        <div class="chain-id">Chain 11155111 &middot; testnet</div>
+        <div class="chain-assets">
+          <span class="chain-asset">ETH</span>
+          <span class="chain-asset">USDC</span>
+        </div>
+      </div>
+      <div class="chain-card testnet">
+        <div class="chain-icon" style="color:var(--cyan);opacity:0.6">&#x25CF;</div>
+        <h4>Base Sepolia</h4>
+        <div class="chain-id">Chain 84532 &middot; testnet</div>
+        <div class="chain-assets">
+          <span class="chain-asset">USDC</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="contract-strip" onclick="copyContract(this)">
+      <span class="contract-strip-label">Contract (all chains)</span>
+      <span class="contract-strip-addr" id="contractAddr">0x07ECA6701062Db12eDD04bEa391eD226C95aaD4b</span>
+      <span class="contract-strip-note">CREATE2 deterministic &middot; click to copy</span>
+    </div>
+  </div>
+</section>
+
+<div class="divider reveal"><div class="divider-line"></div></div>
+
+<!-- Handles -->
+<section id="handles">
+  <div class="section-inner reveal">
+    <div class="section-rule"></div>
+    <div class="section-label">Handles</div>
+    <div class="handle-demo">
+      <div class="handle-visual">
+        <div class="handle-input-mock" id="handleTyper">
+          <span class="handle-name" id="handleName"></span><span class="handle-at" id="handleAt" style="opacity:0">@</span><span class="handle-domain" id="handleDomain" style="opacity:0">pogchamp.tv</span><span class="handle-cursor" id="handleCursor"></span>
+        </div>
+        <div class="handle-arrow">
+          <div class="handle-arrow-line"></div>
+          <div class="handle-arrow-label">resolves to</div>
+          <div class="handle-arrow-line"></div>
+        </div>
+        <div class="handle-resolved">
+          GET <span class="hl">/handle/pr0</span> &rarr; 402<br>
+          payee: <span class="hl">0x89cd...E3B7</span><br>
+          intent: <span class="hl">pay_handle</span>
+        </div>
+      </div>
+      <div class="handle-text">
+        <h3>Human-readable<br><em>payment</em> addresses</h3>
+        <p>Type a handle in scp-pay instead of a raw URL. The hub resolves it to a payee address and normal payment flow begins.</p>
+        <p>Registration is free. Claim yours, share it, get paid &mdash; no wallet address sharing needed.</p>
+        <ul class="handle-features">
+          <li>Type <code style="font-family:var(--mono);font-size:0.78rem;color:var(--cyan)">name@pogchamp.tv</code> in scp-pay to pay someone</li>
+          <li>Free handle registration through the hub</li>
+          <li>Resolves via <code style="font-family:var(--mono);font-size:0.72rem;color:var(--cyan)">GET /handle/:name</code> &rarr; standard 402 flow</li>
+          <li>Works across all supported networks and assets</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider reveal"><div class="divider-line"></div></div>
+
+<!-- Features -->
+<section id="features">
+  <div class="section-inner reveal">
+    <div class="section-rule"></div>
+    <div class="section-label">Capabilities</div>
+    <div class="section-title">Built for <em>agents</em></div>
+    <div class="features-grid stagger-children">
+      <div class="feat">
+        <div class="feat-icon">01</div>
+        <h3>Off-chain speed</h3>
+        <p>Payments are signed state updates. No blocks to wait for. Pay and respond in one round-trip.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">02</div>
+        <h3>On-chain safety</h3>
+        <p>Dispute contract enforces settlement. Challenge watcher catches stale closes. Funds always recoverable via <code style="font-family:var(--mono);font-size:0.72rem;color:var(--cyan)">finalizeClose()</code>.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">03</div>
+        <h3>HTTP-native</h3>
+        <p>APIs return 402 with offers. Agents retry with PAYMENT-SIGNATURE header. Standard HTTP, no custom transport.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">04</div>
+        <h3>Hub routing</h3>
+        <p>One channel to a hub unlocks every connected payee. Pay many APIs from a single funded channel.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">05</div>
+        <h3>Multi-asset</h3>
+        <p>USDC, ETH, USDT, or any ERC-20. Per-path pricing. Payees set offers, agents pick what they hold.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">06</div>
+        <h3>Direct mode</h3>
+        <p>Skip the hub entirely. <code style="font-family:var(--mono);font-size:0.72rem;color:var(--cyan)">statechannel-direct-v1</code> opens a channel directly with the payee. No intermediary needed.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">07</div>
+        <h3>Agent skill</h3>
+        <p>Ships a ready-made skill folder. Drop into Claude or any LLM agent for automatic 402 discovery, channel management, and payment.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">08</div>
+        <h3>Credit system</h3>
+        <p>Hub credit lets agents pay instantly without opening a channel first. Query balance with <code style="font-family:var(--mono);font-size:0.72rem;color:var(--cyan)">/v1/credit/balance</code>.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">09</div>
+        <h3>Webhooks</h3>
+        <p>Async settlement notifications. Payees receive POST callbacks when payments are issued, verified, or disputed.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">10</div>
+        <h3>EIP-712 signatures</h3>
+        <p>Channel state signed with typed structured data. Domain-separated, chain-scoped, replay-protected by design.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">11</div>
+        <h3>Hub rebalance</h3>
+        <p>Hubs move earned funds between channels without closing. One <code style="font-family:var(--mono);font-size:0.72rem;color:var(--cyan)">rebalance()</code> call, no disruption.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">12</div>
+        <h3>Free &amp; open</h3>
+        <p>MIT licensed. Zero platform fees. Run your own hub or use a public one. Fork it, extend it, ship it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider reveal"><div class="divider-line"></div></div>
+
+<!-- Trust model -->
+<section id="trust">
+  <div class="section-inner reveal">
+    <div class="section-rule"></div>
+    <div class="section-label">Security</div>
+    <div class="section-title">Bounded risk <em>by design</em></div>
+    <p class="section-desc">Every participant's risk is explicitly bounded. The on-chain contract serves as the arbiter of last resort.</p>
+
+    <div class="trust-grid stagger-children">
+      <div class="trust-card">
+        <span class="trust-role agent">Agent</span>
+        <h4>Capped exposure</h4>
+        <p>Agent never authorizes more than <code style="font-family:var(--mono);font-size:0.72rem;color:var(--cyan)">totalDebit</code> per payment. Spend caps, nonce monotonicity, and explicit fee ceilings protect the payer.</p>
+      </div>
+      <div class="trust-card">
+        <span class="trust-role payee">Payee</span>
+        <h4>Hub-backed tickets</h4>
+        <p>Payee trusts hub-signed tickets bounded by signature validity, ticket expiry, and hub credit policy. Direct mode gives on-chain dispute rights.</p>
+      </div>
+      <div class="trust-card">
+        <span class="trust-role hub">Hub</span>
+        <h4>State-proven claims</h4>
+        <p>Hub is protected by valid, signed channel state updates proving the agent's debit authorization. Challenge watcher auto-disputes stale closes.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider reveal"><div class="divider-line"></div></div>
+
+<!-- Quickstart -->
+<section id="quickstart">
+  <div class="section-inner reveal">
+    <div class="section-rule"></div>
+    <div class="section-label">Quickstart</div>
+    <div class="code-section">
+      <div class="code-text">
+        <h3>Five minutes to<br><em>first payment</em></h3>
+        <p>Install, configure, open a channel, and pay. The wizard handles key generation and hub configuration.</p>
+        <p style="margin-top:12px">Or skip the CLI entirely &mdash; open <a href="https://pogchamp.tv/scp-pay/" target="_blank" rel="noopener" style="color:var(--cyan);text-decoration:none;border-bottom:1px solid var(--cyan-dim)">scp-pay</a> in your browser for a zero-install wallet.</p>
+      </div>
+      <div class="code-block">
+        <div class="code-header">
+          <div class="code-dot r"></div><div class="code-dot y"></div><div class="code-dot g"></div>
+          <span class="code-tab">terminal</span>
+        </div>
+        <button class="code-copy" onclick="copyCode(this)" data-code="npm install&#10;npm run scp:wizard&#10;&#10;# open a channel on Sepolia&#10;npm run scp:channel:open -- \&#10;  0xHubAddr sepolia eth 0.01&#10;&#10;# check channel + hub health&#10;npm run scp:channel:status&#10;&#10;# pay an API&#10;npm run scp:agent:pay -- \&#10;  https://api.example/v1/data&#10;&#10;# view payment history&#10;npm run scp:channel:receipts">Copy</button>
+        <div class="code-body">
+<span class="cmt"># setup</span>
+<span class="fn">npm</span> install
+<span class="fn">npm</span> run <span class="str">scp:wizard</span>
+
+<span class="cmt"># open a channel (Sepolia testnet)</span>
+<span class="fn">npm</span> run <span class="str">scp:channel:open</span> <span class="kw">--</span> \
+  <span class="num">0xHubAddr</span> sepolia eth <span class="num">0.01</span>
+
+<span class="cmt"># check channel + hub health</span>
+<span class="fn">npm</span> run <span class="str">scp:channel:status</span>
+
+<span class="cmt"># pay an API</span>
+<span class="fn">npm</span> run <span class="str">scp:agent:pay</span> <span class="kw">--</span> \
+  https://api.example/v1/data
+
+<span class="cmt"># view payment history</span>
+<span class="fn">npm</span> run <span class="str">scp:channel:receipts</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider reveal"><div class="divider-line"></div></div>
+
+<!-- API -->
+<section id="api">
+  <div class="section-inner reveal">
+    <div class="section-rule"></div>
+    <div class="section-label">Payee API</div>
+    <div class="code-section">
+      <div class="code-text">
+        <h3>Protect an<br><em>endpoint</em></h3>
+        <p>Return HTTP 402 with offers when unpaid, verify the payment signature, serve data with a receipt. Three code paths, no SDK required.</p>
+      </div>
+      <div class="code-block">
+        <div class="code-header">
+          <div class="code-dot r"></div><div class="code-dot y"></div><div class="code-dot g"></div>
+          <span class="code-tab">payee-api.js</span>
+        </div>
+        <button class="code-copy" onclick="copyCode(this)" data-code="const sig = req.headers[&quot;payment-signature&quot;];&#10;&#10;if (!sig) {&#10;  return res.status(402).json({&#10;    error: &quot;payment required&quot;,&#10;    accepts: [{&#10;      scheme: &quot;statechannel-hub-v1&quot;,&#10;      network: &quot;eip155:8453&quot;,&#10;      asset: &quot;0x833589...&quot;,&#10;      maxAmountRequired: &quot;1000000&quot;,&#10;      payTo: &quot;pay.eth&quot;&#10;    }]&#10;  });&#10;}&#10;&#10;const result = await verify(sig, store);&#10;if (!result.ok)&#10;  return res.status(402).json({ error: result.error });&#10;&#10;return res.json({&#10;  ok: true, data,&#10;  receipt: { paymentId: result.paymentId }&#10;});">Copy</button>
+        <div class="code-body">
+<span class="kw">const</span> sig = req.headers[<span class="str">"payment-signature"</span>];
+
+<span class="kw">if</span> (!sig) {
+  <span class="kw">return</span> res.status(<span class="num">402</span>).json({
+    error: <span class="str">"payment required"</span>,
+    accepts: [{
+      scheme: <span class="str">"statechannel-hub-v1"</span>,
+      network: <span class="str">"eip155:8453"</span>,
+      asset: <span class="str">"0x833589..."</span>,
+      maxAmountRequired: <span class="str">"1000000"</span>,
+      payTo: <span class="str">"pay.eth"</span>
+    }]
+  });
+}
+
+<span class="kw">const</span> result = <span class="kw">await</span> <span class="fn">verify</span>(sig, store);
+<span class="kw">if</span> (!result.ok)
+  <span class="kw">return</span> res.status(<span class="num">402</span>).json({ error: result.error });
+
+<span class="kw">return</span> res.json({
+  ok: <span class="kw">true</span>, data,
+  receipt: { paymentId: result.paymentId }
+});
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider reveal"><div class="divider-line"></div></div>
+
+<!-- Hub API Reference -->
+<section id="hubapi">
+  <div class="section-inner reveal">
+    <div class="section-rule"></div>
+    <div class="section-label">Hub API</div>
+    <div class="section-title">Endpoints at <em>a glance</em></div>
+    <p class="section-desc">The hub exposes a small, focused API surface. All routes accept and return JSON.</p>
+
+    <div class="features-grid" style="margin-top:40px;grid-template-columns:repeat(2,1fr)">
+      <div class="feat">
+        <div class="feat-icon" style="color:var(--cyan)">GET</div>
+        <h3>/.well-known/x402</h3>
+        <p>Hub capability advertisement. Returns supported networks, assets, hub address, and fee model.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon" style="color:var(--amber)">POST</div>
+        <h3>/v1/tickets/quote</h3>
+        <p>Calculate fee and prepare a payment draft. Returns totalDebit, fee breakdown, and ticketDraft ready to sign.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon" style="color:var(--amber)">POST</div>
+        <h3>/v1/tickets/issue</h3>
+        <p>Submit signed channel state. Hub validates nonce, balance, and fee bounds. Returns the signed ticket.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon" style="color:var(--cyan)">GET</div>
+        <h3>/v1/channels/lookup</h3>
+        <p>Look up channel state by channelId or by participant addresses. Returns on-chain and off-chain state.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon" style="color:var(--cyan)">GET</div>
+        <h3>/v1/credit/balance</h3>
+        <p>Query agent credit balance on the hub. Credit allows instant payments without an open channel.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon" style="color:var(--cyan)">GET</div>
+        <h3>/handle/:name</h3>
+        <p>Resolve a payment handle. Returns 402 with the owner's address as payee, or register_handle intent if unclaimed.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider reveal"><div class="divider-line"></div></div>
+
+<!-- Roles -->
+<section id="roles">
+  <div class="section-inner reveal">
+    <div class="section-rule"></div>
+    <div class="section-label">Roles</div>
+    <div class="section-title">Run what you <em>need</em></div>
+    <p class="section-desc">Most users only need the agent. Build paid APIs or run hub infrastructure when ready.</p>
+    <div class="roles-grid stagger-children">
+      <div class="role">
+        <span class="role-tag most">Most users</span>
+        <h3>Agent (Payer)</h3>
+        <p>Discover offers, open channels, pay APIs. Auto-mode handles everything &mdash; or use the CLI for manual control.</p>
+        <code>npm run scp:agent:pay -- &lt;url&gt;</code>
+      </div>
+      <div class="role">
+        <span class="role-tag dev">API devs</span>
+        <h3>Payee API</h3>
+        <p>Protect routes with 402, define per-path pricing via offers.json, validate tickets with built-in verification.</p>
+        <code>npm run scp:payee</code>
+      </div>
+      <div class="role">
+        <span class="role-tag infra">Infra ops</span>
+        <h3>Hub Operator</h3>
+        <p>Quote fees, issue tickets, track settlements, run challenge watchers. Scale with PM2 for production.</p>
+        <code>npm run scp:hub</code>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<div class="cta reveal">
+  <h2>Build paid APIs<br>and <em>agents.</em></h2>
+  <p>MIT licensed. Deploy on Sepolia to test, Base or Mainnet for production. One contract, any EVM chain.</p>
+  <div class="cta-actions">
+    <a href="https://github.com/nicholascpark/Contracts/tree/main/x402s" class="btn-primary" target="_blank" rel="noopener">View on GitHub</a>
+    <a href="https://pogchamp.tv/scp-pay/" class="btn-ghost" target="_blank" rel="noopener">Try scp-pay</a>
+  </div>
+  <div class="cta-cmd" onclick="copyCmdLine(this)">
+    <span class="prompt">$</span> npm run scp:wizard
+    <span class="cta-cursor"></span>
+  </div>
+</div>
+
+<footer>
+  <div class="foot-logo">x402s &copy; 2025&ndash;2026</div>
+  <div class="foot-links">
+    <a href="https://github.com/nicholascpark/Contracts/tree/main/x402s" target="_blank" rel="noopener">GitHub</a>
+    <a href="https://pogchamp.tv/scp-pay/" target="_blank" rel="noopener">scp-pay</a>
+    <a href="https://github.com/nicholascpark/Contracts/blob/main/x402s/docs/X402S_SPEC_V2.md" target="_blank" rel="noopener">Spec</a>
+  </div>
+</footer>
+
+<a href="#" class="btt" id="btt" aria-label="Back to top">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
+</a>
+
+<script>
+// Reveal
+const obs = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.06, rootMargin: '0px 0px -40px 0px' });
+document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+
+// Nav + back-to-top + scroll progress
+const mainNav = document.getElementById('mainNav');
+const btt = document.getElementById('btt');
+const scrollProgress = document.getElementById('scrollProgress');
+window.addEventListener('scroll', () => {
+  mainNav.classList.toggle('scrolled', scrollY > 40);
+  btt.classList.toggle('visible', scrollY > 600);
+  scrollProgress.style.width = (scrollY / (document.body.scrollHeight - innerHeight) * 100) + '%';
+}, { passive: true });
+
+// Hamburger toggle
+(function() {
+  var hamburger = document.getElementById('navHamburger');
+  var drawer = document.getElementById('navDrawer');
+  if (!hamburger || !drawer) return;
+  hamburger.addEventListener('click', function() {
+    hamburger.classList.toggle('open');
+    drawer.classList.toggle('open');
+  });
+  drawer.querySelectorAll('a').forEach(function(a) {
+    a.addEventListener('click', function() {
+      hamburger.classList.remove('open');
+      drawer.classList.remove('open');
+    });
+  });
+})();
+
+// Smooth anchor scroll
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', function(e) {
+    const t = this.getAttribute('href');
+    if (t === '#') return;
+    const el = document.querySelector(t);
+    if (el) { e.preventDefault(); window.scrollTo({ top: el.getBoundingClientRect().top + scrollY - 80, behavior: 'smooth' }); }
+  });
+});
+
+// Copy helpers
+function writeToClipboard(text) {
+  if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+  return new Promise((res, rej) => {
+    const ta = document.createElement('textarea'); ta.value = text;
+    ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy') ? res() : rej(); } catch(e) { rej(e); }
+    finally { document.body.removeChild(ta); }
+  });
+}
+function copyCode(btn) {
+  writeToClipboard(btn.dataset.code).then(() => {
+    btn.textContent = 'Copied'; setTimeout(() => btn.textContent = 'Copy', 2000);
+  });
+}
+function copyCmdLine(el) {
+  writeToClipboard('npm run scp:wizard').then(() => {
+    const o = el.innerHTML; el.innerHTML = '<span class="prompt">$</span> copied!';
+    setTimeout(() => el.innerHTML = o, 1800);
+  });
+}
+function copyContract(el) {
+  writeToClipboard('0x07ECA6701062Db12eDD04bEa391eD226C95aaD4b').then(() => {
+    const addr = document.getElementById('contractAddr');
+    const orig = addr.textContent;
+    addr.textContent = 'Copied!';
+    setTimeout(() => addr.textContent = orig, 1800);
+  });
+}
+
+// Stagger children observer
+const stagObs = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); stagObs.unobserve(e.target); } });
+}, { threshold: 0.1 });
+document.querySelectorAll('.stagger-children').forEach(el => stagObs.observe(el));
+
+// Divider observer
+document.querySelectorAll('.divider.reveal').forEach(el => obs.observe(el));
+
+// Metric counter animation
+(function() {
+  var counted = false;
+  var mObs = new IntersectionObserver(function(entries) {
+    entries.forEach(function(e) {
+      if (e.isIntersecting && !counted) {
+        counted = true;
+        document.querySelectorAll('[data-counter]').forEach(function(el) {
+          var target = parseInt(el.dataset.counter);
+          var prefix = el.dataset.prefix || '';
+          var duration = 1200;
+          var start = performance.now();
+          function tick(now) {
+            var elapsed = now - start;
+            var progress = Math.min(elapsed / duration, 1);
+            var eased = 1 - Math.pow(1 - progress, 3);
+            var current = Math.round(target * eased);
+            el.textContent = prefix + current;
+            if (progress < 1) requestAnimationFrame(tick);
+          }
+          requestAnimationFrame(tick);
+        });
+      }
+    });
+  }, { threshold: 0.5 });
+  var ms = document.getElementById('metricsStrip');
+  if (ms) mObs.observe(ms);
+})();
+
+// Handle typing animation
+(function() {
+  var typed = false;
+  var handles = ['pr0', 'alice', 'satoshi', 'agent007'];
+  var hIdx = 0;
+  var hObs = new IntersectionObserver(function(entries) {
+    entries.forEach(function(e) {
+      if (e.isIntersecting && !typed) {
+        typed = true;
+        typeHandle();
+      }
+    });
+  }, { threshold: 0.3 });
+  var hv = document.querySelector('.handle-visual');
+  if (hv) hObs.observe(hv);
+
+  function typeHandle() {
+    var name = handles[hIdx % handles.length];
+    var el = document.getElementById('handleName');
+    var at = document.getElementById('handleAt');
+    var dom = document.getElementById('handleDomain');
+    if (!el) return;
+    el.textContent = '';
+    at.style.opacity = '0';
+    dom.style.opacity = '0';
+    var i = 0;
+    function typeChar() {
+      if (i < name.length) {
+        el.textContent += name[i];
+        i++;
+        setTimeout(typeChar, 80 + Math.random() * 60);
+      } else {
+        at.style.opacity = '1';
+        at.style.transition = 'opacity 0.3s';
+        setTimeout(function() {
+          dom.style.opacity = '1';
+          dom.style.transition = 'opacity 0.3s';
+        }, 150);
+        setTimeout(function() {
+          // pause, then clear and type next
+          hIdx++;
+          setTimeout(function() {
+            el.textContent = '';
+            at.style.opacity = '0';
+            dom.style.opacity = '0';
+            setTimeout(typeHandle, 400);
+          }, 2500);
+        }, 300);
+      }
+    }
+    setTimeout(typeChar, 300);
+  }
+})();
+
+(function() {
+  const canvas = document.getElementById('heroCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let W, H, nodes = [], edges = [], animFrame;
+  const dpr = window.devicePixelRatio || 1;
+
+  function resize() {
+    W = canvas.offsetWidth;
+    H = canvas.offsetHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function init() {
+    resize();
+    nodes = [];
+    for (let i = 0; i < 11; i++) {
+      nodes.push({
+        x: W * 0.12 + Math.random() * W * 0.76,
+        y: H * 0.08 + Math.random() * H * 0.84,
+        vx: (Math.random() - 0.5) * 0.12,
+        vy: (Math.random() - 0.5) * 0.12,
+        r: 1.5 + Math.random() * 2,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+    edges = [];
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const dx = nodes[i].x - nodes[j].x;
+        const dy = nodes[i].y - nodes[j].y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < W * 0.38 && edges.length < 18) {
+          edges.push({ a: i, b: j, pulseTime: 0, pulseActive: false });
+        }
+      }
+    }
+  }
+
+  let lastPulse = 0;
+  let nextPulseDelay = 3000 + Math.random() * 2000;
+
+  function draw(time) {
+    ctx.clearRect(0, 0, W, H);
+
+    // Drift nodes
+    nodes.forEach(n => {
+      n.x += n.vx;
+      n.y += n.vy;
+      if (n.x < W * 0.04 || n.x > W * 0.96) n.vx *= -1;
+      if (n.y < H * 0.04 || n.y > H * 0.96) n.vy *= -1;
+    });
+
+    // Random pulse trigger
+    if (time - lastPulse > nextPulseDelay && edges.length > 0) {
+      const idx = Math.floor(Math.random() * edges.length);
+      edges[idx].pulseActive = true;
+      edges[idx].pulseTime = time;
+      lastPulse = time;
+      nextPulseDelay = 3000 + Math.random() * 2000;
+    }
+
+    // Draw edges
+    edges.forEach(e => {
+      const a = nodes[e.a];
+      const b = nodes[e.b];
+
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.strokeStyle = 'rgba(30,40,56,0.45)';
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+
+      if (e.pulseActive) {
+        const elapsed = time - e.pulseTime;
+        const duration = 1200;
+        const t = elapsed / duration;
+        if (t > 1) {
+          e.pulseActive = false;
+        } else {
+          const px = a.x + (b.x - a.x) * t;
+          const py = a.y + (b.y - a.y) * t;
+
+          // Bright edge
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.strokeStyle = 'rgba(0,229,255,' + (0.18 * (1 - t)) + ')';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+
+          // Pulse dot
+          ctx.beginPath();
+          ctx.arc(px, py, 3, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(0,229,255,' + (0.8 * (1 - t)) + ')';
+          ctx.fill();
+        }
+      }
+    });
+
+    // Draw nodes
+    nodes.forEach(n => {
+      const breathe = Math.sin(time * 0.001 + n.phase) * 0.3 + 0.7;
+      // Outer glow
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.r * 1.8, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,229,255,' + (0.06 * breathe) + ')';
+      ctx.fill();
+      // Core
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.r * 0.6, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,229,255,' + (0.35 * breathe) + ')';
+      ctx.fill();
+    });
+
+    animFrame = requestAnimationFrame(draw);
+  }
+
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      cancelAnimationFrame(animFrame);
+      init();
+      animFrame = requestAnimationFrame(draw);
+    }, 150);
+  });
+
+  init();
+  animFrame = requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>

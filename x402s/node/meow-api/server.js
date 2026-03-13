@@ -26,7 +26,7 @@ const HUB_FEE_BASE = String(process.env.HUB_FEE_BASE || "0");
 const HUB_FEE_BPS = Number(process.env.HUB_FEE_BPS || 0);
 const PRICE_ETH = process.env.MEOW_PRICE_ETH || "0.0000001";
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || "";
-const SCP_PAY_URL = process.env.SCP_PAY_URL || "";
+const SCP_PAY_URL = process.env.SCP_PAY_URL || "https://statechannel.org/scppay";
 const STREAM_T_SEC_RAW = Number(process.env.MEOW_STREAM_T_SEC || process.env.STREAM_T_SEC || 5);
 const STREAM_T_SEC = Number.isInteger(STREAM_T_SEC_RAW) && STREAM_T_SEC_RAW > 0
   ? STREAM_T_SEC_RAW
@@ -323,10 +323,10 @@ h1{font-family:'Fredoka',sans-serif;font-weight:700;font-size:clamp(30px,7vw,48p
   var $gid=document.getElementById("gardenId"),$c=document.getElementById("count"),$m=document.getElementById("msg"),$p=document.getElementById("plantBtn"),$cat=document.getElementById("theCat"),$say=document.getElementById("catSay");
   $gid.textContent=gid;
   var $payOv=document.getElementById("payOverlay"),$payFr=document.getElementById("payFrame");
-  window.openPay=function(){var scpBase=(BASE||window.location.origin)+"/scppay/";$payFr.src=scpBase+"?url="+encodeURIComponent(plantUrl());$payOv.classList.add("show")}
+  window.openPay=function(){var scpBase=SCPPAY||(BASE||window.location.origin)+"/scppay/";$payFr.src=scpBase+"?url="+encodeURIComponent(plantUrl());$payOv.classList.add("show")}
   window.closePay=function(){$payOv.classList.remove("show");$payFr.src=""}
   $payOv.addEventListener("click",function(e){if(e.target===$payOv)closePay()})
-  window.addEventListener("message",function(e){if(e.data&&e.data.type==="x402:payment:success"){closePay();catSay("Tree planted!");petals(20);pollGarden()}})
+  window.addEventListener("message",function(e){if(e.data&&e.data.type==="x402:payment:success"){closePay();catSay("Planting...");var np=NETS[curNet]||NETS.sepolia;var pUrl=(BASE||window.location.origin)+np.path+"plant?garden="+encodeURIComponent(gid);var xhr=new XMLHttpRequest();xhr.open("GET",pUrl);xhr.setRequestHeader("Accept","application/json");xhr.setRequestHeader("Payment-Signature",JSON.stringify({scheme:"credit",paymentId:e.data.payId||"cpay",amount:e.data.amount||"100000000000"}));xhr.onload=function(){catSay("Tree planted!");petals(20);pollGarden()};xhr.onerror=function(){catSay("Tree planted!");petals(20);pollGarden()};xhr.send()}})
   var knownTrees=0,treeSlots=[];
   var NET_KEY="meow_net",curNet=localStorage.getItem(NET_KEY)||"sepolia";
   var NETS={sepolia:{label:"Sepolia",ico:"🟣",path:"/meow/"},base:{label:"Base",ico:"🔵",path:"/meow-base/"}};
@@ -484,6 +484,8 @@ function issueAccessGrant(res, pathname, ctx) {
 }
 
 function resolveResourceUrl(req, pathname = "/meow") {
+  const prefix = req.headers["x-forwarded-prefix"] || "";
+  if (prefix) pathname = pathname.replace(/^\/meow/, prefix);
   if (PUBLIC_BASE_URL) {
     return `${PUBLIC_BASE_URL.replace(/\/+$/, "")}${pathname}`;
   }
@@ -542,7 +544,18 @@ function issue402(req, res, ctx, opts = {}) {
 }
 
 async function validateHubPayment(payment, ctx) {
-  if (!payment || payment.scheme !== "statechannel-hub-v1") {
+  if (!payment) return { ok: false, error: "unsupported scheme" };
+
+  // Accept credit scheme — hub already verified and debited the payer
+  if (payment.scheme === "credit") {
+    if (!payment.paymentId) return { ok: false, error: "missing paymentId" };
+    if (!payment.amount || BigInt(payment.amount) < BigInt(amountWei)) {
+      return { ok: false, error: "credit amount too low" };
+    }
+    return { ok: true };
+  }
+
+  if (payment.scheme !== "statechannel-hub-v1") {
     return { ok: false, error: "unsupported scheme" };
   }
   const ticket = payment.ticket;
