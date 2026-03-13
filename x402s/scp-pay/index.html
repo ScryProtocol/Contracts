@@ -100,7 +100,30 @@ html,body{font-family:var(--f);background:var(--bg);color:var(--t1);-webkit-font
 .toast-i.tok{background:#61d345}.toast-i.terr{background:#ff4b4b}
 .toast-i svg{width:12px;height:12px}
 @keyframes tp{0%{transform:scale(0)}50%{transform:scale(1.15)}100%{transform:scale(1)}}
-@media(prefers-color-scheme:dark){.toast{background:#1c1c1e;color:#f5f5f7;box-shadow:0 3px 10px rgba(0,0,0,.4),0 0 0 1px rgba(255,255,255,.06)}}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1219;--card:#1a1f2e;--b5:#60a5fa;--b6:#3b82f6;--b7:#2563eb;--b1:#1e3a5f;--b0:#162032;--t1:#e2e8f0;--t2:#94a3b8;--t3:#64748b;--bd:#2d3748;--ok:#34d399;--er:#f87171}}
+[data-theme="dark"]{--bg:#0f1219;--card:#1a1f2e;--b5:#60a5fa;--b6:#3b82f6;--b7:#2563eb;--b1:#1e3a5f;--b0:#162032;--t1:#e2e8f0;--t2:#94a3b8;--t3:#64748b;--bd:#2d3748;--ok:#34d399;--er:#f87171}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .fl input,:root:not([data-theme="light"]) .fl select,:root:not([data-theme="light"]) .fl textarea{background:var(--card);color:var(--t1);border-color:var(--bd)}}
+[data-theme="dark"] .fl input,[data-theme="dark"] .fl select,[data-theme="dark"] .fl textarea{background:var(--card);color:var(--t1);border-color:var(--bd)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .toast{background:#1c1c1e;color:#f5f5f7;box-shadow:0 3px 10px rgba(0,0,0,.4),0 0 0 1px rgba(255,255,255,.06)}}
+[data-theme="dark"] .toast{background:#1c1c1e;color:#f5f5f7;box-shadow:0 3px 10px rgba(0,0,0,.4),0 0 0 1px rgba(255,255,255,.06)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .c{box-shadow:0 8px 32px rgba(0,0,0,.3)}}
+[data-theme="dark"] .c{box-shadow:0 8px 32px rgba(0,0,0,.3)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .sb:hover{background:rgba(52,211,153,.1)}}
+[data-theme="dark"] .sb:hover{background:rgba(52,211,153,.1)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .fw{color:#fbbf24;background:#1c1508;border-color:#854d0e}}
+[data-theme="dark"] .fw{color:#fbbf24;background:#1c1508;border-color:#854d0e}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .bdanger{background:#2d1215;border-color:#7f1d1d;color:#f87171}}
+[data-theme="dark"] .bdanger{background:#2d1215;border-color:#7f1d1d;color:#f87171}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .ok-r{background:#072819}}
+[data-theme="dark"] .ok-r{background:#072819}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .er-r{background:#2d1215}}
+[data-theme="dark"] .er-r{background:#2d1215}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .fl input:focus,:root:not([data-theme="light"]) .fl select:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}}
+[data-theme="dark"] .fl input:focus,[data-theme="dark"] .fl select:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
+.thm{width:28px;height:28px;border-radius:8px;border:1.5px solid var(--bd);background:var(--bg);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0}
+.thm:hover{border-color:var(--b5);background:var(--b0)}
+.thm svg{width:14px;height:14px;color:var(--t2);transition:color .15s}
+.thm:hover svg{color:var(--b6)}
 
 /* divider */
 .dv{height:1px;background:var(--bd);margin:0 24px}
@@ -125,6 +148,11 @@ html,body{font-family:var(--f);background:var(--bg);color:var(--t1);-webkit-font
 .ci{background:var(--b0);border:1px solid var(--b1);border-radius:10px;padding:9px 13px;display:flex;justify-content:space-between;align-items:center}
 .ci-l{font-size:10px;font-weight:600;color:var(--b6)}
 .ci-v{font-size:12px;font-weight:700;color:var(--b7);font-variant-numeric:tabular-nums}
+.ci-ok{background:#ecfdf5;border-color:#a7f3d0}
+.ci-ok-t{color:#059669}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .ci-ok{background:#072819;border-color:#065f46}:root:not([data-theme="light"]) .ci-ok-t{color:#34d399}}
+[data-theme="dark"] .ci-ok{background:#072819;border-color:#065f46}
+[data-theme="dark"] .ci-ok-t{color:#34d399}
 
 /* status */
 .st{padding:0 24px 12px}
@@ -174,7 +202,10 @@ html,body{font-family:var(--f);background:var(--bg);color:var(--t1);-webkit-font
 <!-- Header -->
 <div class="hd">
   <div class="lg"><div class="lgi"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div><div class="lgt"><b>x402</b> Pay</div></div>
+  <div style="display:flex;align-items:center;gap:6px">
+  <button class="thm" id="thmBtn" onclick="toggleTheme()" title="Toggle dark mode"><svg id="thmIco" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
   <div class="sb" id="hSet" onclick="goSet()" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+  </div>
 </div>
 
 <!-- VIEW 1: Welcome / Setup -->
@@ -290,7 +321,7 @@ html,body{font-family:var(--f);background:var(--bg);color:var(--t1);-webkit-font
       <div style="font-size:12px;color:var(--t3)">Loading...</div>
     </div>
     <div id="crBal" style="margin-top:14px;display:none">
-      <div class="ci" style="background:#ecfdf5;border-color:#a7f3d0"><div class="ci-l" style="color:#059669">Hub Credit Balance</div><div class="ci-v" id="crBalV" style="color:#059669">-</div></div>
+      <div class="ci ci-ok"><div class="ci-l ci-ok-t">Hub Credit Balance</div><div class="ci-v ci-ok-t" id="crBalV">-</div></div>
       <button class="b2" id="bWithdraw" style="margin-top:8px;width:100%" onclick="withdrawCredit()">Withdraw to Wallet</button>
     </div>
     <div id="fundWrap" style="margin-top:14px">
@@ -347,6 +378,14 @@ html,body{font-family:var(--f);background:var(--bg);color:var(--t1);-webkit-font
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
 <script>
+/* theme toggle */
+const MOON='<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+const SUN='<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+function isDark(){return document.documentElement.getAttribute('data-theme')==='dark'||(document.documentElement.getAttribute('data-theme')!=='light'&&window.matchMedia('(prefers-color-scheme:dark)').matches);}
+function applyTheme(){const d=isDark();document.getElementById('thmIco').innerHTML=d?SUN:MOON;document.getElementById('thmBtn').title=d?'Switch to light mode':'Switch to dark mode';}
+function toggleTheme(){const cur=isDark();document.documentElement.setAttribute('data-theme',cur?'light':'dark');localStorage.setItem('x402s.theme',cur?'light':'dark');applyTheme();}
+(function(){const t=localStorage.getItem('x402s.theme');if(t)document.documentElement.setAttribute('data-theme',t);applyTheme();})();
+
 function toast(msg,type,dur){
   dur=dur||(type==='err'?4000:3000);const w=document.getElementById('toastWrap');
   const el=document.createElement('div');el.className='toast';
@@ -1042,7 +1081,7 @@ async function pay(){
       document.getElementById('okT').textContent="id:"+(rb.paymentId||"").slice(0,16)+"...";
       document.getElementById('okD').textContent="Zero hub fee (credit transfer)";
       setTimeout(()=>document.getElementById('okO').classList.add('on'),400);
-      if(window.parent!==window)window.parent.postMessage({type:"x402:payment:success",payId:rb.paymentId,amount:amt},"*");
+      if(window.parent!==window)window.parent.postMessage({type:"x402:payment:success",payId:rb.paymentId,amount:amt,payer:ag.ad},"*");
     }else if(isAddrPay){
     // Address payment — issue ticket directly through hub, no resource URL
     const ov={amt:curOffer._userAmt,asset:curOffer._userAsset||"eth",sym:curOffer._userSym||"ETH",hEp:curOffer._hubEp,network:curOffer.network};
@@ -1098,7 +1137,7 @@ async function pay(){
     document.getElementById('okT').textContent="ticket:"+(r.tk?.ticketId||r.pid||"").slice(0,12)+"...";
     document.getElementById('okD').textContent=r.fee&&r.fee!=="0"?"Hub fee: "+fA(r.fee,dec)+" "+sym:"Zero hub fee";
     setTimeout(()=>document.getElementById('okO').classList.add('on'),400);
-    if(window.parent!==window)window.parent.postMessage({type:"x402:payment:success",ticketId:r.tk?.ticketId,payId:r.pid,amount:r.amt},"*");
+    if(window.parent!==window)window.parent.postMessage({type:"x402:payment:success",ticketId:r.tk?.ticketId,payId:r.pid,amount:r.amt,payer:ag.ad},"*");
     }
   }catch(e){
     ss(null);btn.classList.remove('ld');btn.className='bt';btn.disabled=false;bt.textContent='Confirm & Pay';
