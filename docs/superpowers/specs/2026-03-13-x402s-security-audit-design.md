@@ -1,7 +1,7 @@
 # x402s Full-Scope Security Audit — Design Spec
 
 **Date:** 2026-03-13
-**Scope:** Everything under `x402s/` — Solidity contract, hub server, payee server, agent client, storage backends, auth/webhook helpers, CLI tools, chat/music APIs, scp-pay frontend, and all tests.
+**Scope:** Everything under `x402s/` — Solidity contract, hub server, payee server, agent client, storage backends, auth/webhook helpers, CLI tools, chat/music/weather APIs, scp-pay frontend, and all tests.
 **Method:** Attack-surface-driven, organized by threat category across the full stack.
 **Prior work:** Three audits from 2026-03-07, followed by 7 rounds of fixes (~2000 lines changed). This audit treats the codebase fresh — no assumptions carried from prior reviews.
 
@@ -22,7 +22,7 @@ Anything that could lead to loss of deposited funds or creation of uncollectible
 - Channel funding — deposit accounting, can deposits be credited without arriving on-chain?
 - Pay-to-address — does value actually transfer, or can it be spoofed?
 
-**Key files:** `contracts/X402StateChannel.sol`, hub close/refund paths in `node/scp-hub/server.js`, `node/scp-hub/storage.js`
+**Key files:** `x402s/contracts/X402StateChannel.sol`, hub close/refund paths in `node/scp-hub/server.js`, `node/scp-hub/storage.js`, `node/scp-hub/state-signing.js`, `node/scp-hub/ticket.js`
 
 ### T2 — State Integrity
 
@@ -34,9 +34,9 @@ Correctness of the off-chain state machine: quote consumption, nonce ordering, r
 - Continuation issue — does fail-closed liveness reject when RPC is down?
 - Credit/withdraw accounting — can credits exceed payments? Can withdrawals exceed credits?
 - Cross-network channel lookups — can a channel on network A pay on network B?
-- Memory/JSON/Redis backend parity — do all three return values from `tx()`?
+- Memory/JSON/Redis backend parity — do all three return values from `tx()`? Known lead: `MemoryBackend.tx()` does not return or await the mutator result.
 
-**Key files:** `node/scp-hub/server.js` (issue path, continuation logic, credit/withdraw), `node/scp-hub/storage.js`
+**Key files:** `node/scp-hub/server.js` (issue path, continuation logic, credit/withdraw), `node/scp-hub/storage.js`, `node/scp-hub/state-signing.js`, `node/scp-hub/ticket.js`
 
 ### T3 — Auth & Access Control
 
@@ -45,11 +45,11 @@ Authentication bypasses, authorization gaps, SSRF, and credential handling.
 **Targets:**
 - Admin token — timing-safe comparison, rotation, exposure in logs
 - Payment verification on handle routes — is the forged-header bypass fixed?
-- Webhook SSRF — IPv6/mapped-loopback coverage
-- Payee `x402-express.js` middleware — can payment proof be forged or replayed?
-- Chat/music API auth — do they properly delegate to the 402 flow?
+- Webhook SSRF — IPv6/mapped-loopback coverage, DNS rebinding (hostname resolving to private IP), `::ffff:127.0.0.1` and `[::ffff:10.0.0.1]` mapped addresses
+- Payee `payee-auth.js` middleware — can payment proof be forged or replayed?
+- Chat/music/weather API auth — do all payee demo APIs properly delegate to the 402 flow?
 
-**Key files:** `node/scp-hub/server.js` (admin routes), `node/scp-hub/auth.js`, `node/scp-hub/webhooks.js`, `node/scp-common/x402-express.js`, `node/scp-demo/chat-server.js`, `node/music-api/server.js`
+**Key files:** `node/scp-hub/server.js` (admin routes, inline auth logic), `node/scp-hub/webhooks.js`, `node/scp-common/payee-auth.js`, `node/scp-demo/chat-server.js`, `node/music-api/server.js`, `node/weather-api/`
 
 ### T4 — Input Validation & Injection
 
@@ -61,7 +61,7 @@ XSS, parameter injection, ABI encoding correctness, malformed input handling.
 - ABI encoding — does the hub's ABI match the deployed contract on all networks?
 - CLI tools — command injection via user-supplied arguments
 
-**Key files:** `scp-pay/index.html`, all hub HTTP route handlers, hub ABI definitions, CLI entry points
+**Key files:** `scp-pay/index.html`, all hub HTTP route handlers, hub ABI definitions, `node/scp-hub/validator.js`, CLI entry points
 
 ### T5 — Availability & DoS
 
@@ -73,8 +73,9 @@ Denial of service, resource exhaustion, and error handling posture.
 - Hub error paths — systematic check of fail-open vs fail-closed
 - RPC failure cascading — does one bad RPC call block the whole hub?
 - Storage locking under concurrent load
+- Cluster mode safety — if hub runs with `cluster` module, do MemoryBackend and JsonFileBackend remain safe?
 
-**Key files:** `contracts/X402StateChannel.sol` (gas), `node/scp-hub/server.js` (error paths), `node/scp-hub/storage.js` (concurrency)
+**Key files:** `x402s/contracts/X402StateChannel.sol` (gas), `node/scp-hub/server.js` (error paths, cluster import), `node/scp-hub/storage.js` (concurrency)
 
 ## Execution Model
 
@@ -122,7 +123,7 @@ After all 5 agents complete, a review agent:
 - Table: each March 7 finding → fixed/regressed/partial
 
 ## Findings (sorted by severity)
-### [SEV] Title
+### [Critical|High|Medium|Low|Info] Title
 - **Location:** file:line
 - **Root cause:** what's wrong
 - **Impact:** what an attacker gains
