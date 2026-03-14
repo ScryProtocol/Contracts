@@ -282,9 +282,10 @@ body::after{content:'';position:fixed;inset:0;
 .coin-ico{font-size:14px}
 
 /* Payment overlay */
-.pay-overlay{position:fixed;inset:0;background:rgba(0,0,0,.121095);z-index:1000;display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
-.pay-overlay.show{display:flex}
+.pay-overlay{position:fixed;inset:0;background:rgba(0,0,0,.121095);z-index:1000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .2s}
+.pay-overlay.show{opacity:1;pointer-events:auto}
 .pay-frame{width:min(420px,94vw);height:min(620px,88vh);border:none;border-radius:8px;box-shadow:0 0 12px rgba(0,0,0,.5);}
+.pay-overlay:not(.show) .pay-frame{position:fixed;left:-9999px}
 
 /* Status bar */
 .status{display:flex;align-items:center;justify-content:space-between;padding:4px 0;font-size:9px;color:var(--t3);letter-spacing:.5px}
@@ -400,18 +401,18 @@ function sendMessage() {
   var msg = $input.value.trim();
   if (!msg) return;
   pendingMsg = msg;
-  // Open scp-pay to pay for the message
+  $send.disabled = true;
+  toast("Paying...", "ok");
+  // Open scp-pay iframe hidden; only show overlay if iframe asks for confirmation
   var payUrl = BASE + "/pay";
-  $payFr.src = SCPPAY + "?url=" + encodeURIComponent(payUrl);
-  $payOv.classList.add("show");
-  // Send auto-pay config after iframe loads (low limit for chat micro-payments)
+  $payFr.src = SCPPAY + "?autopay=1&url=" + encodeURIComponent(payUrl);
   $payFr.onload = function() {
     $payFr.contentWindow.postMessage({type:"x402:config",url:payUrl,autoLim:0.001},"*");
   };
 }
 
 $payOv.addEventListener("click", function(e) {
-  if (e.target === $payOv) closePay();
+  if (e.target === $payOv) { closePay(); $send.disabled = !$input.value.trim(); pendingMsg = null; }
 });
 
 function closePay() {
@@ -420,6 +421,10 @@ function closePay() {
 }
 
 window.addEventListener("message", function(e) {
+  if (e.data && e.data.type === "x402:needs-confirm") {
+    $payOv.classList.add("show");
+    return;
+  }
   if (e.data && e.data.type === "x402:payment:success" && pendingMsg) {
     closePay();
     // Post the message with payment proof
@@ -550,7 +555,7 @@ const server = http.createServer(async (req, res) => {
     const rawHeader = getPaymentHeader(req);
 
     if (!rawHeader) {
-      return sendJson(res, 402, makeOffers("/chat", req));
+      return sendJson(res, 402, makeOffers("", req));
     }
 
     // Parse body
@@ -606,7 +611,7 @@ const server = http.createServer(async (req, res) => {
 
   // GET /pay — offer discovery for agent clients
   if (u.pathname === "/pay" && req.method === "GET") {
-    return sendJson(res, 402, makeOffers("/chat", req));
+    return sendJson(res, 402, makeOffers("", req));
   }
 
   // GET / — HTML chat UI for browsers, JSON for API clients

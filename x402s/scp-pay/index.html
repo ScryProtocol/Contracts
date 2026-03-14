@@ -79,6 +79,12 @@ html,body{font-family:var(--f);background:var(--bg);color:var(--t1);-webkit-font
 .bdanger{width:100%;padding:8px;font-family:var(--f);font-size:11px;font-weight:600;color:var(--er);background:#fef2f2;border:1px solid #fecaca;border-radius:8px;cursor:pointer;margin-top:10px}
 .bdanger:hover{background:#fee2e2}
 
+/* per-url auto-pay toggle */
+.ap-row{display:none;padding:0 24px 4px;margin-top:-4px}
+.ap-row label{display:flex;align-items:center;gap:8px;font:500 12px var(--f);color:var(--t2);cursor:pointer;user-select:none}
+.ap-row input[type=checkbox]{width:16px;height:16px;accent-color:var(--b6);cursor:pointer;flex-shrink:0}
+.ap-row .ap-url{font-family:var(--m);font-size:10px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px}
+
 /* amount */
 .am{padding:20px 24px;text-align:center}
 .am-l{font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
@@ -292,6 +298,7 @@ html,body{font-family:var(--f);background:var(--bg);color:var(--t1);-webkit-font
   <div class="ch" id="chW" style="display:none"><div class="ci"><div class="ci-l">Channel Balance</div><div class="ci-v" id="chV">-</div></div></div>
   <div class="ch" id="crW" style="display:none"><div class="ci"><div class="ci-l">Payer Credit</div><div class="ci-v" id="crV" style="color:var(--ok)">-</div></div></div>
   <div class="st" id="stW" style="display:none"><div class="sl"><span class="p"></span><span id="stT">-</span></div></div>
+  <div class="ap-row" id="apRow"><label><input type="checkbox" id="apCb"><span>Auto-pay for <span class="ap-url" id="apUrl"></span></span></label></div>
   <div class="ba">
     <button class="bt" id="bPay" onclick="pay()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg><span id="bPT">Confirm &amp; Pay</span></button>
     <button class="b2" style="margin-top:8px" onclick="backToReady()">Cancel</button>
@@ -895,7 +902,7 @@ function clearCache(){
 }
 function cpAddr(){if(ag)navigator.clipboard?.writeText(ag.ad);}
 
-let isHandlePay=false;
+let isHandlePay=false,isAddrPay=false;
 function updateHandleAmt(){
   if(!curOffer)return;
   const v=document.getElementById('hAmt').value,sel=document.getElementById('hAsset').value;
@@ -958,6 +965,10 @@ function getAutoLim(){try{const s=JSON.parse(localStorage.getItem("x402s.setting
 function getAutoSpent(){try{const d=JSON.parse(localStorage.getItem("x402s.autoPay")||"{}");const now=Date.now(),hr=3600000;const recent=(d.log||[]).filter(e=>now-e.ts<hr);return recent.reduce((s,e)=>s+e.eth,0);}catch{return 0;}}
 function recordAutoSpend(eth){try{const d=JSON.parse(localStorage.getItem("x402s.autoPay")||"{}");const now=Date.now(),hr=3600000;const log=((d.log||[]).filter(e=>now-e.ts<hr));log.push({ts:now,eth});localStorage.setItem("x402s.autoPay",JSON.stringify({log}));}catch{}}
 function canAutoPay(amtWei,dec=18){const lim=getAutoLim();if(lim<=0)return false;const eth=parseFloat(fA(amtWei,dec));const spent=getAutoSpent();return(spent+eth)<=lim;}
+// Per-URL auto-pay approvals (iframe mode)
+function urlAutoPayKey(url){try{const u=new URL(url);return u.origin+u.pathname;}catch{return url;}}
+function isUrlAutoApproved(url){try{const m=JSON.parse(localStorage.getItem("x402s.urlAutoPay")||"{}");return!!m[urlAutoPayKey(url)];}catch{return false;}}
+function setUrlAutoApproved(url){try{const m=JSON.parse(localStorage.getItem("x402s.urlAutoPay")||"{}");m[urlAutoPayKey(url)]=Date.now();localStorage.setItem("x402s.urlAutoPay",JSON.stringify(m));}catch{}}
 
 // Discover
 async function discover(){
@@ -979,7 +990,7 @@ async function discover(){
       const initNet=ag.net||"sepolia";
       const ep=hubEpFor(initNet);
       const of={scheme:"statechannel-hub-v1",hEp:ep,pAd:payee,asset:"eth",network:initNet,intent:"pay_address",maxAmountRequired:"0",_userAmt:null,_userAsset:"eth",_hubEp:ep};
-      curOffer=of;tUrl=null;isHandlePay=false;
+      curOffer=of;tUrl=null;isHandlePay=false;isAddrPay=true;
       const rawIn=document.getElementById('iUrl').value.trim();
       document.getElementById('oMerch').textContent=sA(payee);
       const haw=document.getElementById('handleAmtWrap'),pnw=document.getElementById('payNetWrap');
@@ -1024,7 +1035,7 @@ async function discover(){
     }
     if(!of)throw new Error("No offers in 402 response");
     curOffer=of;tUrl=url;
-    isHandlePay=of.intent==="pay_handle";
+    isHandlePay=of.intent==="pay_handle";isAddrPay=of.intent==="pay_address";
     const sym=gS(of),nn=rN(of.network),dr=oD(of),dec=DD[sym.toLowerCase()]||18,ha=fA(dr,dec);
     const rawIn=document.getElementById('iUrl').value.trim();
     const u=new URL(url);
@@ -1060,9 +1071,29 @@ async function discover(){
     if(curOffer._creditOnly){document.getElementById('oRoute').textContent='Hub (credit → channel if needed)';}
     show('vPay');
     // Auto-pay: if within hourly limit, confirm automatically
+    // In iframe with ?autopay=1, show confirm per URL (or auto-pay if URL approved)
     if(!isHandlePay&&!isAddrPay&&dr!=="0"&&canAutoPay(dr,dec)){
-      toast("Auto-paying "+ha+" "+sym+" (within limit)","ok");
-      setTimeout(()=>pay(),100);
+      if(isIframe&&iframeAutoPay){
+        const payUrl=document.getElementById('iUrl').value.trim();
+        if(isUrlAutoApproved(payUrl)){
+          toast("Auto-paying "+ha+" "+sym+" (approved URL)","ok");
+          setTimeout(()=>pay(),100);
+        }else{
+          // Show per-URL auto-pay toggle
+          const apRow=document.getElementById('apRow');
+          apRow.style.display='block';
+          document.getElementById('apUrl').textContent=urlAutoPayKey(payUrl);
+          document.getElementById('apUrl').title=payUrl;
+          document.getElementById('apCb').checked=false;
+          toast("Confirm payment for "+ha+" "+sym,"ok");
+          if(window.parent!==window)window.parent.postMessage({type:"x402:needs-confirm"},"*");
+        }
+      }else{
+        toast("Auto-paying "+ha+" "+sym+" (within limit)","ok");
+        setTimeout(()=>pay(),100);
+      }
+    }else{
+      document.getElementById('apRow').style.display='none';
     }
   }catch(e){if(e.message!=="skip")toast("Failed: "+e.message,"err",5000);}
   btn.disabled=false;btn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg><span>Pay</span>';
@@ -1071,7 +1102,7 @@ async function discover(){
 // Pay
 async function pay(){
   if(!ag)return;
-  const isAddrPay=curOffer?.intent==="pay_address";
+  /* isAddrPay set in go() */
   if(!tUrl&&!isAddrPay)return;
   if((isHandlePay||isAddrPay)&&(!curOffer._userAmt||curOffer._userAmt==="0"))return toast("Enter an amount to send","err");
   const btn=document.getElementById('bPay'),bt=document.getElementById('bPT');
@@ -1105,6 +1136,7 @@ async function pay(){
       document.getElementById('okD').textContent="Zero hub fee (credit transfer)";
       setTimeout(()=>document.getElementById('okO').classList.add('on'),400);
       recordAutoSpend(parseFloat(fA(amt,18)));
+      if(isIframe&&iframeAutoPay&&document.getElementById('apCb').checked)setUrlAutoApproved(tUrl);
       if(window.parent!==window)window.parent.postMessage({type:"x402:payment:success",payId:rb.paymentId,amount:amt,payer:ag.ad},"*");
     }else if(isAddrPay){
     // Address payment — issue ticket directly through hub, no resource URL
@@ -1163,6 +1195,7 @@ async function pay(){
     document.getElementById('okD').textContent=r.fee&&r.fee!=="0"?"Hub fee: "+fA(r.fee,dec)+" "+sym:"Zero hub fee";
     setTimeout(()=>document.getElementById('okO').classList.add('on'),400);
     recordAutoSpend(parseFloat(fA(r.amt,dec)));
+    if(isIframe&&iframeAutoPay&&document.getElementById('apCb').checked)setUrlAutoApproved(tUrl);
     if(window.parent!==window)window.parent.postMessage({type:"x402:payment:success",ticketId:r.tk?.ticketId,payId:r.pid,amount:r.amt,payer:ag.ad},"*");
     }
   }catch(e){
@@ -1172,22 +1205,26 @@ async function pay(){
   }
 }
 
-function resetPay(){document.getElementById('erO').classList.remove('on');const b=document.getElementById('bPay');b.className='bt';b.disabled=false;document.getElementById('bPT').textContent='Confirm & Pay';ss(null);}
+function resetPay(){document.getElementById('erO').classList.remove('on');const b=document.getElementById('bPay');b.className='bt';b.disabled=false;document.getElementById('bPT').textContent='Confirm & Pay';ss(null);document.getElementById('apRow').style.display='none';}
 function backToReady(){document.getElementById('okO').classList.remove('on');document.getElementById('erO').classList.remove('on');resetPay();show('vReady');refreshBal();}
 function cpTx(){const el=document.getElementById('okT'),o=el.textContent;navigator.clipboard?.writeText(o);el.textContent='Copied!';setTimeout(()=>el.textContent=o,1200);}
 
 // URL params
 const pp=new URLSearchParams(location.search);
 if(pp.get('url'))document.getElementById('iUrl').value=pp.get('url');
+const iframeAutoPay=pp.has('autopay');
 
 // iframe config — transparent bg when embedded
-if(window.parent!==window){document.documentElement.style.background='transparent';document.body.style.background='transparent';}
-window.addEventListener('message',e=>{if(e.data?.type==='x402:config'){if(e.data.url)document.getElementById('iUrl').value=e.data.url;if(e.data.autoLim){try{const s=JSON.parse(localStorage.getItem("x402s.settings")||"{}");s.autoLim=parseFloat(e.data.autoLim);localStorage.setItem("x402s.settings",JSON.stringify(s));}catch{}}}});
+const isIframe=window.parent!==window;
+if(isIframe){document.documentElement.style.background='transparent';document.body.style.background='transparent';}
+window.addEventListener('message',e=>{if(e.data?.type==='x402:config'){if(e.data.url)document.getElementById('iUrl').value=e.data.url;if(e.data.autoLim){try{const s=JSON.parse(localStorage.getItem("x402s.settings")||"{}");s.autoLim=parseFloat(e.data.autoLim);localStorage.setItem("x402s.settings",JSON.stringify(s));}catch{}}if(e.data.autopay&&!iframeAutoPay){}/* handled via param */}});
 
 // Boot
-console.log("[x402s] scp-pay v17 loaded");
+console.log("[x402s] scp-pay v19 loaded");
 loadSettings();
 if(!loadWallet())show('vWel');
+// iframe ?autopay=1 — auto-discover but show confirm per URL
+if(isIframe&&iframeAutoPay&&document.getElementById('iUrl').value){setTimeout(()=>{if(ag)discover();},200);}
 </script>
 </body>
 </html>
