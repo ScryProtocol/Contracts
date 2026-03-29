@@ -268,7 +268,7 @@ html,body{font-family:var(--f);background:var(--bg);color:var(--t1);-webkit-font
     </div>
   </div>
   <div class="fm">
-    <div class="fl"><label>Pay</label><input id="iUrl" type="text" placeholder="pr0@pogchamp.tv, 0x..., or https://..."/></div>
+    <div class="fl"><label>Pay</label><input id="iUrl" type="text" placeholder="pr0@statechannel.org, 0x..., or https://..."/></div>
   </div>
   <div class="ba"><button class="bt" id="bDisc" onclick="discover()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg><span>Pay</span></button>
   <div id="autoPayBadge" style="display:none;margin-top:6px;font-size:10px;font-weight:600;color:var(--ok);text-align:center"></div>
@@ -285,21 +285,22 @@ html,body{font-family:var(--f);background:var(--bg);color:var(--t1);-webkit-font
       <input id="hAmt" type="number" step="any" min="0" placeholder="Amount" oninput="updateHandleAmt()"/>
       <span style="font:600 13px var(--f);color:var(--t2)">ETH</span>
       <div id="hNetPill" style="display:inline-flex;border:1.5px solid var(--bd);border-radius:10px;overflow:hidden;font:500 12px var(--f)">
+        <button class="np" data-net="mainnet" onclick="pickNet('mainnet')" style="padding:7px 10px;border:none;cursor:pointer;transition:all .15s">Eth</button>
         <button class="np" data-net="sepolia" onclick="pickNet('sepolia')" style="padding:7px 10px;border:none;cursor:pointer;transition:all .15s">Sep</button>
         <button class="np" data-net="base" onclick="pickNet('base')" style="padding:7px 10px;border:none;cursor:pointer;transition:all .15s">Base</button>
       </div>
       <select id="hAsset" style="display:none"><option value="eth">ETH</option></select>
-      <select id="hNet" style="display:none"><option value="sepolia">Sepolia</option><option value="base">Base</option></select>
+      <select id="hNet" style="display:none"><option value="mainnet">Ethereum</option><option value="sepolia">Sepolia</option><option value="base">Base</option></select>
     </div>
     <div id="payNetWrap" class="am-pk" style="display:none">
-      <select id="pNet" onchange="updatePayNet()"><option value="sepolia">Sepolia</option><option value="base">Base</option></select>
+      <select id="pNet" onchange="updatePayNet()"><option value="mainnet">Ethereum</option><option value="sepolia">Sepolia</option><option value="base">Base</option></select>
     </div>
   </div>
   <div class="dv"></div>
   <div class="rs">
     <div class="r"><span class="r-l">Network</span><span class="r-v"><span class="dot"></span><span id="oNet">-</span></span></div>
     <div class="r"><span class="r-l">Route</span><span class="r-v" id="oRoute">-</span></div>
-    <div class="r"><span class="r-l">Gas</span><span class="r-v" style="color:var(--ok);font-weight:700">$0.00 off-chain</span></div>
+    <div class="r"><span class="r-l" id="oFeeL">Gas</span><span class="r-v" id="oFeeV" style="color:var(--ok);font-weight:700">$0.00 off-chain</span></div>
   </div>
   <div class="dv"></div>
   <div class="wb" style="padding-top:14px"><div class="wc"><div class="wi"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="2" y="6" width="20" height="14" rx="3"/><path d="M2 10h20"/></svg></div><div><div class="wl">Paying from</div><div class="wa" id="oAddr">-</div></div></div></div>
@@ -314,7 +315,7 @@ html,body{font-family:var(--f);background:var(--bg);color:var(--t1);-webkit-font
   <!-- Success -->
   <div class="ov" id="okO">
     <div class="ok-r"><svg viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
-    <h3>Payment complete</h3>
+    <h3 id="okH">Payment complete</h3>
     <p id="okS">-</p>
     <div class="tid" id="okT" onclick="cpTx()">-</div>
     <div class="det" id="okD"></div>
@@ -323,7 +324,7 @@ html,body{font-family:var(--f);background:var(--bg);color:var(--t1);-webkit-font
   <!-- Error -->
   <div class="ov" id="erO">
     <div class="er-r"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg></div>
-    <h3>Payment failed</h3>
+    <h3 id="erH">Payment failed</h3>
     <p class="em" id="erM">-</p>
     <button class="rb" onclick="resetPay()">Try again</button>
   </div>
@@ -400,6 +401,25 @@ html,body{font-family:var(--f);background:var(--bg);color:var(--t1);-webkit-font
   <div class="ba" style="padding-top:16px"><button class="b2" onclick="goReady()">&#8592; Back</button></div>
 </div>
 
+<div class="v" id="vClaim">
+  <div class="sp2">
+    <div class="wc" style="padding-top:20px">
+      <div style="flex:1;min-width:0">
+        <div class="wl">Claim Handle</div>
+        <p id="claimSub" style="margin-top:6px;font-size:12px;line-height:1.5;color:var(--t2)">Your wallet can claim a free handle@statechannel.org to receive payments. Claiming now links the handle to this wallet, but you can skip and claim later if you want. You also get a free hey.eth ENS!</p>
+      </div>
+    </div>
+    <div class="wd" style="margin:12px 0">
+      <h4 class="wd-l">Handle</h4>
+      <input id="claimHandle" type="text" value="-" style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid var(--b2);background:var(--c2);color:var(--t1);font-size:13px"/>
+    </div>
+    <button class="bt" onclick="continuePendingClaim()">Claim Handle</button>
+    <button class="b2" style="margin-top:8px" onclick="skipPendingClaim()">Skip for now</button>
+  </div>
+  <div class="ba" style="padding-top:16px"><button class="b2" onclick="goReady()">&#8592; Back</button></div>
+</div>
+
+
 <div class="ft"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>Secured by</span><a href="https://github.com/Keychain-Inc/x402s" target="_blank">x402s protocol</a><span style="margin-left:6px;opacity:.4">v18</span></div>
 
 </div></div>
@@ -436,8 +456,13 @@ const CAB=["function openChannel(address participantB,address asset,uint256 amou
 function rN(n){const k=(n||"").toLowerCase();if(NW[k])return{...NW[k],nm:k};for(const[m,v]of Object.entries(NW)){if(v.caip===k||String(v.cid)===k)return{...v,nm:m};}return null;}
 function caip(n){return rN(n)?.caip||null;}
 function nE(u){return(u||"").trim().replace(/\/+$/,"");}
-function hubEpFor(n){return"https://pogchamp.tv/hub/"+(n||"sepolia");}
+const PUB="https://statechannel.org/heyeth";
+function hubPathFor(n){const k=(n||"sepolia").toLowerCase();if(k==="mainnet"||k==="eth"||k==="ethereum")return"/hub/eth";if(k==="base")return"/hub/base";if(k==="base-sepolia")return"/hub/base-sepolia";if(k==="sepolia")return"/hub/sepolia";return"/hub/sepolia";}
+function hubEpFor(n){return PUB+hubPathFor(n);}
+function hubNetForEp(ep){const e=nE(ep);if(e.includes("/hub/base-sepolia"))return"base-sepolia";if(e.includes("/hub/base"))return"base";if(e.includes("/hub/sepolia"))return"sepolia";if(e.includes("/hub/eth"))return"mainnet";return null;}
 function fmtNet(n){return(n||"").replace(/^./,c=>c.toUpperCase());}
+function fmtHubNet(n){if(n==="mainnet")return"Ethereum";if(n==="base-sepolia")return"Base Sepolia";return fmtNet(n);}
+function handleToUrl(v){const raw=(v||"").trim();if(raw.includes("://")||!raw.includes("@"))return raw;const [n,d]=raw.split("@");if(!(n&&d&&d.includes(".")))return raw;const cleanDomain=d.replace(/\/+$/,"");const base=cleanDomain==="statechannel.org"?"https://statechannel.org/heyeth":`https://${cleanDomain}`;return`${base}/handle/${encodeURIComponent(n)}`;}
 function rA(a,cid){if(!a)return{addr:ZA,sym:"eth",dec:18,isE:true};const l=(a+"").toLowerCase();if(l==="eth"||l===ZA)return{addr:ZA,sym:"eth",dec:18,isE:true};const x=AZ[cid]?.[l];if(x)return{addr:x,sym:l,dec:DD[l]||18,isE:false};if(l.startsWith("0x")&&l.length===42){for(const m of Object.values(AZ))for(const[s,ad]of Object.entries(m))if(ad.toLowerCase()===l)return{addr:ad,sym:s,dec:DD[s]||18,isE:false};}return{addr:ZA,sym:"eth",dec:18,isE:true};}
 function gS(o){if(!o?.asset)return"ETH";const a=(o.asset+"").toLowerCase();if(a===ZA||a==="eth")return"ETH";for(const m of Object.values(AZ))for(const[s,ad]of Object.entries(m))if(ad.toLowerCase()===a)return s.toUpperCase();return"TOKEN";}
 function fA(r,d=6){if(!r||r==="0")return"0";try{const n=BigInt(r),p=10n**BigInt(d),w=n/p,f=(n%p).toString().padStart(d,"0");if(w===0n){const i=f.search(/[1-9]/);return i<0?"0":"0."+f.slice(0,Math.min(d,i+6)).replace(/0+$/,"");}const fr=f.slice(0,4).replace(/0+$/,"");return fr?w+"."+fr:""+w;}catch{return r;}}
@@ -455,7 +480,7 @@ class Agent{
   ni(){return rN(this.net);}
   async gp(){if(this._p&&Date.now()-this._pt<300000)return this._p;this._p=null;const n=this.ni(),cid=n?.cid||11155111,rpcs=[...(this._rpc?[this._rpc]:[]),...(n?.rpcs||[])];for(const r of rpcs){try{const p=new ethers.providers.StaticJsonRpcProvider({url:r,timeout:12000},cid);const b=await wT(p.getBlockNumber(),12000);if(typeof b!=="number"||b<1)continue;this._p=p;this._pt=Date.now();return p;}catch{continue;}}throw new Error("No RPC available. Add a custom RPC in Settings.");}
   async getBal(){const p=await this.gp(),eb=await p.getBalance(this.ad),n=this.ni(),cid=n?.cid||11155111,u=AZ[cid]?.usdc;let ub="0";if(u){try{const tk=new ethers.Contract(u,E20,p);ub=(await tk.balanceOf(this.ad)).toString();}catch{}}return{eth:ethers.utils.formatEther(eb),usdc:fA(ub,6)};}
-  async disc(url){const r=await wT(fetch(url,{method:"GET",redirect:"manual"}),30000);if(r.status!==402)return{st:r.status,of:[]};const b=await r.json().catch(()=>null);let o=b?.accepts||b?.offers||[];o=o.map(x=>{const e=x.extensions||{},h=e["statechannel-hub-v1"],d=e["statechannel-direct-v1"];return{...x,scheme:h?"statechannel-hub-v1":d?"statechannel-direct-v1":x.scheme||"?",hEp:nE(h?.hubEndpoint||""),pAd:h?.payeeAddress||d?.payeeAddress||x.payeeAddress||null,inv:h?.invoiceId||x.invoiceId||null,intent:h?.intent||null,handle:h?.handle||null};});return{st:402,of:o,raw:b};}
+  async disc(url){const r=await wT(fetch(url,{method:"GET",redirect:"manual"}),30000);const ct=(r.headers.get("content-type")||"").toLowerCase();const b=ct.includes("application/json")?await r.json().catch(()=>null):null;let o=b?.accepts||b?.offers||[];o=o.map(x=>{const e=x.extensions||{},h=e["statechannel-hub-v1"],d=e["statechannel-direct-v1"],m=(x?.mode||"").toLowerCase(),hep=h?.hubEndpoint||x.hubEndpoint||"",pad=h?.payeeAddress||d?.payeeAddress||x.payeeAddress||null;return{...x,scheme:h?"statechannel-hub-v1":d?"statechannel-direct-v1":x.scheme||(m==="hub"||hep?"statechannel-hub-v1":m==="direct"?"statechannel-direct-v1":"?"),hEp:nE(hep),pAd:pad,inv:h?.invoiceId||x.invoiceId||null,intent:h?.intent||x.intent||null,handle:h?.handle||x.handle||null};});return{st:r.status,of:o,raw:b};}
   choose(of,rt="auto"){const nc=caip(this.net),fi=of.filter(o=>{const oc=caip(o.network);return!nc||!oc||oc===nc;}),hs=fi.filter(o=>o.scheme==="statechannel-hub-v1"),ds=fi.filter(o=>o.scheme==="statechannel-direct-v1");const am=o=>{try{return BigInt(oD(o));}catch{return 0n;}};const rH=o=>{const ep=nE(o.hEp);if(!ep)return 0;const c=this.s.ch["hub:"+ep];if(!c)return 0;try{return BigInt(c.bA||"0")>=am(o)?2:1;}catch{return 1;}};const pk=(l,f)=>{if(!l.length)return null;const s=l.map((o,i)=>({o,i,r:f(o),a:am(o)}));s.sort((a,b)=>a.r!==b.r?b.r-a.r:a.a<b.a?-1:a.a>b.a?1:a.i-b.i);return s[0].o;};if(rt==="hub")return pk(hs,rH);if(rt==="direct")return pk(ds,()=>0);return pk(hs,rH)||pk(ds,()=>0);}
   async hyd(ep){const e=nE(ep);if(!e)return null;const ck="hub:"+e;const ta=v=>{try{return ethers.utils.getAddress(v);}catch{return null;}};let hi=null;try{const r=await wT(fetch(e+"/.well-known/x402"),10000);if(r.ok)hi=await r.json();console.log("[x402s] hyd hub info:",JSON.stringify(hi));}catch{}const ha=ta(hi?.address||hi?.hubAddress||hi?.signingAddress);if(ha&&ha.toLowerCase()===this.ad.toLowerCase()){console.warn("[x402s] hub returned self as address, ignoring");return null;}const cached=this.s.ch[ck];if(cached&&cached.n>0){const cp=ta(cached.pB);if(!ha||!cp||cp.toLowerCase()===ha.toLowerCase()){
       // Verify cached channel is still live — check hub first (fast), then on-chain
@@ -512,7 +537,7 @@ class Agent{
     if(of.scheme!=="statechannel-hub-v1"||!of.hEp)throw new Error("Only hub route supported");
     if(!of.pAd)throw new Error("Offer missing payeeAddress");
     // Switch agent to offer's network if needed
-    const epNet=nE(of.hEp).includes("/hub/base")?"base":nE(of.hEp).includes("/hub/sepolia")?"sepolia":this.net;
+    const epNet=hubNetForEp(of.hEp)||this.net;
     const _oN=this.net,_oP=this._p,_oPt=this._pt;
     if(epNet!==this.net){this.net=epNet;this._p=null;this._pt=0;}
     const useAsset=of._userAsset||of.asset||"eth";
@@ -596,9 +621,70 @@ class Agent{
 // ======================================================================
 const WK="x402s.wallet";
 let ag=null,tUrl="",curOffer=null,availOffers=[];
+let pendingClaimChoice=null,shouldPromptClaimChoice=false;
 
 function show(id){document.querySelectorAll('.v').forEach(v=>v.classList.remove('on'));document.getElementById(id).classList.add('on');}
 function ss(m){const w=document.getElementById('stW'),t=document.getElementById('stT');if(m){w.style.display='block';t.textContent=m;}else w.style.display='none';}
+function setOutcomeTitle(ok,txt){const id=ok?'okH':'erH';const el=document.getElementById(id);if(el)el.textContent=txt;}
+function resetOutcomeTitles(){setOutcomeTitle(true,'Payment complete');setOutcomeTitle(false,'Payment failed');}
+function setFeeRow(label,value){
+  const l=document.getElementById('oFeeL'),v=document.getElementById('oFeeV');
+  if(l)l.textContent=label;
+  if(v)v.textContent=value;
+}
+function resetConfirmUi(){
+  setFeeRow('Gas','$0.00 off-chain');
+  resetOutcomeTitles();
+}
+let didAutoContinue=false;
+function suggestClaimHandle(addr){
+  const raw=String(addr||"").trim().toLowerCase().replace(/^0x/,"");
+  if(!raw)return"agent";
+  return"agent-"+raw.slice(0,4)+raw.slice(-4);
+}
+function normalizeClaimHandleValue(value){
+  let raw=String(value||"").trim().toLowerCase().replace(/^@/,"");
+  if(!raw)return"";
+  if(raw.includes("@"))raw=raw.split("@")[0];
+  if(raw.endsWith(".hey.eth"))raw=raw.slice(0,-8);
+  if(raw.endsWith(".statechannel.org"))raw=raw.slice(0,-17);
+  return raw;
+}
+function isClaimHandleLabel(value){
+  return/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(value);
+}
+function buildClaimDisplayHandle(handle,seed){
+  const raw=String(seed||"").trim();
+  if(raw.includes("@"))return handle+"@"+raw.split("@").slice(1).join("@");
+  return handle+"@statechannel.org";
+}
+function makeWalletClaimOffer(handle){
+  const label=normalizeClaimHandleValue(handle)||suggestClaimHandle(ag?.ad);
+  return{
+    intent:"claim_handle",
+    handle:label,
+    _claimBase:PUB,
+    _displayHandle:buildClaimDisplayHandle(label),
+    network:"mainnet"
+  };
+}
+function continuePendingUrl(delay=160){
+  if(didAutoContinue)return;
+  const pending=document.getElementById('iUrl')?.value.trim();
+  if(!pending)return;
+  didAutoContinue=true;
+  setTimeout(()=>discover(),delay);
+}
+function continueAfterWalletSetup(){
+  shouldPromptClaimChoice=true;
+  const pending=document.getElementById('iUrl')?.value.trim();
+  if(!pending){
+    showClaimChoice(makeWalletClaimOffer());
+    return;
+  }
+  toast('Wallet ready. Continuing...','ok',1800);
+  continuePendingUrl(160);
+}
 
 // Load saved wallet
 function loadWallet(){
@@ -668,6 +754,7 @@ function createWallet(){
   saveWallet(w.privateKey);
   loadSettings();
   loadWallet();
+  continueAfterWalletSetup();
 }
 
 // Import
@@ -680,6 +767,7 @@ function importWallet(){
   saveWallet(k);
   loadSettings();
   loadWallet();
+  continueAfterWalletSetup();
 }
 
 // Settings
@@ -699,15 +787,15 @@ async function goChannels(){
   list.innerHTML='<div style="font-size:12px;color:var(--t3)">Loading...</div>';
   if(!ag){list.innerHTML='<div style="font-size:12px;color:var(--t3)">No wallet</div>';return;}
   // Hydrate channels from hub (discovers on-chain channels even if local cache is empty)
-  const hubEps=new Set(["https://pogchamp.tv/hub/sepolia","https://pogchamp.tv/hub/base"]);
+  const hubEps=new Set([hubEpFor("mainnet"),hubEpFor("sepolia"),hubEpFor("base")]);
   for(const[k,v]of Object.entries(ag.s?.ch||{})){const e=nE(v.hEp||k.replace("hub:",""));if(e)hubEps.add(e);}
-  for(const ep of hubEps){const hn=ep.includes("/hub/base")?"base":"sepolia";const oN=ag.net,oP=ag._p,oPt=ag._pt;if(hn!==ag.net){ag.net=hn;ag._p=null;ag._pt=0;}try{await ag.hyd(ep);}catch(e){console.warn("[channels] hyd failed:",e.message);}finally{ag.net=oN;ag._p=oP;ag._pt=oPt;}}
+  for(const ep of hubEps){const hn=hubNetForEp(ep)||ag.net;const oN=ag.net,oP=ag._p,oPt=ag._pt;if(hn!==ag.net){ag.net=hn;ag._p=null;ag._pt=0;}try{await ag.hyd(ep);}catch(e){console.warn("[channels] hyd failed:",e.message);}finally{ag.net=oN;ag._p=oP;ag._pt=oPt;}}
   const chs=ag.s?.ch||{};const entries=Object.entries(chs).filter(([,v])=>v?.id);
   // Fetch fresh credit balance per network
   const crDiv=document.getElementById('crBal');
   let crParts=[];
   for(const ep of hubEps){
-    try{const r=await fetch(ep+"/v1/credit/balance?address="+ag.ad);if(r.ok){const b=await r.json();const c=b.credit||"0";if(BigInt(c)>0n){const nn=ep.includes("/hub/base")?"Base":"Sepolia";crParts.push(esc(fT(c,"eth"))+" ETH <span style=\"font-size:9px;font-weight:600;padding:2px 6px;border-radius:6px;background:var(--b2);color:var(--t2)\">"+esc(nn)+"</span>");}}}catch{}
+    try{const r=await fetch(ep+"/v1/credit/balance?address="+ag.ad);if(r.ok){const b=await r.json();const c=b.credit||"0";if(BigInt(c)>0n){const nn=fmtHubNet(hubNetForEp(ep)||"sepolia");crParts.push(esc(fT(c,"eth"))+" ETH <span style=\"font-size:9px;font-weight:600;padding:2px 6px;border-radius:6px;background:var(--b2);color:var(--t2)\">"+esc(nn)+"</span>");}}}catch{}
   }
   if(crParts.length){crDiv.style.display='block';document.getElementById('crBalV').innerHTML=crParts.join('<br style="margin:4px 0">');}else{crDiv.style.display='none';}
   if(!entries.length){list.innerHTML='<div style="font-size:12px;color:var(--t3)">No channels found</div>';return;}
@@ -716,7 +804,7 @@ async function goChannels(){
   const live=[];
   for(const[k,v]of entries){
     const ep=nE(v.hEp||k.replace("hub:",""));
-    const chNet=ep.includes("/hub/base")?"base":"sepolia";
+    const chNet=hubNetForEp(ep)||"sepolia";
     const oN=ag.net,oP=ag._p,oPt=ag._pt;
     if(chNet!==ag.net){ag.net=chNet;ag._p=null;ag._pt=0;}
     try{const pp=await ag.gp();const ct=new ethers.Contract(ag.ca,CAB,pp);const oc=await ct.getChannel(v.id);if(oc.totalBalance.isZero()){delete ag.s.ch[k];ag._sv();ag.net=oN;ag._p=oP;ag._pt=oPt;continue;}}catch{}
@@ -729,7 +817,7 @@ async function goChannels(){
     // Refresh from hub
     if(ep&&v.id){try{const r=await fetch(ep+"/v1/channels/"+encodeURIComponent(v.id));if(r.ok){const d=await r.json();if(d.latestState){bA=d.latestState.balA||bA;bB=d.latestState.balB||bB;n=Number(d.latestState.stateNonce||n);}if(d.onChainTotalBalance){const ocT=BigInt(d.onChainTotalBalance),sA2=BigInt(bA),sB2=BigInt(bB),drift=ocT-(sA2+sB2);if(drift>0n){bA=(sA2+drift)+"";v.bA=bA;v.bB=bB;v.n=n;ag._sv();}}}}catch{}}
     const sym=gS({asset:v.ast});
-    const chNet=ep.includes("/hub/base")?"Base":ep.includes("/hub/sepolia")?"Sepolia":"";
+    const chNet=fmtHubNet(hubNetForEp(ep)||"");
     html+='<div class="ci" style="flex-direction:column;align-items:stretch;gap:6px;padding:12px">';
     html+='<div style="display:flex;justify-content:space-between;align-items:center"><span class="ci-l">Channel</span><span style="display:flex;align-items:center;gap:6px">'+(chNet?'<span style="font-size:9px;font-weight:600;padding:2px 6px;border-radius:6px;background:var(--b2);color:var(--t2)">'+esc(chNet)+'</span>':'')+'<span style="font-size:10px;color:var(--t3);font-family:var(--m)">'+esc(sA(v.id))+'</span></span></div>';
     html+='<div style="display:flex;justify-content:space-between"><span style="font-size:11px;color:var(--t2)">Your Balance</span><span style="font-size:12px;font-weight:700">'+esc(fT(bA,sym.toLowerCase()))+' '+esc(sym)+'</span></div>';
@@ -747,7 +835,7 @@ async function goPayments(){
   const list=document.getElementById('payList');
   list.innerHTML='<div style="font-size:12px;color:var(--t3)">Loading...</div>';
   if(!ag){list.innerHTML='<div style="font-size:12px;color:var(--t3)">No wallet</div>';return;}
-  const hubEps=new Set(["https://pogchamp.tv/hub/sepolia","https://pogchamp.tv/hub/base"]);
+  const hubEps=new Set([hubEpFor("mainnet"),hubEpFor("sepolia"),hubEpFor("base")]);
   for(const[k,v]of Object.entries(ag.s?.ch||{})){const e=nE(v.hEp||k.replace("hub:",""));if(e)hubEps.add(e);}
   let allPay=[];
   for(const ep of hubEps){
@@ -873,12 +961,12 @@ async function withdrawCredit(){
   btn.disabled=true;btn.textContent='Checking...';
   try{
     // Check credit across all hubs
-    const allEps=["https://pogchamp.tv/hub/sepolia","https://pogchamp.tv/hub/base"];
+    const allEps=[hubEpFor("mainnet"),hubEpFor("sepolia"),hubEpFor("base")];
     let bestEp=allEps[0],bestAmt="0";
     for(const ep of allEps){try{const cr=await fetch(ep+"/v1/credit/balance?address="+ag.ad);if(cr.ok){const cb=await cr.json();if(BigInt(cb.credit||"0")>BigInt(bestAmt)){bestAmt=cb.credit;bestEp=ep;}}}catch{}}
     const amt=bestAmt;
     if(BigInt(amt)<=0n)throw new Error("No credit to withdraw");
-    const wdNet=bestEp.includes("/base")?"Base":"Sepolia";
+    const wdNet=fmtHubNet(hubNetForEp(bestEp)||"sepolia");
     if(!confirm("Withdraw "+fT(amt,"eth")+" ETH credit ("+wdNet+") to your wallet?\nThis sends an on-chain transaction."))throw new Error("cancelled");
     btn.textContent='Signing...';
     const wdNonce="wd_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8);
@@ -917,7 +1005,97 @@ function clearCache(){
 }
 function cpAddr(){if(ag)navigator.clipboard?.writeText(ag.ad);}
 
-let isHandlePay=false,isAddrPay=false;
+let isHandlePay=false,isAddrPay=false,isClaimFlow=false;
+function handleApiBase(u){
+  try{
+    const p=new URL(u);
+    return nE(p.origin+p.pathname.replace(/\/handle\/[^/?#]+$/,''));
+  }catch{return'';}
+}
+function makeClaimOffer(rawIn,raw){
+  const handle=String(raw?.handle||rawIn.split("@")[0]||"").trim().toLowerCase();
+  const claimBase=handleApiBase(rawIn.includes("://")?rawIn:handleToUrl(rawIn));
+  if(!handle||!claimBase)throw new Error("Claim endpoint not found");
+  return{intent:"claim_handle",handle,_claimBase:claimBase,_displayHandle:rawIn,network:"mainnet"};
+}
+function openClaimFlow(of){
+  pendingClaimChoice=null;
+  curOffer=of;tUrl=null;isHandlePay=false;isAddrPay=false;isClaimFlow=true;
+  const haw=document.getElementById('handleAmtWrap'),pnw=document.getElementById('payNetWrap');
+  haw.style.display='none';pnw.style.display='none';
+  document.getElementById('chW').style.display='none';
+  document.getElementById('crW').style.display='none';
+  document.getElementById('apRow').style.display='none';
+  document.getElementById('oMerch').textContent=of._displayHandle||of.handle;
+  document.getElementById('oAmt').textContent='free';
+  document.getElementById('oSym').textContent='';
+  document.getElementById('oDesc').textContent='Claim '+(of._displayHandle||of.handle)+' to '+sA(ag.ad);
+  document.getElementById('bPT').textContent='Claim Handle';
+  document.getElementById('oNet').textContent='hey.eth';
+  document.getElementById('oRoute').textContent='Wallet signature';
+  setFeeRow('Fee','Free claim');
+  document.getElementById('oAddr').textContent=sA(ag.ad);
+  show('vPay');
+}
+function showClaimChoice(of){
+  shouldPromptClaimChoice=false;
+  pendingClaimChoice=of;
+  document.getElementById('claimHandle').value=normalizeClaimHandleValue(of?.handle||of?._displayHandle||"");
+  show('vClaim');
+}
+function continuePendingClaim(){
+  const draft=pendingClaimChoice||makeWalletClaimOffer();
+  const handle=normalizeClaimHandleValue(document.getElementById('claimHandle')?.value||draft.handle);
+  if(!handle)return toast("Enter a handle","err");
+  if(!isClaimHandleLabel(handle))return toast("Handle must be a valid ENS label","err");
+  openClaimFlow({
+    ...draft,
+    handle,
+    _displayHandle:buildClaimDisplayHandle(handle,draft._displayHandle)
+  });
+}
+function skipPendingClaim(){
+  pendingClaimChoice=null;
+  shouldPromptClaimChoice=false;
+  isClaimFlow=false;
+  toast('Skipped for now. You can claim it later.','ok');
+  show('vReady');
+  refreshBal();
+}
+async function claimHandle(of,cb){
+  if(!ag)throw new Error("Set up wallet first");
+  const handle=String(of?.handle||'').trim().toLowerCase();
+  const base=nE(of?._claimBase||'');
+  if(!handle)throw new Error("Missing handle");
+  if(!base)throw new Error("Claim endpoint not found");
+  cb?.("Requesting challenge...");
+  const chResp=await fetch(base+"/auth/challenge",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({handle,owner:ag.ad})
+  });
+  const chBody=await chResp.json().catch(()=>null);
+  if(!chResp.ok)throw new Error(chBody?.error||chBody?.message||("Challenge failed "+chResp.status));
+  const challenge=chBody?.challenge||{};
+  if(!challenge.message||!challenge.nonce)throw new Error("Challenge payload incomplete");
+  cb?.("Signing claim...");
+  const signature=await ag.w.signMessage(challenge.message);
+  cb?.("Claiming handle...");
+  const claimResp=await fetch(base+"/claim",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      handle,
+      owner:ag.ad,
+      nonce:challenge.nonce,
+      signature,
+      addresses:{ETH:ag.ad}
+    })
+  });
+  const claimBody=await claimResp.json().catch(()=>null);
+  if(!claimResp.ok)throw new Error(claimBody?.error||claimBody?.message||("Claim failed "+claimResp.status));
+  return claimBody||{handle,owner:ag.ad,ens:handle};
+}
 function updateHandleAmt(){
   if(!curOffer)return;
   const v=document.getElementById('hAmt').value,sel=document.getElementById('hAsset').value;
@@ -943,7 +1121,7 @@ async function updateHandleNet(){
   const net=document.getElementById('hNet').value;
   const ep=hubEpFor(net);
   curOffer.hEp=ep;curOffer.network=net;curOffer._hubEp=ep;
-  document.getElementById('oNet').textContent=fmtNet(net);
+  document.getElementById('oNet').textContent=fmtHubNet(net);
   await refreshPayChanBal(ep,net);
 }
 async function updatePayNet(){
@@ -955,7 +1133,7 @@ async function updatePayNet(){
     if(net==="base")tUrl=tUrl.replace("/meow/","/meow-base/");
     else tUrl=tUrl.replace("/meow-base/","/meow/");
   }
-  document.getElementById('oNet').textContent=fmtNet(net);
+  document.getElementById('oNet').textContent=fmtHubNet(net);
   await refreshPayChanBal(ep,net);
 }
 async function refreshPayChanBal(ep,net){
@@ -1000,9 +1178,11 @@ async function discover(){
   let url=document.getElementById('iUrl').value.trim();
   if(!url)return toast("Enter a handle, address, or URL","err");
   if(!ag)return toast("Set up wallet first","err");
+  const promptClaimChoice=shouldPromptClaimChoice;
+  const rawIn=url;
   const isHandle=!url.includes("://")&&url.includes("@");
   const isAddr=/^0x[0-9a-fA-F]{40}$/i.test(url.replace(/\s/g,""));
-  if(isHandle){const [n,d]=url.split("@");if(n&&d&&d.includes("."))url="https://"+d+"/handle/"+encodeURIComponent(n);}
+  if(isHandle)url=handleToUrl(url);
   const btn=document.getElementById('bDisc');
   btn.disabled=true;btn.innerHTML='<span class="sp"></span> Discovering...';
   try{
@@ -1015,8 +1195,7 @@ async function discover(){
       const initNet=ag.net||"sepolia";
       const ep=hubEpFor(initNet);
       const of={scheme:"statechannel-hub-v1",hEp:ep,pAd:payee,asset:"eth",network:initNet,intent:"pay_address",maxAmountRequired:"0",_userAmt:null,_userAsset:"eth",_hubEp:ep};
-      curOffer=of;tUrl=null;isHandlePay=false;isAddrPay=true;
-      const rawIn=document.getElementById('iUrl').value.trim();
+      curOffer=of;tUrl=null;isHandlePay=false;isAddrPay=true;isClaimFlow=false;
       document.getElementById('oMerch').textContent=sA(payee);
       const haw=document.getElementById('handleAmtWrap'),pnw=document.getElementById('payNetWrap');
       haw.style.display='flex';pnw.style.display='none';
@@ -1028,7 +1207,7 @@ async function discover(){
       document.getElementById('oSym').textContent='';
       document.getElementById('oDesc').textContent='Send to '+sA(payee);
       document.getElementById('bPT').textContent='Enter amount above';
-      document.getElementById('oNet').textContent=fmtNet(initNet);
+      document.getElementById('oNet').textContent=fmtHubNet(initNet);
       document.getElementById('oRoute').textContent='Hub (state channel)';
       document.getElementById('oAddr').textContent=sA(ag.ad);
       await refreshPayChanBal(ep,initNet);
@@ -1049,6 +1228,49 @@ async function discover(){
       }
       throw new Error("skip");
     }
+    if(d.st===200&&isHandle){
+      const raw=d.raw||{};
+      let owner=null;try{owner=ethers.utils.getAddress(raw.owner||raw.address||raw.evmAddress||(raw.addresses&&raw.addresses.ETH)||"");}catch{}
+      if(!owner){
+        if(raw.available||raw.claimed===false){
+          const claimOffer=makeClaimOffer(rawIn,raw);
+          if(promptClaimChoice){
+            shouldPromptClaimChoice=false;
+            showClaimChoice(claimOffer);
+          }else openClaimFlow(claimOffer);
+          btn.disabled=false;btn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg><span>Pay</span>';
+          return;
+        }
+        toast(rawIn+" has no payout address","err");
+        throw new Error("skip");
+      }
+      const hubOf=d.of.filter(o=>o.scheme==="statechannel-hub-v1"&&nE(o.hEp));
+      if(!hubOf.length)throw new Error("No hub offers for handle");
+      const pref=hubOf.find(o=>((rN(o.network)?.nm)||String(o.network||"").toLowerCase())===String(ag.net||"").toLowerCase())||hubOf[0];
+      const initNet=((rN(pref.network)?.nm)||String(pref.network||ag.net||"sepolia").toLowerCase()).includes("base")?"base":(((rN(pref.network)?.nm)||String(pref.network||ag.net||"sepolia").toLowerCase()).includes("mainnet")||((rN(pref.network)?.nm)||String(pref.network||ag.net||"sepolia").toLowerCase()).includes("eth"))?"mainnet":"sepolia";
+      const ep=nE(pref.hEp)||hubEpFor(initNet);
+      const of={scheme:"statechannel-hub-v1",hEp:ep,pAd:owner,asset:"eth",network:initNet,intent:"pay_address",maxAmountRequired:"0",_userAmt:null,_userAsset:"eth",_hubEp:ep,handle:raw.handle||rawIn};
+      curOffer=of;tUrl=null;isHandlePay=false;isAddrPay=true;isClaimFlow=false;
+      document.getElementById('oMerch').textContent=rawIn;
+      const haw=document.getElementById('handleAmtWrap'),pnw=document.getElementById('payNetWrap');
+      haw.style.display='flex';pnw.style.display='none';
+      document.getElementById('hAmt').value='';
+      document.getElementById('hAsset').value='eth';
+      document.getElementById('hNet').value=initNet;
+      document.querySelectorAll('.np').forEach(b=>b.classList.toggle('on',b.dataset.net===initNet));
+      document.getElementById('oAmt').textContent='enter amount';
+      document.getElementById('oSym').textContent='';
+      document.getElementById('oDesc').textContent='Send to '+rawIn+' ('+sA(owner)+')';
+      document.getElementById('bPT').textContent='Enter amount above';
+      document.getElementById('oNet').textContent=fmtHubNet(initNet);
+      document.getElementById('oRoute').textContent='Hub (state channel)';
+      setFeeRow('Gas','$0.00 off-chain');
+      document.getElementById('oAddr').textContent=sA(ag.ad);
+      await refreshPayChanBal(ep,initNet);
+      show('vPay');
+      btn.disabled=false;btn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg><span>Pay</span>';
+      return;
+    }
     if(d.st!==402){toast("Server returned "+d.st+" (not 402)","err");throw new Error("skip");}
     if(!d.of.length)throw new Error("No offers in 402 response");
     // Try agent's network first, then accept any network
@@ -1060,14 +1282,14 @@ async function discover(){
     }
     if(!of)throw new Error("No offers in 402 response");
     curOffer=of;tUrl=url;
-    isHandlePay=of.intent==="pay_handle";isAddrPay=of.intent==="pay_address";
+    isHandlePay=of.intent==="pay_handle";isAddrPay=of.intent==="pay_address";isClaimFlow=false;
     const sym=gS(of),nn=rN(of.network),dr=oD(of),dec=DD[sym.toLowerCase()]||18,ha=fA(dr,dec);
-    const rawIn=document.getElementById('iUrl').value.trim();
+    const payInput=document.getElementById('iUrl').value.trim();
     const u=new URL(url);
-    document.getElementById('oMerch').textContent=isHandle?rawIn:u.hostname;
+    document.getElementById('oMerch').textContent=isHandle?payInput:u.hostname;
     // Detect network from offer
     const ofNet=(nn?.nm||of.network||ag.net).toLowerCase();
-    const initNet=ofNet.includes("base")?"base":"sepolia";
+    const initNet=ofNet.includes("base")?"base":(ofNet.includes("mainnet")||ofNet.includes("eth"))?"mainnet":"sepolia";
     // Show pickers under amount
     const haw=document.getElementById('handleAmtWrap'),pnw=document.getElementById('payNetWrap');
     if(isHandlePay){
@@ -1078,7 +1300,7 @@ async function discover(){
       document.querySelectorAll('.np').forEach(b=>b.classList.toggle('on',b.dataset.net===initNet));
       document.getElementById('oAmt').textContent='enter amount';
       document.getElementById('oSym').textContent='';
-      document.getElementById('oDesc').textContent=d.raw?.message||'Send payment to '+rawIn;
+      document.getElementById('oDesc').textContent=d.raw?.message||'Send payment to '+payInput;
       document.getElementById('bPT').textContent='Enter amount above';
     }else{
       haw.style.display='none';pnw.style.display='none';
@@ -1087,8 +1309,9 @@ async function discover(){
       document.getElementById('oDesc').textContent=of.intent==="register_handle"?(d.raw?.message||"Register handle"):d.raw?.description||u.pathname;
       document.getElementById('bPT').textContent="Confirm & Pay "+ha+" "+sym;
     }
-    document.getElementById('oNet').textContent=fmtNet(initNet);
+    document.getElementById('oNet').textContent=fmtHubNet(initNet);
     document.getElementById('oRoute').textContent='Hub (state channel)';
+    setFeeRow('Gas','$0.00 off-chain');
     document.getElementById('oAddr').textContent=sA(ag.ad);
     const ep=nE(of.hEp)||hubEpFor(initNet);
     curOffer._hubEp=ep;
@@ -1129,11 +1352,24 @@ async function discover(){
 async function pay(){
   if(!ag)return;
   /* isAddrPay set in go() */
-  if(!tUrl&&!isAddrPay)return;
+  if(!tUrl&&!isAddrPay&&!isClaimFlow)return;
   if((isHandlePay||isAddrPay)&&(!curOffer._userAmt||curOffer._userAmt==="0"))return toast("Enter an amount to send","err");
   const btn=document.getElementById('bPay'),bt=document.getElementById('bPT');
   btn.classList.add('ld');btn.disabled=true;
   try{
+    if(isClaimFlow){
+      setOutcomeTitle(true,'Handle claimed');
+      bt.innerHTML='<span class="sp"></span> Preparing...';
+      const claimed=await claimHandle(curOffer,m=>{ss(m);bt.innerHTML='<span class="sp"></span> '+m;});
+      ss(null);btn.classList.remove('ld');btn.classList.add('ok');
+      bt.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg> Claimed';
+      const ens=claimed.ens||((claimed.handle||curOffer.handle)+'.hey.eth');
+      document.getElementById('okS').textContent=ens+' now points to '+sA(ag.ad)+'.';
+      document.getElementById('okT').textContent='handle:'+ens;
+      document.getElementById('okD').textContent='You can now receive SCP payments at '+(curOffer._displayHandle||((claimed.handle||curOffer.handle)+'@statechannel.org'))+'.';
+      setTimeout(()=>document.getElementById('okO').classList.add('on'),400);
+      return;
+    }
     // Credit-only payment path (no channel needed)
     if(curOffer._creditOnly){
       const amt=curOffer._userAmt||oD(curOffer);
@@ -1169,7 +1405,7 @@ async function pay(){
     const ov={amt:curOffer._userAmt,asset:curOffer._userAsset||"eth",sym:curOffer._userSym||"ETH",hEp:curOffer._hubEp,network:curOffer.network};
     bt.innerHTML='<span class="sp"></span> Ensuring channel...';
     const ep=nE(ov.hEp),ck="hub:"+ep;
-    const epNet=ep.includes("/hub/base")?"base":"sepolia";
+    const epNet=hubNetForEp(ep)||"sepolia";
     const _oN=ag.net,_oP=ag._p,_oPt=ag._pt;
     if(epNet!==ag.net){ag.net=epNet;ag._p=null;ag._pt=0;}
     try{
@@ -1225,14 +1461,15 @@ async function pay(){
     if(window.parent!==window)window.parent.postMessage({type:"x402:payment:success",ticketId:r.tk?.ticketId,payId:r.pid,amount:r.amt,payer:ag.ad},"*");
     }
   }catch(e){
-    ss(null);btn.classList.remove('ld');btn.className='bt';btn.disabled=false;bt.textContent='Confirm & Pay';
+    if(isClaimFlow)setOutcomeTitle(false,'Claim failed');
+    ss(null);btn.classList.remove('ld');btn.className='bt';btn.disabled=false;bt.textContent=isClaimFlow?'Claim Handle':'Confirm & Pay';
     document.getElementById('erM').textContent=e.message;
     document.getElementById('erO').classList.add('on');
   }
 }
 
-function resetPay(){document.getElementById('erO').classList.remove('on');const b=document.getElementById('bPay');b.className='bt';b.disabled=false;document.getElementById('bPT').textContent='Confirm & Pay';ss(null);document.getElementById('apRow').style.display='none';}
-function backToReady(){document.getElementById('okO').classList.remove('on');document.getElementById('erO').classList.remove('on');resetPay();show('vReady');refreshBal();}
+function resetPay(){document.getElementById('erO').classList.remove('on');const b=document.getElementById('bPay');b.className='bt';b.disabled=false;document.getElementById('bPT').textContent=isClaimFlow?'Claim Handle':'Confirm & Pay';ss(null);document.getElementById('apRow').style.display='none';resetConfirmUi();}
+function backToReady(){document.getElementById('okO').classList.remove('on');document.getElementById('erO').classList.remove('on');resetPay();isClaimFlow=false;show('vReady');refreshBal();}
 function cpTx(){const el=document.getElementById('okT'),o=el.textContent;navigator.clipboard?.writeText(o);el.textContent='Copied!';setTimeout(()=>el.textContent=o,1200);}
 
 // URL params
@@ -1249,8 +1486,9 @@ window.addEventListener('message',e=>{if(e.data?.type==='x402:config'){if(e.data
 console.log("[x402s] scp-pay v19 loaded");
 loadSettings();
 if(!loadWallet())show('vWel');
+else continuePendingUrl(120);
 // iframe ?autopay=1 — auto-discover but show confirm per URL
-if(isIframe&&iframeAutoPay&&document.getElementById('iUrl').value){setTimeout(()=>{if(ag)discover();},200);}
+if(isIframe&&iframeAutoPay&&document.getElementById('iUrl').value&&ag)continuePendingUrl(200);
 </script>
 </body>
 </html>
