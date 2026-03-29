@@ -39,6 +39,9 @@
     "scp:light": "node scripts/with-wizard.js skill/scp-light/scripts/auto_402_hub_pay.js",
     "scp:watch:agent": "ROLE=agent node node/scp-watch/challenge-watcher.js",
     "scp:watch:hub": "ROLE=hub node node/scp-watch/challenge-watcher.js",
+    "scp:heyeth:status": "node scripts/check_hey_eth_status.js",
+    "scp:heyeth:deploy-resolver:mainnet": "npx hardhat run scripts/deploy_heyeth_offchain_resolver.js --network mainnet",
+    "scp:heyeth:set-resolver:mainnet": "npx hardhat run scripts/set_heyeth_resolver.js --network mainnet",
     "scp:deploy:sepolia": "npx hardhat run scripts/deploy.js --network sepolia",
     "scp:deploy:base": "npx hardhat run scripts/deploy.js --network base"
   },

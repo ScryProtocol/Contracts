@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>hey.eth API</title>
+<meta
+  name="description"
+  content="Free *.hey.eth claims for agents, CCIP gateway docs, and Sepolia pay.eth hub references."
+>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<style>
+:root {
+  --bg: #06080c;
+  --bg-surface: #0c1018;
+  --bg-raised: #111820;
+  --bg-hover: #182030;
+  --cyan: #00e5ff;
+  --cyan-dim: #00e5ff18;
+  --cyan-glow: #00e5ff30;
+  --cyan-muted: #00e5ff60;
+  --red: #ff3c5a;
+  --red-dim: #ff3c5a20;
+  --amber: #ffb84d;
+  --amber-dim: #ffb84d18;
+  --teal: #00e5ff;
+  --teal-dim: #00e5ff15;
+  --code-str: #7ec8e3;
+  --code-num: #b8d4e3;
+  --text: #c8cdd6;
+  --text-bright: #e8ecf2;
+  --text-muted: #404858;
+  --text-dim: #5a6478;
+  --text-30: #c8cdd64d;
+  --text-12: #c8cdd61f;
+  --text-06: #c8cdd60f;
+  --border: #151c28;
+  --border-light: #1e2838;
+  --display: 'Syne', system-ui, sans-serif;
+  --sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', 'Menlo', monospace;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 88px;
+}
+
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  font-weight: 300;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background-image:
+    linear-gradient(rgba(0,229,255,0.012) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,229,255,0.012) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 200px;
+}
+
+::selection { background: var(--cyan-dim); color: var(--cyan); }
+a { color: inherit; }
+
+nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  padding: 0 clamp(24px, 5vw, 80px);
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(6, 8, 12, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--text-06);
+}
+
+.nav-logo {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  color: var(--text-bright);
+}
+
+.nav-logo span { color: var(--text-muted); }
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
+.nav-links a {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--text-dim);
+  text-decoration: none;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition: color 0.3s;
+}
+
+.nav-links a:hover { color: var(--cyan); }
+
+.nav-gh {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1px solid var(--text-12);
+  transition: border-color 0.3s, color 0.3s;
+}
+
+.nav-gh:hover { border-color: var(--cyan); color: var(--cyan); }
+
+.nav-gh svg { width: 14px; height: 14px; }
+
+.hero {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 120px clamp(24px, 5vw, 80px) 80px;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  width: 700px;
+  height: 700px;
+  top: 12%;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(0,229,255,0.06) 0%, rgba(0,229,255,0.02) 40%, transparent 70%);
+  animation: heroGlow 8s ease-in-out infinite;
+}
+
+@keyframes heroGlow {
+  0%, 100% { opacity: 0.4; transform: translateX(-50%) scale(1); }
+  50% { opacity: 0.6; transform: translateX(-50%) scale(1.15); }
+}
+
+.hero-badge {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cyan);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 40px;
+}
+
+.hero-badge::before,
+.hero-badge::after {
+  content: '';
+  width: 32px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--cyan));
+}
+
+.hero-badge::after {
+  background: linear-gradient(90deg, var(--cyan), transparent);
+}
+
+.hero h1 {
+  font-family: var(--display);
+  font-size: clamp(3rem, 8vw, 6.4rem);
+  font-weight: 500;
+  line-height: 1.03;
+  letter-spacing: -0.03em;
+  text-align: center;
+  color: var(--text-bright);
+}
+
+.hero h1 em {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--cyan);
+}
+
+.hero-sub {
+  font-size: clamp(0.95rem, 1.8vw, 1.15rem);
+  color: var(--text-dim);
+  text-align: center;
+  max-width: 700px;
+  line-height: 1.7;
+  margin-top: 32px;
+}
+
+.hero-sub strong {
+  font-weight: 500;
+  color: var(--text);
+}
+
+.hero-actions {
+  display: flex;
+  gap: 16px;
+  margin-top: 48px;
+}
+
+.btn-primary,
+.btn-ghost {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  padding: 14px 32px;
+  text-decoration: none;
+  transition: transform 0.3s var(--ease), box-shadow 0.3s, border-color 0.3s, color 0.3s;
+}
+
+.btn-primary {
+  font-weight: 500;
+  background: var(--cyan);
+  color: var(--bg);
+  box-shadow: 0 0 20px rgba(0,229,255,0.15);
+  text-transform: uppercase;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 40px rgba(0,229,255,0.25), 0 0 60px rgba(0,229,255,0.1);
+}
+
+.btn-ghost {
+  font-weight: 400;
+  border: 1px solid var(--text-12);
+  color: var(--text-dim);
+}
+
+.btn-ghost:hover {
+  border-color: var(--text-30);
+  color: var(--text);
+}
+
+.metrics {
+  display: flex;
+  justify-content: center;
+  gap: 48px;
+  margin-top: 64px;
+  flex-wrap: wrap;
+}
+
+.metric { text-align: center; }
+
+.metric-val {
+  font-family: var(--display);
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--cyan);
+  text-shadow: 0 0 20px rgba(0,229,255,0.3);}
+
+
+.metric-label {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 400;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-top: 6px;
+}
+
+section { padding: clamp(60px, 10vw, 120px) clamp(24px, 5vw, 80px); }
+.section-inner { max-width: 1080px; margin: 0 auto; }
+
+.section-rule {
+  width: 48px;
+  height: 1px;
+  background: var(--cyan);
+  margin-bottom: 24px;
+}
+
+.section-label {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cyan);
+  margin-bottom: 16px;
+}
+
+.section-title {
+  font-family: var(--display);
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  max-width: 680px;
+  color: var(--text-bright);
+  text-shadow: 0 0 60px rgba(0,229,255,0.05);
+}
+
+.section-title em {
+  font-style: normal;
+  font-weight: 800;
+  color: var(--cyan);
+  text-shadow: 0 0 30px rgba(0,229,255,0.2);
+}
+
+.section-desc {
+  font-size: 1rem;
+  font-weight: 300;
+  color: var(--text-dim);
+  line-height: 1.7;
+  margin-top: 20px;
+  max-width: 620px;
+}
+
+.divider {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 clamp(24px, 5vw, 80px);
+}
+
+.divider-line {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(0,229,255,0.06) 20%, rgba(0,229,255,0.06) 80%, transparent 100%);
+}
+
+.onboard-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--text-06);
+  margin-top: 56px;
+}
+
+.onboard-card {
+  background: var(--bg-surface);
+  padding: 40px 32px;
+  transition: background 0.5s, box-shadow 0.5s;
+  position: relative;
+}
+
+.onboard-card:hover {
+  background: var(--bg-raised);
+  box-shadow: 0 0 40px rgba(0,229,255,0.04), inset 0 1px 0 rgba(0,229,255,0.06);
+}
+
+.onboard-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 32px;
+  right: 32px;
+  height: 1px;
+  background: var(--cyan);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.5s var(--ease);
+}
+
+.onboard-card:hover::after { transform: scaleX(1); }
+
+.onboard-num {
+  font-family: var(--display);
+  font-size: 3rem;
+  font-weight: 700;
+  color: rgba(0,229,255,0.06);
+  text-shadow: 0 0 40px rgba(0,229,255,0.08);
+  line-height: 1;
+  margin-bottom: 20px;
+}
+
+.onboard-card h3 {
+  font-family: var(--display);
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+  letter-spacing: -0.01em;
+  color: var(--text-bright);
+}
+
+.onboard-card p {
+  font-size: 0.88rem;
+  font-weight: 300;
+  color: var(--text-dim);
+  line-height: 1.7;
+}
+
+.onboard-card code {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--cyan);
+}
+
+.handle-demo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  align-items: center;
+  margin-top: 56px;
+}
+
+.handle-visual {
+  position: relative;
+  padding: 48px 32px;
+  background: var(--bg-surface);
+  border: 1px solid var(--text-06);
+  text-align: center;
+  overflow: hidden;
+}
+
+.handle-visual::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 0%, var(--cyan-dim) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+.handle-visual::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,229,255,0.008) 2px,
+    rgba(0,229,255,0.008) 4px
+  );
+}
+
+.handle-input-mock {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  font-family: var(--mono);
+  font-size: 1.2rem;
+  font-weight: 400;
+  position: relative;
+  z-index: 1;
+}
+
+.handle-input-mock .handle-name { color: var(--cyan); }
+.handle-input-mock .handle-domain { color: var(--text-dim); }
+
+.handle-arrow {
+  margin: 24px auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+}
+
+.handle-arrow-line {
+  width: 1px;
+  height: 32px;
+  background: linear-gradient(to bottom, var(--cyan), var(--text-12));
+}
+
+.handle-arrow-label {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.handle-resolved {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  background: var(--bg-raised);
+  padding: 12px 20px;
+  display: inline-block;
+  position: relative;
+  z-index: 1;
+  word-break: break-all;
+  text-align: left;
+  line-height: 1.6;
+  border-left: 2px solid var(--cyan-dim);
+}
+
+.handle-resolved .hl { color: var(--cyan); }
+
+.handle-text h3 {
+  font-family: var(--display);
+  font-size: clamp(1.5rem, 3vw, 2.2rem);
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: 16px;
+  color: var(--text-bright);
+}
+
+.handle-text h3 em { font-style: normal; font-weight: 800; color: var(--cyan); }
+
+.handle-text p {
+  font-size: 0.9rem;
+  font-weight: 300;
+  color: var(--text-dim);
+  line-height: 1.7;
+  margin-bottom: 12px;
+}
+
+.handle-features {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.handle-features li {
+  font-size: 0.82rem;
+  font-weight: 300;
+  color: var(--text-dim);
+  padding-left: 16px;
+  position: relative;
+}
+
+.handle-features li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 4px;
+  height: 4px;
+  background: var(--cyan);
+  border-radius: 50%;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--text-06);
+  margin-top: 56px;
+}
+
+.feat {
+  background: var(--bg);
+  padding: 36px 28px;
+  transition: background 0.4s, box-shadow 0.4s;
+  position: relative;
+}
+
+.feat:hover {
+  background: var(--bg-surface);
+  box-shadow: 0 0 30px rgba(0,229,255,0.03);
+}
+
+.feat::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 1px;
+  background: var(--cyan);
+  transition: width 0.5s var(--ease);
+}
+
+.feat:hover::before { width: 100%; }
+
+.feat-icon {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--cyan-muted);
+  letter-spacing: 0.06em;
+  margin-bottom: 16px;
+}
+
+.feat h3 {
+  font-family: var(--display);
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: var(--text-bright);
+}
+
+.feat p {
+  font-size: 0.82rem;
+  font-weight: 300;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+.code-section {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr;
+  gap: 48px;
+  align-items: start;
+  margin-top: 56px;
+}
+
+.code-text h3 {
+  font-family: var(--display);
+  font-size: clamp(1.5rem, 3vw, 2.2rem);
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: 16px;
+  color: var(--text-bright);
+}
+
+.code-text h3 em { font-style: normal; font-weight: 800; color: var(--cyan); }
+
+.code-text p {
+  font-size: 0.9rem;
+  font-weight: 300;
+  color: var(--text-dim);
+  line-height: 1.7;
+}
+
+.code-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.code-block {
+  background: var(--bg-surface);
+  border: 1px solid var(--text-06);
+  border-left: 2px solid var(--cyan-dim);
+  position: relative;
+  overflow: hidden;
+}
+
+.code-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--text-06);
+  background: rgba(0,0,0,0.2);
+}
+
+.code-dot { width: 8px; height: 8px; border-radius: 50%; }
+.code-dot.r { background: #ff5f57; }
+.code-dot.y { background: #febc2e; }
+.code-dot.g { background: #28c840; }
+
+.code-tab {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  margin-left: 8px;
+  letter-spacing: 0.04em;
+}
+
+.code-body {
+  padding: 20px 24px;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  line-height: 1.8;
+  color: var(--text-dim);
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.code-body .kw { color: var(--red); font-weight: 500; }
+.code-body .fn { color: var(--cyan); }
+.code-body .str { color: var(--code-str); }
+.code-body .cmt { color: var(--text-muted); font-style: italic; }
+.code-body .num { color: var(--code-num); }
+
+.spec-quote {
+  margin-top: 40px;
+  padding: 28px 32px;
+  border-left: 2px solid var(--cyan);
+  background: var(--bg-surface);
+  position: relative;
+  overflow: hidden;
+}
+
+.spec-quote::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 2px;
+  height: 100%;
+  background: var(--cyan);
+  box-shadow: 0 0 12px rgba(0,229,255,0.4), 0 0 30px rgba(0,229,255,0.15);
+}
+
+.spec-quote p {
+  font-size: 1.1rem;
+  font-weight: 400;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+.spec-quote cite {
+  display: block;
+  margin-top: 12px;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-style: normal;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+
+.cta {
+  padding: clamp(80px, 12vw, 160px) clamp(24px, 5vw, 80px);
+  text-align: center;
+  position: relative;
+}
+
+.cta h2 {
+  font-family: var(--display);
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-bright);
+}
+
+.cta h2 em { font-style: normal; font-weight: 800; color: var(--cyan); }
+
+.cta p {
+  font-size: 1rem;
+  font-weight: 300;
+  color: var(--text-dim);
+  margin-top: 16px;
+  max-width: 560px;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.7;
+}
+
+.cta-actions {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 40px;
+  flex-wrap: wrap;
+}
+
+footer {
+  padding: 40px clamp(24px, 5vw, 80px);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--text-06);
+}
+
+.foot-logo {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.foot-links {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.foot-links a {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  letter-spacing: 0.04em;
+  transition: color 0.3s;
+}
+
+.foot-links a:hover { color: var(--cyan); }
+
+@media (max-width: 900px) {
+  .code-section,
+  .handle-demo {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .nav-links { display: none; }
+  .onboard-grid,
+  .features-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 600px) {
+  .hero-actions { flex-direction: column; width: 100%; max-width: 300px; }
+  .btn-primary, .btn-ghost { text-align: center; }
+  footer { flex-direction: column; gap: 16px; text-align: center; }
+}
+</style>
+</head>
+<body>
+<nav>
+  <a href="#top" class="nav-logo">hey<span>.eth</span> / api</a>
+  <div class="nav-links">
+    <a href="#overview">Overview</a>
+    <a href="#endpoints">Endpoints</a>
+    <a href="#examples">Examples</a>
+    <a href="#status">Status</a>
+    <a href="https://statechannel.org/heyeth/docs" target="_blank" rel="noreferrer" class="nav-gh">
+      Docs JSON
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M7 17L17 7"></path>
+        <path d="M7 7h10v10"></path>
+      </svg>
+    </a>
+  </div>
+</nav>
+
+<main id="top">
+  <section class="hero">
+    <div class="hero-badge">Free hey.eth ENS for agents</div>
+    <h1>Free <em>hey.eth</em> for agents</h1>
+    <p class="hero-sub">
+    Claim a free <code>agent.hey.eth</code> ENS for your agent. 
+    </p>
+    <div class="hero-actions">
+      <a href="https://statechannel.org/" target="_blank" rel="noreferrer" class="btn-primary">State Channel Protocol</a>
+      <a href="https://x.com/0xstatechannel" target="_blank" rel="noreferrer" class="btn-ghost">Updates on X</a>
+    </div>
+    <div class="metrics">
+      <div class="metric">
+        <div class="metric-val gold">/claim</div>
+        <div class="metric-label">Claim your hey.eth handle</div>
+        </div>
+      <div class="metric">
+        <div class="metric-val">/handle/:handle</div>
+        <div class="metric-label">Check handle availability and info</div>
+        </div>
+      <div class="metric">
+        <div class="metric-val">/ccip</div>
+        <div class="metric-label">Resolve hey.eth records via CCIP</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"><div class="divider-line"></div></div>
+
+  <section id="overview">
+    <div class="section-inner">
+      <div class="section-rule"></div>
+      <div class="section-label">Overview</div>
+      <h2 class="section-title">One surface for <em>check</em>, <em>claim</em>, and <em>resolve</em>.</h2>
+      <p class="section-desc">
+        The API is already live. It reserves available labels under <code>hey.eth</code>, exposes claimed
+        records from the directory, and signs CCIP responses for offchain resolution. The only missing piece
+        for normal ENS wallets is the mainnet resolver switch.
+      </p>
+
+      <div class="onboard-grid">
+        <div class="onboard-card">
+          <div class="onboard-num">01</div>
+          <h3>Discover</h3>
+          <p>
+            Start with <code>GET /heyeth/docs</code> so an agent can discover the live route set without a
+            browser flow.
+          </p>
+        </div>
+        <div class="onboard-card">
+          <div class="onboard-num">02</div>
+          <h3>Sign</h3>
+          <p>
+            Ask <code>POST /heyeth/auth/challenge</code> for the exact wallet-signing message tied to a
+            handle and owner address.
+          </p>
+        </div>
+        <div class="onboard-card">
+          <div class="onboard-num">03</div>
+          <h3>Claim</h3>
+          <p>
+            Submit the signed nonce to <code>POST /heyeth/claim</code> to create or update the
+            <code>label.hey.eth</code> directory record.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"><div class="divider-line"></div></div>
+
+  <section>
+    <div class="section-inner">
+      <div class="section-rule"></div>
+      <div class="section-label">Handle Model</div>
+      <h2 class="section-title">A clean agent handle becomes an <em>ENS-style record</em>.</h2>
+      <p class="section-desc">
+        The write path stays API-first: request a challenge, sign once with the intended owner wallet, then
+        send the signed claim so the directory can publish verified records.
+      </p>
+
+      <div class="handle-demo">
+        <div class="handle-visual">
+          <div class="handle-input-mock">
+            <span class="handle-name">agent007</span><span class="handle-domain">.hey.eth</span>
+          </div>
+          <div class="handle-arrow">
+            <div class="handle-arrow-line"></div>
+            <div class="handle-arrow-label">Directory Record</div>
+          </div>
+          <div class="handle-resolved">
+            <span class="hl">GET</span> /heyeth/info/agent007<br>
+            owner: 0x1234...7890<br>
+            ETH: 0x1234...7890<br>
+            BAL: 0x1234...7890
+          </div>
+        </div>
+
+        <div class="handle-text">
+          <h3>Human-readable naming, <em>agent-first routing</em>.</h3>
+          <p>
+            The page stays static, but the naming model is still expressive: readable handles for agents,
+            a stable API surface for automation, and a CCIP path ready once the zone resolver is updated.
+          </p>
+          <ul class="handle-features">
+            <li>Free claims for open ENS-safe labels under <code>hey.eth</code></li>
+            <li>Wallet-signed claim flow so a caller proves control of the submitted owner address</li>
+            <li>Directory read endpoints for claimed handles and specific coin records</li>
+            <li>CCIP gateway for <code>addr()</code> and basic <code>text()</code> lookups</li>
+            <li>Public Sepolia <code>pay.eth</code> hub metadata for payment routing</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"><div class="divider-line"></div></div>
+
+  <section id="endpoints">
+    <div class="section-inner">
+      <div class="section-rule"></div>
+      <div class="section-label">Endpoints</div>
+      <h2 class="section-title">The route set is small, <em>explicit</em>, and terminal-ready.</h2>
+      <p class="section-desc">
+        These are the routes an agent actually needs. No page state, no UI session, no embedded app logic.
+      </p>
+
+      <div class="features-grid">
+        <div class="feat">
+          <div class="feat-icon">DISCOVERY</div>
+          <h3>GET /heyeth/docs</h3>
+          <p>Returns docs JSON with branded endpoint URLs, example request bodies, zone status, and pay hub metadata.</p>
+        </div>
+        <div class="feat">
+          <div class="feat-icon">LOOKUP</div>
+          <h3>GET /heyeth/handle/:handle</h3>
+          <p>Checks whether a label is claimed and returns the current owner, marker, address map, and pay hub reference.</p>
+        </div>
+        <div class="feat">
+          <div class="feat-icon">QUERY</div>
+          <h3>GET /heyeth/handle?label=...</h3>
+          <p>Supports query-style lookup too, so agents can call a stable path and pass the label as a query param.</p>
+        </div>
+        <div class="feat">
+          <div class="feat-icon">DIRECTORY</div>
+          <h3>GET /heyeth/info/:handle</h3>
+          <p>Returns the claimed handle record directly, including the owner and published addresses.</p>
+        </div>
+        <div class="feat">
+          <div class="feat-icon">UPDATE</div>
+          <h3>PUT /heyeth/handle/:handle</h3>
+          <p>Updates a claimed handle with a fresh signed nonce from the same owner wallet. This is the explicit later-edit route.</p>
+        </div>
+        <div class="feat">
+          <div class="feat-icon">AUTH</div>
+          <h3>POST /heyeth/auth/challenge</h3>
+          <p>Returns the exact EIP-191 message to sign for a handle and owner wallet before a claim or update.</p>
+        </div>
+        <div class="feat">
+          <div class="feat-icon">CLAIM</div>
+          <h3>POST /heyeth/claim</h3>
+          <p>Reserves an available label and writes default ETH and BAL records for the supplied owner address. Same-owner updates still work here for backward compatibility, but <code>PUT /heyeth/handle/:handle</code> is the cleaner edit path.</p>
+        </div>
+        <div class="feat">
+          <div class="feat-icon">CCIP</div>
+          <h3>POST /heyeth/ccip</h3>
+          <p>Serves signed gateway responses for resolver calls like <code>addr()</code> under <code>*.hey.eth</code>.</p>
+        </div>
+        <div class="feat">
+          <div class="feat-icon">STATUS</div>
+          <h3>GET /heyeth/status</h3>
+          <p>Reports the current <code>hey.eth</code> owner, resolver, and whether the resolver already supports extended resolution.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"><div class="divider-line"></div></div>
+
+  <section id="examples">
+    <div class="section-inner">
+      <div class="section-rule"></div>
+      <div class="section-label">Examples</div>
+      <h2 class="section-title">Start in your terminal with <em>simple HTTP</em>.</h2>
+
+      <div class="code-section">
+        <div class="code-text">
+          <h3>No frontend session, <em>just requests</em>.</h3>
+          <p>
+            The goal is fast automation. Discover the route set, check a label, request a signing challenge,
+            submit the signed claim, and hit the CCIP gateway without ever touching browser UI.
+          </p>
+        </div>
+
+        <div class="code-stack">
+          <div class="code-block">
+            <div class="code-header">
+              <div class="code-dot r"></div>
+              <div class="code-dot y"></div>
+              <div class="code-dot g"></div>
+              <div class="code-tab">claim.sh</div>
+            </div>
+            <div class="code-body"><span class="cmt"># request a signed claim challenge</span>
+curl -sS https://statechannel.org/heyeth/auth/challenge \
+  -H <span class="str">'content-type: application/json'</span> \
+  --data <span class="str">'{
+    "handle": "agent007",
+    "owner": "0x1234567890123456789012345678901234567890"
+  }'</span>
+
+<span class="cmt"># sign the returned challenge.message with the owner wallet, then claim</span>
+curl -sS https://statechannel.org/heyeth/claim \
+  -H <span class="str">'content-type: application/json'</span> \
+  --data <span class="str">'{
+    "handle": "agent007",
+    "owner": "0x1234567890123456789012345678901234567890",
+    "nonce": "from-auth-challenge",
+    "signature": "0x...",
+    "addresses": {
+      "ETH": "0x1234567890123456789012345678901234567890",
+      "BTC": "bc1qexample..."
+    }
+  }'</span></div>
+          </div>
+
+          <div class="code-block">
+            <div class="code-header">
+              <div class="code-dot r"></div>
+              <div class="code-dot y"></div>
+              <div class="code-dot g"></div>
+              <div class="code-tab">update.sh</div>
+            </div>
+            <div class="code-body"><span class="cmt"># later edits use PUT on the claimed handle</span>
+curl -sS -X PUT https://statechannel.org/heyeth/handle/agent007 \
+  -H <span class="str">'content-type: application/json'</span> \
+  --data <span class="str">'{
+    "owner": "0x1234567890123456789012345678901234567890",
+    "nonce": "from-auth-challenge",
+    "signature": "0x...",
+    "addresses": {
+      "BTC": "bc1qupdated..."
+    }
+  }'</span></div>
+          </div>
+
+          <div class="code-block">
+            <div class="code-header">
+              <div class="code-dot r"></div>
+              <div class="code-dot y"></div>
+              <div class="code-dot g"></div>
+              <div class="code-tab">lookup.sh</div>
+            </div>
+            <div class="code-body"><span class="cmt"># inspect a label</span>
+curl -sS https://statechannel.org/heyeth/handle/agent007
+
+<span class="cmt"># or query the stable handle endpoint</span>
+curl -sS 'https://statechannel.org/heyeth/handle?label=agent007'
+
+<span class="cmt"># inspect live resolver status</span>
+curl -sS https://statechannel.org/heyeth/status
+
+<span class="cmt"># inspect Sepolia pay.eth metadata</span>
+curl -sS https://statechannel.org/heyeth/pay/sepolia</div>
+          </div>
+
+          <div class="code-block">
+            <div class="code-header">
+              <div class="code-dot r"></div>
+              <div class="code-dot y"></div>
+              <div class="code-dot g"></div>
+              <div class="code-tab">ccip.sh</div>
+            </div>
+            <div class="code-body"><span class="cmt"># send a CCIP gateway request</span>
+curl -sS https://statechannel.org/heyeth/ccip \
+  -H <span class="str">'content-type: application/json'</span> \
+  --data <span class="str">'{
+    "sender": "0xResolverAddress",
+    "data": "0x..."
+  }'</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"><div class="divider-line"></div></div>
+
+  <section id="status">
+    <div class="section-inner">
+      <div class="section-rule"></div>
+      <div class="section-label">Current Status</div>
+      <h2 class="section-title">The API is live; <em>ENS wallet resolution</em> is now onchain-enabled.</h2>
+      <div class="spec-quote">
+        <p>
+          Signed claims and CCIP responses are live through <code>statechannel.org/heyeth/*</code>, and
+          <code>hey.eth</code> now points at an offchain-capable resolver on Ethereum mainnet. Standard ENS
+          clients can resolve supported <code>*.hey.eth</code> records through the gateway.
+        </p>
+        <cite>Current public references: GET /heyeth/status and GET /heyeth/pay/sepolia</cite>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta">
+    <div class="section-inner">
+      <h2>Use the <em>API</em>, not a page flow.</h2>
+      <p>
+        `statechannel.org/heyeth/` is the docs page, and `statechannel.org/heyeth/*` is the public agent-facing route set.
+      </p>
+      <div class="cta-actions">
+        <a href="https://statechannel.org/heyeth/docs" target="_blank" rel="noreferrer" class="btn-primary">Docs JSON</a>
+        <a href="https://statechannel.org/heyeth/handle/pr0" target="_blank" rel="noreferrer" class="btn-ghost">Check Example</a>
+        <a href="https://statechannel.org/scppay/" target="_blank" rel="noreferrer" class="btn-ghost">Browser Wallet</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="foot-logo">hey.eth / api docs</div>
+  <div class="foot-links">
+    <a href="https://statechannel.org/heyeth/docs" target="_blank" rel="noreferrer">docs json</a>
+    <a href="https://statechannel.org/heyeth/status" target="_blank" rel="noreferrer">zone status</a>
+    <a href="https://statechannel.org/heyeth/pay/sepolia" target="_blank" rel="noreferrer">pay.eth</a>
+    <a href="https://statechannel.org/scppay/" target="_blank" rel="noreferrer">scppay</a>
+  </div>
+</footer>
+</body>
+</html>

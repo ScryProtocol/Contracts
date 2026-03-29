@@ -1,0 +1,15 @@
+{
+  "name": "addrs-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ethers": "^5.8.0",
+    "express": "^5.1.0",
+    "firebase-admin": "^13.5.0"
+  }
+}
