@@ -191,7 +191,7 @@ html,body{font-family:var(--f);background:var(--bg);color:var(--t1);-webkit-font
 .ov p{font-size:12px;color:var(--t2);text-align:center;max-width:240px;line-height:1.5}
 .tid{font-size:10px;font-weight:600;color:var(--b6);background:var(--b0);padding:5px 12px;border-radius:99px;border:1px solid var(--b1);cursor:pointer}
 .tid:hover{background:var(--b1)}
-.det{font-size:10px;color:var(--t3)}
+.det{font-size:10px;color:var(--t3);text-align:center;}
 .er-r{width:48px;height:48px;border-radius:50%;background:#fef2f2;display:flex;align-items:center;justify-content:center}
 .er-r svg{width:22px;height:22px;color:var(--er)}
 .em{font-size:11px;color:var(--t2);text-align:center;max-width:260px;line-height:1.5;word-break:break-word}
@@ -216,7 +216,7 @@ html,body{font-family:var(--f);background:var(--bg);color:var(--t1);-webkit-font
 .clm-badge{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:#ecfdf5;border:1px solid #a7f3d0;font:700 10px var(--f);color:#059669}
 .clm-field{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg);border:1.5px solid var(--bd);border-radius:14px;transition:border-color .15s,box-shadow .15s,background .15s}
 .clm-field:focus-within{border-color:var(--b5);box-shadow:0 0 0 3px rgba(59,130,246,.08);background:var(--card)}
-.clm-field input{flex:1;min-width:0;border:none;background:transparent;outline:none;padding:0;font:700 15px var(--f);letter-spacing:-.02em;color:var(--t1)}
+.clm-field input{flex:1;min-width:0;border:none;background:transparent;outline:none;padding:0;font:700 15px var(--f);letter-spacing:-.02em;color:#60a5fa}
 .clm-field input::placeholder{color:var(--t3);font-weight:600}
 .clm-sfx{font:600 11px var(--m);color:var(--t3);white-space:nowrap}
 .clm-help{font-size:11px;line-height:1.5;color:var(--t3);margin-top:9px}
@@ -680,7 +680,7 @@ let didAutoContinue=false;
 function suggestClaimHandle(addr){
   const raw=String(addr||"").trim().toLowerCase().replace(/^0x/,"");
   if(!raw)return"agent";
-  return"agent-"+raw.slice(0,4)+raw.slice(-4);
+  return"agent-"+raw.slice(0,6)+raw.slice(-6);
 }
 function normalizeClaimHandleValue(value){
   let raw=String(value||"").trim().toLowerCase().replace(/^@/,"");
@@ -697,6 +697,37 @@ function buildClaimDisplayHandle(handle,seed){
   const raw=String(seed||"").trim();
   if(raw.includes("@"))return handle+"@"+raw.split("@").slice(1).join("@");
   return handle+"@statechannel.org";
+}
+function claimHandleUrl(base,handle){return nE(base)+"/handle/"+encodeURIComponent(handle);}
+async function fetchClaimHandleStatus(base,handle){
+  const r=await fetch(claimHandleUrl(base,handle),{method:"GET"});
+  const b=await r.json().catch(()=>null);
+  if(!r.ok)throw new Error((b&& (b.error||b.message))||("Handle check failed "+r.status));
+  return{available:!!b?.available||b?.claimed===false,owner:b?.owner||"",body:b};
+}
+function buildClaimAltCandidates(handle){
+  const clean=normalizeClaimHandleValue(handle);
+  const raw=String(ag?.ad||"").trim().toLowerCase().replace(/^0x/,"");
+  const trimmed=clean.replace(/-(?:[0-9a-f]{4,12})$/,"");
+  const vals=[],push=v=>{
+    const out=normalizeClaimHandleValue(v).slice(0,63).replace(/^-+|-+$/g,"");
+    if(out&&isClaimHandleLabel(out)&&!vals.includes(out))vals.push(out);
+  };
+  push(clean);
+  if(trimmed&&raw.slice(-4))push(trimmed+"-"+raw.slice(-4));
+  if(trimmed&&raw.slice(-6))push(trimmed+"-"+raw.slice(-6));
+  if(trimmed&&raw.slice(0,4)&&raw.slice(-4))push(trimmed+"-"+raw.slice(0,4)+raw.slice(-4));
+  if(raw.slice(0,6)&&raw.slice(-6))push("agent-"+raw.slice(0,6)+raw.slice(-6));
+  return vals;
+}
+async function suggestAvailableClaimHandle(base,handle){
+  for(const candidate of buildClaimAltCandidates(handle)){
+    try{
+      const st=await fetchClaimHandleStatus(base,candidate);
+      if(st.available)return candidate;
+    }catch{}
+  }
+  return"";
 }
 function makeWalletClaimOffer(handle){
   const label=normalizeClaimHandleValue(handle)||suggestClaimHandle(ag?.ad);
@@ -1092,11 +1123,18 @@ function showClaimChoice(of){
   updateClaimPreview();
   show('vClaim');
 }
-function continuePendingClaim(){
+async function continuePendingClaim(){
   const draft=pendingClaimChoice||makeWalletClaimOffer();
   const handle=normalizeClaimHandleValue(document.getElementById('claimHandle')?.value||draft.handle);
   if(!handle)return toast("Enter a handle","err");
   if(!isClaimHandleLabel(handle))return toast("Handle must be a valid ENS label","err");
+  const base=nE(draft._claimBase||PUB);
+  try{
+    const st=await fetchClaimHandleStatus(base,handle);
+    if(!st.available&&(!st.owner||st.owner.toLowerCase()!==String(ag?.ad||"").toLowerCase())){
+      return toast("That handle is already claimed. Try another one.","err",5000);
+    }
+  }catch(err){console.warn("[x402s] claim availability check failed:",err.message);}
   openClaimFlow({
     ...draft,
     handle,
@@ -1142,7 +1180,13 @@ async function claimHandle(of,cb){
     })
   });
   const claimBody=await claimResp.json().catch(()=>null);
-  if(!claimResp.ok)throw new Error(claimBody?.error||claimBody?.message||("Claim failed "+claimResp.status));
+  if(!claimResp.ok){
+    if(claimResp.status===409&&String(claimBody?.error||claimBody?.message||"").toLowerCase().includes("already claimed")){
+      const alt=await suggestAvailableClaimHandle(base,handle);
+      throw new Error(alt&&alt!==handle?"That handle is taken. Try "+buildClaimDisplayHandle(alt,of?._displayHandle)+" instead.":"That handle is already claimed. Try another one.");
+    }
+    throw new Error(claimBody?.error||claimBody?.message||("Claim failed "+claimResp.status));
+  }
   return claimBody||{handle,owner:ag.ad,ens:handle};
 }
 function updateHandleAmt(){
