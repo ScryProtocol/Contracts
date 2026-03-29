@@ -202,6 +202,36 @@ html,body{font-family:var(--f);background:var(--bg);color:var(--t1);-webkit-font
 .sp2{padding:16px 24px}
 .sp2 h3{font-size:14px;font-weight:700;margin-bottom:12px}
 
+/* claim screen */
+.clm{padding-top:20px;padding-bottom:8px}
+.clm-hero{text-align:center;padding:8px 0 14px}
+.clm-i{width:60px;height:60px;margin:0 auto 14px;border-radius:18px;background:linear-gradient(135deg,var(--b0),var(--b1));border:1.5px solid var(--b1);display:flex;align-items:center;justify-content:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.45)}
+.clm-i svg{width:26px;height:26px;color:var(--b6)}
+.clm-k{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;background:var(--b0);border:1px solid var(--b1);font:700 10px var(--f);letter-spacing:.04em;text-transform:uppercase;color:var(--b6);margin-bottom:10px}
+.clm h3{font-size:22px;font-weight:800;letter-spacing:-.03em;margin-bottom:6px}
+.clm-p{font-size:13px;line-height:1.6;color:var(--t2);max-width:290px;margin:0 auto}
+.clm-card{background:linear-gradient(180deg,rgba(255,255,255,.72),rgba(255,255,255,.4));border:1.5px solid var(--bd);border-radius:18px;padding:16px;box-shadow:0 10px 30px rgba(15,23,42,.05)}
+.clm-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.clm-row label{font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em}
+.clm-badge{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:#ecfdf5;border:1px solid #a7f3d0;font:700 10px var(--f);color:#059669}
+.clm-field{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg);border:1.5px solid var(--bd);border-radius:14px;transition:border-color .15s,box-shadow .15s,background .15s}
+.clm-field:focus-within{border-color:var(--b5);box-shadow:0 0 0 3px rgba(59,130,246,.08);background:var(--card)}
+.clm-field input{flex:1;min-width:0;border:none;background:transparent;outline:none;padding:0;font:700 15px var(--f);letter-spacing:-.02em;color:var(--t1)}
+.clm-field input::placeholder{color:var(--t3);font-weight:600}
+.clm-sfx{font:600 11px var(--m);color:var(--t3);white-space:nowrap}
+.clm-help{font-size:11px;line-height:1.5;color:var(--t3);margin-top:9px}
+.clm-preview{display:flex;flex-direction:column;gap:9px;margin-top:14px;padding-top:14px;border-top:1px solid var(--bd)}
+.clm-stat{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.clm-stat span{font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em}
+.clm-stat strong{font-size:12px;font-weight:700;color:var(--t1);text-align:right;word-break:break-word}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .clm-card{background:linear-gradient(180deg,rgba(22,32,50,.94),rgba(15,18,25,.82));box-shadow:0 10px 28px rgba(0,0,0,.22)}}
+[data-theme="dark"] .clm-card{background:linear-gradient(180deg,rgba(22,32,50,.94),rgba(15,18,25,.82));box-shadow:0 10px 28px rgba(0,0,0,.22)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .clm-field{background:rgba(15,23,42,.42)}}
+[data-theme="dark"] .clm-field{background:rgba(15,23,42,.42)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .clm-badge{background:#072819;border-color:#065f46;color:#34d399}}
+[data-theme="dark"] .clm-badge{background:#072819;border-color:#065f46;color:#34d399}
+@media(max-width:440px){.clm-field{flex-wrap:wrap;align-items:flex-start}.clm-sfx{padding-left:1px}}
+
 /* footer */
 .ft{padding:12px 24px;background:var(--bg);display:flex;align-items:center;justify-content:center;gap:5px;border-radius:0 0 20px 20px}
 .ft span{font-size:10px;color:var(--t3);font-weight:500}
@@ -402,18 +432,28 @@ html,body{font-family:var(--f);background:var(--bg);color:var(--t1);-webkit-font
 </div>
 
 <div class="v" id="vClaim">
-  <div class="sp2">
-    <div class="wc" style="padding-top:20px">
-      <div style="flex:1;min-width:0">
-        <div class="wl">Claim Handle</div>
-        <p id="claimSub" style="margin-top:6px;font-size:12px;line-height:1.5;color:var(--t2)">Your wallet can claim a free handle@statechannel.org to receive payments. Claiming now links the handle to this wallet, but you can skip and claim later if you want. You also get a free hey.eth ENS!</p>
+  <div class="sp2 clm">
+    <div class="clm-hero">
+      <div class="clm-i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 4v5c0 5-3 7.5-7 9-4-1.5-7-4-7-9V7l7-4z"/><path d="M9.5 12.5l1.7 1.7 3.3-3.7"/></svg></div>
+      <h3>Claim your handle</h3>
+      <p class="clm-p" id="claimSub">Reserve a free handle@statechannel.org for inbound payments. It links this wallet now, and you can skip and come back later.</p>
+    </div>
+    <div class="clm-card">
+      <div class="clm-row">
+        <label for="claimHandle">Handle</label>
+        <div class="clm-badge">Free</div>
+      </div>
+      <div class="clm-field">
+        <input id="claimHandle" type="text" placeholder="agent-1a2bf9c4" autocomplete="off" autocapitalize="none" spellcheck="false" oninput="updateClaimPreview()"/>
+        <span class="clm-sfx">@statechannel.org</span>
+      </div>
+      <div class="clm-help">Use lowercase letters, numbers, or hyphens. You also get the matching hey.eth name.</div>
+      <div class="clm-preview">
+        <div class="clm-stat"><span>Will claim</span><strong id="claimPreviewHandle">-</strong></div>
+        <div class="clm-stat"><span>Linked wallet</span><strong id="claimPreviewAddr">-</strong></div>
       </div>
     </div>
-    <div class="wd" style="margin:12px 0">
-      <h4 class="wd-l">Handle</h4>
-      <input id="claimHandle" type="text" value="-" style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid var(--b2);background:var(--c2);color:var(--t1);font-size:13px"/>
-    </div>
-    <button class="bt" onclick="continuePendingClaim()">Claim Handle</button>
+    <button class="bt" style="margin-top:14px" onclick="continuePendingClaim()">Claim Handle</button>
     <button class="b2" style="margin-top:8px" onclick="skipPendingClaim()">Skip for now</button>
   </div>
   <div class="ba" style="padding-top:16px"><button class="b2" onclick="goReady()">&#8592; Back</button></div>
@@ -667,6 +707,14 @@ function makeWalletClaimOffer(handle){
     _displayHandle:buildClaimDisplayHandle(label),
     network:"mainnet"
   };
+}
+function updateClaimPreview(){
+  const raw=document.getElementById('claimHandle')?.value||"";
+  const handle=normalizeClaimHandleValue(raw)||suggestClaimHandle(ag?.ad);
+  const claimEl=document.getElementById('claimPreviewHandle');
+  const addrEl=document.getElementById('claimPreviewAddr');
+  if(claimEl)claimEl.textContent=buildClaimDisplayHandle(handle);
+  if(addrEl)addrEl.textContent=ag?sA(ag.ad):"-";
 }
 function continuePendingUrl(delay=160){
   if(didAutoContinue)return;
@@ -1041,6 +1089,7 @@ function showClaimChoice(of){
   shouldPromptClaimChoice=false;
   pendingClaimChoice=of;
   document.getElementById('claimHandle').value=normalizeClaimHandleValue(of?.handle||of?._displayHandle||"");
+  updateClaimPreview();
   show('vClaim');
 }
 function continuePendingClaim(){
