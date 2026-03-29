@@ -1092,13 +1092,38 @@ window.addEventListener("message", (e) => {
 
 ## Configuration Reference
 
+### Simple Commands
+
+Start with the single-entry CLI:
+
+| Command | Purpose |
+|---------|---------|
+| `npx scp init` | Interactive setup wizard |
+| `npx scp help` | Print the simple command set |
+| `npx scp pay <url> [hub\|direct]` | Pay a 402 URL |
+| `npx scp pay <channelId> <amount>` | Pay through a specific channel |
+| `npx scp payments` | Payment history |
+| `npx scp channel <channelId>` | Inspect local + hub + on-chain state |
+| `npx scp open <addr> <network> <asset> <amount>` | Open + fund a channel |
+| `npx scp fund <channelId> <amount>` | Top up a channel |
+| `npx scp close <channelId>` | Close a channel |
+| `npx scp channels` | List channels |
+| `npx scp status` | Quick channel + hub health check |
+
+Local repo fallback: `npm run scp -- <command> ...`
+
 ### All Commands
 
 | Command | Purpose |
 |---------|---------|
 | **Setup** | |
+| `npm run scp:init` | Short alias for `scp:wizard` |
+| `npm run scp:help` | Show the simple command set |
 | `npm run scp:wizard` | Interactive config wizard |
 | **Agent** | |
+| `npm run scp:pay -- <url> [hub\|direct]` | Short alias for `scp:agent:pay` |
+| `npm run scp:pay -- <channelId> <amount>` | Short alias for channel payment |
+| `npm run scp:payments` | Short alias for `scp:agent:payments` |
 | `npm run scp:agent:pay -- <url> [hub\|direct]` | Pay a 402 URL |
 | `npm run scp:agent:pay -- <url> --method POST --json '{...}'` | Pay with HTTP method + body |
 | `npm run scp:agent:pay -- <channelId> <amount>` | Pay through a specific channel |
@@ -1109,6 +1134,11 @@ window.addEventListener("message", (e) => {
 | `npm run scp:agent:payments` | Payment history |
 | `npm run scp:dash` | Agent dashboard |
 | **Channels** | |
+| `npm run scp:open -- <addr> <network> <asset> <amount>` | Short alias for `scp:channel:open` |
+| `npm run scp:fund -- <channelId> <amount>` | Short alias for `scp:channel:fund` |
+| `npm run scp:close -- <channelId>` | Short alias for `scp:channel:close` |
+| `npm run scp:list` | Short alias for `scp:channel:list` |
+| `npm run scp:status` | Short alias for `scp:channel:status` |
 | `npm run scp:channel:open -- <addr> <network> <asset> <amount>` | Open + fund |
 | `npm run scp:channel:fund -- <channelId> <amount>` | Top up |
 | `npm run scp:channel:close -- <channelId>` | Close |

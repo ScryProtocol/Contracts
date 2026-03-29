@@ -60,20 +60,43 @@ If funded channels exist for multiple offers, pick the cheapest in USD. If no ch
 
 ## Commands
 
+### Simple Scripts
+| Command | What it does |
+|---------|-------------|
+| `npx scp init` | Interactive setup wizard |
+| `npx scp help` | Print the simple command set |
+| `npx scp pay <url> [hub\|direct]` | Pay a 402 URL |
+| `npx scp pay <channelId> <amount>` | Pay through an open channel |
+| `npx scp payments` | Payment history |
+| `npx scp channel <channelId>` | Inspect local + hub + on-chain state |
+| `npx scp open <0xAddr> <network> <asset> <amount>` | Open + fund |
+| `npx scp fund <channelId> <amount>` | Top up |
+| `npx scp close <channelId>` | Close |
+| `npx scp channels` | List channels |
+| `npx scp status` | Quick channel + hub health check |
+
 ### Pay
 | Command | What it does |
 |---------|-------------|
+| `npm run scp:pay -- <url> [hub\|direct]` | Short alias for `scp:agent:pay` |
+| `npm run scp:pay -- <channelId> <amount>` | Short alias for channel payment |
 | `npm run scp:agent:pay -- <url> [hub\|direct]` | Pay a 402 URL |
 | `npm run scp:agent:pay -- <url> --method POST --json '{...}'` | Pay with POST body |
 | `npm run scp:light -- <url>` | Auto-pay (fund channel + pay) |
 | `npm run scp:light -- <url> --dry-run` | Plan only |
 | `npm run scp:agent:stream -- <url>` | Stream (pay in a loop) |
+| `npm run scp:payments` | Short alias for `scp:agent:payments` |
 | `npm run scp:agent:payments` | Payment history |
 | `npm run scp:dash` | Dashboard |
 
 ### Channels
 | Command | What it does |
 |---------|-------------|
+| `npm run scp:open -- <0xAddr> <network> <asset> <amount>` | Short alias for `scp:channel:open` |
+| `npm run scp:fund -- <channelId> <amount>` | Short alias for `scp:channel:fund` |
+| `npm run scp:close -- <channelId>` | Short alias for `scp:channel:close` |
+| `npm run scp:list` | Short alias for `scp:channel:list` |
+| `npm run scp:status` | Short alias for `scp:channel:status` |
 | `npm run scp:channel:open -- <0xAddr> <network> <asset> <amount>` | Open + fund |
 | `npm run scp:channel:fund -- <channelId> <amount>` | Top up |
 | `npm run scp:channel:close -- <channelId>` | Close |
@@ -95,13 +118,13 @@ If funded channels exist for multiple offers, pick the cheapest in USD. If no ch
 
 ## Routing Rules
 
-1. **pay \<url\>** → `npm run scp:agent:pay -- <url>`
+1. **pay \<url\>** → `npx scp pay <url>`
 2. **auto-pay \<url\>** → `npm run scp:light -- <url>`
-3. **chat \<message\>** → `npm run scp:agent:pay -- https://pogchamp.tv/chat/chat --method POST --json '{"message":"..."}'`
+3. **chat \<message\>** → `npx scp pay https://pogchamp.tv/chat/chat --method POST --json '{"message":"..."}'`
 4. **stream \<url\>** → `npm run scp:agent:stream -- <url>`
 5. **describe \<url\>** → `node skill/scripts/describe-offers.js <url>`
-6. **open / fund / close / list** → `npm run scp:channel:<cmd> -- ...`
-7. **balance** → `npm run scp:channel:list` + `npm run scp:agent:payments`
+6. **open / fund / close / list** → `npx scp <cmd> ...`
+7. **balance** → `npx scp channels` + `npx scp payments`
 8. **state** → read `node/scp-agent/state/agent-state.json`
 
 ## Live Endpoints

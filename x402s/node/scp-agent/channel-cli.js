@@ -16,7 +16,16 @@ const {
 const cmd = process.argv[2];
 const args = process.argv.slice(3);
 
-const USAGE = `Usage:
+const USAGE = `Simple npm aliases:
+  npx scp channel <channelId>
+  npx scp open <0xAddr> <network> <asset> <amount>
+  npx scp fund <channelId> <amount>
+  npx scp close <channelId>
+  npx scp channels
+  npx scp status
+
+Advanced CLI usage:
+  channel inspect  <channelId>                              Show local + hub + on-chain state
   channel open     <0xAddr> <network> <asset> <amount>      Open with friendly names
   channel open     <0xAddr> <rpcUrl> <0xToken> <rawAmount>  Open with raw values
   channel fund     <channelId> <asset> <amount>             Deposit with asset name
@@ -29,16 +38,15 @@ const USAGE = `Usage:
   channel rpc      [network]                                Test RPC connectivity
 
 Examples:
-  channel open     0xHub base usdc 20
-  channel open     0xHub sepolia eth 0.1
-  channel fund     0xChannelId usdc 50
-  channel balance                                           # all channels
-  channel balance  0xChannelId                              # specific channel
-  channel status                                            # quick overview
-  channel receipts                                          # last 10 receipts
-  channel receipts 0xChannelId --limit 25                   # 25 receipts for channel
-  channel rpc      base                                     # test Base RPCs
-  channel rpc                                               # test all RPCs
+  npx scp channel 0xChannelId
+  npx scp open 0xHub base usdc 20
+  npx scp open 0xHub sepolia eth 0.1
+  npx scp fund 0xChannelId 50
+  npx scp channels
+  npx scp status
+
+Local fallback:
+  npm run scp -- open 0xHub sepolia eth 0.1
 
 Networks: mainnet, base, sepolia, base-sepolia
 Assets:   eth, usdc, usdt`;
@@ -103,6 +111,126 @@ function fmtHuman(raw, decimals) {
 function networkLabel(chainId) {
   const labels = { 1: "Ethereum", 8453: "Base", 11155111: "Sepolia", 84532: "Base Sepolia" };
   return labels[chainId] || `chain:${chainId}`;
+}
+
+function compareNumericStrings(a, b) {
+  const left = BigInt(String(a || "0"));
+  const right = BigInt(String(b || "0"));
+  if (left === right) return 0;
+  return left > right ? 1 : -1;
+}
+
+function summarizeChannelDiff({ localEntry, localHubEntry, watchState, onchain, hubState }) {
+  const notes = [];
+
+  if (!onchain.ok) {
+    return {
+      verdict: "onchain unavailable",
+      notes: [onchain.error || "could not read on-chain state"]
+    };
+  }
+
+  if (onchain.isClosing) {
+    const localSignedNonce = watchState && watchState.state ? String(watchState.state.stateNonce || 0) : null;
+    const onchainNonce = String(onchain.latestNonce || 0);
+    if (localSignedNonce && compareNumericStrings(localSignedNonce, onchainNonce) > 0) {
+      return {
+        verdict: "challenge needed",
+        notes: [
+          `on-chain close is active at nonce ${onchainNonce}`,
+          `local signed state is newer at nonce ${localSignedNonce}`
+        ]
+      };
+    }
+    notes.push(`channel is closing on-chain at nonce ${onchainNonce}`);
+  }
+
+  if (watchState && watchState.state) {
+    const localSignedNonce = String(watchState.state.stateNonce || 0);
+    const onchainNonce = String(onchain.latestNonce || 0);
+    const nonceCmp = compareNumericStrings(localSignedNonce, onchainNonce);
+    if (nonceCmp > 0) {
+      notes.push(`off-chain signed state is ahead of on-chain by ${BigInt(localSignedNonce) - BigInt(onchainNonce)} nonce steps`);
+    } else if (nonceCmp < 0) {
+      notes.push(`on-chain nonce is ahead of local signed state by ${BigInt(onchainNonce) - BigInt(localSignedNonce)} nonce steps`);
+    }
+  }
+
+  if (hubState) {
+    const localNonce = String(
+      localHubEntry && localHubEntry.nonce != null
+        ? localHubEntry.nonce
+        : localEntry && localEntry.nonce != null
+          ? localEntry.nonce
+          : 0
+    );
+    const hubNonce = String(hubState.latestNonce ?? hubState.stateNonce ?? 0);
+    const hubCmp = compareNumericStrings(localNonce, hubNonce);
+    if (hubCmp < 0) {
+      notes.push(`hub is ahead of local cache by ${BigInt(hubNonce) - BigInt(localNonce)} nonce steps`);
+    } else if (hubCmp > 0) {
+      notes.push(`local cache is ahead of hub by ${BigInt(localNonce) - BigInt(hubNonce)} nonce steps`);
+    }
+
+    if (hubState.status && String(hubState.status).toLowerCase() !== "open") {
+      notes.push(`hub reports status ${hubState.status}`);
+    }
+  }
+
+  const totalCmp = compareNumericStrings(
+    localEntry && localEntry.totalDeposit ? localEntry.totalDeposit : onchain.totalBalance,
+    onchain.totalBalance
+  );
+  if (totalCmp !== 0) {
+    notes.push("local deposit snapshot differs from on-chain total");
+  }
+
+  return {
+    verdict: notes.length ? "diff detected" : "synced enough",
+    notes: notes.length ? notes : ["local, hub, and on-chain views are aligned for normal open-channel operation"]
+  };
+}
+
+async function fetchOnchainChannelState(agent, ch) {
+  const chainId = chainIdFromChannel(ch);
+  const contractAddress = ch.contractAddress || process.env.CONTRACT_ADDRESS || resolveContract(chainId);
+  const rpcs = [process.env.RPC_URL, ...(RPC_PRESETS[chainId] || [])].filter(Boolean);
+  let lastError = null;
+
+  if (!contractAddress) {
+    return { ok: false, error: "missing contract address" };
+  }
+
+  for (const rpc of rpcs) {
+    try {
+      const contract = agent.getContract(rpc, contractAddress);
+      const legacyContract = agent.getLegacyContract(rpc, contractAddress);
+      const params = await agent.getChannelParams(contract, ch.channelId, { legacyContract });
+      return {
+        ok: true,
+        rpc,
+        contractAddress,
+        participantA: params.participantA,
+        participantB: params.participantB,
+        asset: params.asset,
+        challengePeriodSec: params.challengePeriodSec.toString(),
+        channelExpiry: params.channelExpiry.toString(),
+        totalBalance: params.totalBalance.toString(),
+        isClosing: !!params.isClosing,
+        closeDeadline: params.closeDeadline.toString(),
+        latestNonce: params.latestNonce.toString(),
+        hubFlags: Number(params.hubFlags || 0)
+      };
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  return {
+    ok: false,
+    contractAddress,
+    error: lastError ? lastError.message : "all RPCs failed"
+  };
 }
 
 async function matchingHubEndpoint(agent, participantB, candidateEndpoint) {
@@ -178,11 +306,14 @@ async function main() {
           amount: rawAmount,
           ...(hubEndpoint ? { hubEndpoint } : {})
         });
-        console.log("Channel opened!");
-        console.log(`  channelId: ${result.channelId}`);
-        console.log(`  deposit:   ${rawAmount}`);
-        console.log(`  txHash:    ${result.txHash}`);
-        return;
+      console.log("Channel opened!");
+      console.log(`  channelId: ${result.channelId}`);
+      console.log(`  deposit:   ${rawAmount}`);
+      if (result.approval && result.approval.txHash) {
+        console.log(`  approval:  ${result.approval.txHash}`);
+      }
+      console.log(`  txHash:    ${result.txHash}`);
+      return;
       }
 
       // Friendly mode: network asset amount
@@ -218,6 +349,9 @@ async function main() {
       console.log("Channel opened!");
       console.log(`  channelId: ${result.channelId}`);
       console.log(`  deposit:   ${arg3} ${asset.symbol}`);
+      if (result.approval && result.approval.txHash) {
+        console.log(`  approval:  ${result.approval.txHash}`);
+      }
       console.log(`  txHash:    ${result.txHash}`);
 
     } else if (cmd === "fund") {
@@ -253,6 +387,9 @@ async function main() {
       console.log(`Funding ${channelId.slice(0, 18)}... with ${label}...`);
       const result = await agent.fundChannel(channelId, amount);
       console.log("Funded!");
+      if (result.approval && result.approval.txHash) {
+        console.log(`Approval tx: ${result.approval.txHash}`);
+      }
       console.log(JSON.stringify(result, null, 2));
 
     } else if (cmd === "close") {
@@ -265,6 +402,163 @@ async function main() {
       const result = await agent.closeChannel(channelId);
       console.log(`Closed via ${result.method}!`);
       console.log(JSON.stringify(result, null, 2));
+
+    } else if (cmd === "inspect") {
+      const channelId = args[0];
+      if (!channelId) {
+        console.error("Usage: channel inspect <channelId>");
+        process.exit(1);
+      }
+
+      const entries = Object.entries(agent.state.channels)
+        .filter(([, ch]) => ch && ch.channelId === channelId)
+        .map(([key, ch]) => ({ key, ...ch }));
+
+      if (entries.length === 0) {
+        console.log(`Channel not found in local state: ${channelId}`);
+        process.exit(1);
+      }
+
+      const primary = entries.find((entry) => entry.key.startsWith("onchain:")) || entries[0];
+      const chainId = chainIdFromChannel(primary);
+      const net = networkLabel(chainId);
+      const sym = assetSymbol(primary.asset, chainId);
+      const dec = assetDecimals(primary.asset, chainId);
+      const httpClient = new HttpJsonClient({ timeoutMs: 5000 });
+      const watchState = agent.state.watch && agent.state.watch.byChannelId
+        ? agent.state.watch.byChannelId[channelId]
+        : null;
+      const onchain = await fetchOnchainChannelState(agent, primary);
+      const hubEntries = entries.filter((entry) => entry.key.startsWith("hub:"));
+      const hubSnapshots = [];
+
+      for (const entry of hubEntries) {
+        const hubUrl = entry.key.slice(4);
+        try {
+          const res = await httpClient.request("GET", `${hubUrl}/v1/channels/${encodeURIComponent(channelId)}`);
+          if (res.statusCode === 200 && res.body) {
+            hubSnapshots.push({
+              hubUrl,
+              ok: true,
+              body: res.body
+            });
+          } else {
+            hubSnapshots.push({
+              hubUrl,
+              ok: false,
+              error: `HTTP ${res.statusCode}`
+            });
+          }
+        } catch (err) {
+          hubSnapshots.push({
+            hubUrl,
+            ok: false,
+            error: err.message
+          });
+        }
+      }
+      const primaryHubSnapshot = hubSnapshots.find((snapshot) => snapshot.ok) || null;
+      const verdict = summarizeChannelDiff({
+        localEntry: primary,
+        localHubEntry: hubEntries[0] || null,
+        watchState,
+        onchain,
+        hubState: primaryHubSnapshot
+          ? {
+              latestNonce: primaryHubSnapshot.body.latestNonce,
+              stateNonce: primaryHubSnapshot.body.latestState && primaryHubSnapshot.body.latestState.stateNonce,
+              status: primaryHubSnapshot.body.status
+            }
+          : null
+      });
+
+      console.log(`\nChannel Inspect\n`);
+      console.log(`  channelId: ${channelId}`);
+      console.log(`  network:   ${net}`);
+      console.log(`  asset:     ${sym}`);
+      if (primary.participantB) console.log(`  partner:   ${primary.participantB}`);
+      console.log(`  verdict:   ${verdict.verdict}`);
+      for (const note of verdict.notes) {
+        console.log(`  note:      ${note}`);
+      }
+      console.log();
+
+      console.log(`  Local entries (${entries.length}):`);
+      for (const entry of entries) {
+        console.log(`    ${entry.key}`);
+        console.log(`      balA:    ${fmtHuman(entry.balA, dec)} ${sym} (${entry.balA} raw)`);
+        console.log(`      balB:    ${fmtHuman(entry.balB, dec)} ${sym} (${entry.balB} raw)`);
+        console.log(`      nonce:   ${entry.nonce || 0}`);
+        if (entry.status) console.log(`      status:  ${entry.status}`);
+        if (entry.endpoint) console.log(`      endpoint:${entry.endpoint}`);
+        if (entry.txHash) console.log(`      txHash:  ${entry.txHash}`);
+      }
+      console.log();
+
+      if (watchState && watchState.state) {
+        console.log(`  Local signed state:`);
+        console.log(`    stateNonce: ${watchState.state.stateNonce}`);
+        console.log(`    balA:       ${fmtHuman(watchState.state.balA, dec)} ${sym}`);
+        console.log(`    balB:       ${fmtHuman(watchState.state.balB, dec)} ${sym}`);
+        console.log(`    stateExpiry:${watchState.state.stateExpiry}`);
+        console.log(`    sigA:       ${watchState.sigA ? "present" : "missing"}`);
+        console.log(`    sigB:       ${watchState.sigB ? "present" : "missing"}`);
+        console.log();
+      }
+
+      console.log(`  On-chain:`);
+      if (onchain.ok) {
+        console.log(`    contract:   ${onchain.contractAddress}`);
+        console.log(`    rpc:        ${onchain.rpc}`);
+        console.log(`    participantA:${onchain.participantA}`);
+        console.log(`    participantB:${onchain.participantB}`);
+        console.log(`    total:      ${fmtHuman(onchain.totalBalance, dec)} ${sym} (${onchain.totalBalance} raw)`);
+        console.log(`    latestNonce:${onchain.latestNonce}`);
+        console.log(`    isClosing:  ${onchain.isClosing}`);
+        console.log(`    closeDeadline:${onchain.closeDeadline}`);
+        console.log(`    challenge:  ${onchain.challengePeriodSec}s`);
+        console.log(`    expiry:     ${onchain.channelExpiry}`);
+      } else {
+        console.log(`    unavailable: ${onchain.error}`);
+      }
+      console.log();
+
+      if (hubEntries.length === 0) {
+        console.log(`  Hub: no hub-tracked local entry`);
+      } else {
+        console.log(`  Hub views (${hubEntries.length}):`);
+        for (const entry of hubEntries) {
+          const hubUrl = entry.key.slice(4);
+          const snapshot = hubSnapshots.find((item) => item.hubUrl === hubUrl) || null;
+          console.log(`    ${hubUrl}`);
+          console.log(`      localNonce: ${entry.nonce || 0}`);
+          console.log(`      localBalA:  ${fmtHuman(entry.balA, dec)} ${sym}`);
+          console.log(`      localBalB:  ${fmtHuman(entry.balB, dec)} ${sym}`);
+          if (snapshot && snapshot.ok) {
+            const body = snapshot.body;
+            const latestState = body.latestState || {};
+            console.log(`      hubStatus:  ${body.status || "unknown"}`);
+            console.log(`      hubNonce:   ${body.latestNonce ?? latestState.stateNonce ?? "-"}`);
+            if (body.onChainTotalBalance != null) {
+              console.log(`      hubOnChain: ${fmtHuman(String(body.onChainTotalBalance), dec)} ${sym}`);
+            }
+            if (latestState.balA != null) {
+              console.log(`      hubBalA:    ${fmtHuman(String(latestState.balA), dec)} ${sym}`);
+            }
+            if (latestState.balB != null) {
+              console.log(`      hubBalB:    ${fmtHuman(String(latestState.balB), dec)} ${sym}`);
+            }
+            if (body.payerCredit != null) {
+              console.log(`      payerCredit:${fmtHuman(String(body.payerCredit), dec)} ${sym}`);
+            }
+            console.log(`      signed:     ${body.hasSignedState ? "yes" : "no"}`);
+          } else {
+            console.log(`      unavailable: ${snapshot ? snapshot.error : "unknown error"}`);
+          }
+        }
+      }
+
+      httpClient.close();
 
     } else if (cmd === "list") {
       const channels = agent.listChannels();
@@ -301,7 +595,7 @@ async function main() {
 
       if (channels.length === 0) {
         console.log("No channels. Open one first:");
-        console.log("  npm run scp:channel:open -- <0xHubAddr> <network> <asset> <amount>");
+        console.log("  npx scp open <0xHubAddr> <network> <asset> <amount>");
         process.exit(0);
       }
 
@@ -440,7 +734,7 @@ async function main() {
       console.log(`  Channels: ${channels.length}\n`);
 
       if (channels.length === 0) {
-        console.log("  No channels. Run: npm run scp:channel:open");
+        console.log("  No channels. Run: npx scp open <0xHubAddr> <network> <asset> <amount>");
         httpClient.close();
         process.exit(0);
       }
