@@ -16,6 +16,12 @@ function now() {
   return Math.floor(Date.now() / 1000);
 }
 
+function buildContextHash(fields) {
+  return ethers.utils.keccak256(
+    ethers.utils.toUtf8Bytes(JSON.stringify(fields, Object.keys(fields).sort()))
+  );
+}
+
 function sampleState(overrides = {}) {
   return {
     channelId: ethers.utils.hexlify(crypto.randomBytes(32)),
@@ -112,6 +118,38 @@ describe("SCP Ticket Unit", function () {
     expect(out.paymentId).to.eq(draft.paymentId);
   });
 
+  it("verifies hub payment channel proof with explicit signing domain", async function () {
+    const draft = sampleTicketDraft(hubWallet.address, payeeWallet.address);
+    const sig = await signTicketDraft(draft, hubWallet);
+    const signingOpts = {
+      chainId: 8453,
+      contractAddress: "0x1111111111111111111111111111111111111111"
+    };
+    const state = sampleState();
+    const sigA = await signChannelState(state, payerWallet, signingOpts);
+    const payload = {
+      scheme: "statechannel-hub-v1",
+      paymentId: draft.paymentId,
+      invoiceId: draft.invoiceId,
+      ticket: { ...draft, sig },
+      channelProof: {
+        channelId: state.channelId,
+        stateNonce: state.stateNonce,
+        stateHash: hashChannelState(state, signingOpts),
+        sigA,
+        channelState: state
+      }
+    };
+    const out = verifyPayment(JSON.stringify(payload), {
+      hub: hubWallet.address,
+      payee: payeeWallet.address,
+      amount: draft.amount,
+      signingOpts
+    });
+    expect(out.ok).to.eq(true);
+    expect(out.paymentId).to.eq(draft.paymentId);
+  });
+
   it("verifies direct payment and tracks nonce progression", async function () {
     // Build contextHash matching the wrapper fields (must match buildContextHash in ticket.js)
     const ctxFields = {
@@ -121,9 +159,7 @@ describe("SCP Ticket Unit", function () {
       amount: "1000",
       asset: ethers.constants.AddressZero
     };
-    const contextHash = ethers.utils.keccak256(
-      ethers.utils.toUtf8Bytes(JSON.stringify(ctxFields, Object.keys(ctxFields).sort()))
-    );
+    const contextHash = buildContextHash(ctxFields);
     const state = sampleState({ balA: "5000", balB: "1000", contextHash });
     const sigA = await signChannelState(state, payerWallet);
     const payload = {
@@ -158,6 +194,100 @@ describe("SCP Ticket Unit", function () {
     );
     expect(second.ok).to.eq(false);
     expect(second.error).to.eq("stale direct nonce");
+  });
+
+  it("verifyPaymentFull binds direct contextHash to stored invoice resource and method", async function () {
+    const invoiceId = "inv_dir_ctx_ok";
+    const paymentId = "pay_dir_ctx_ok";
+    const amount = "1000";
+    const resource = "http://payee.local/v1/data";
+    const method = "GET";
+    const contextHash = buildContextHash({
+      payee: payeeWallet.address,
+      resource,
+      method,
+      invoiceId,
+      paymentId,
+      amount,
+      asset: ethers.constants.AddressZero
+    });
+    const state = sampleState({ balA: "5000", balB: "1000", contextHash });
+    const sigA = await signChannelState(state, payerWallet);
+    const header = JSON.stringify({
+      scheme: "statechannel-direct-v1",
+      invoiceId,
+      paymentId,
+      direct: {
+        payer: payerWallet.address,
+        payee: payeeWallet.address,
+        asset: ethers.constants.AddressZero,
+        amount,
+        expiry: now() + 120,
+        invoiceId,
+        paymentId,
+        channelState: state,
+        sigA
+      }
+    });
+
+    const out = await verifyPaymentFull(header, {
+      payee: payeeWallet.address,
+      invoiceStore: () => ({
+        payee: payeeWallet.address,
+        amount,
+        asset: ethers.constants.AddressZero,
+        resource,
+        method
+      })
+    });
+
+    expect(out.ok).to.eq(true);
+    expect(out.scheme).to.eq("direct");
+  });
+
+  it("verifyPaymentFull rejects direct payment when stored invoice resource and method do not match contextHash", async function () {
+    const invoiceId = "inv_dir_ctx_bad";
+    const paymentId = "pay_dir_ctx_bad";
+    const amount = "1000";
+    const contextHash = buildContextHash({
+      payee: payeeWallet.address,
+      invoiceId,
+      paymentId,
+      amount,
+      asset: ethers.constants.AddressZero
+    });
+    const state = sampleState({ balA: "5000", balB: "1000", contextHash });
+    const sigA = await signChannelState(state, payerWallet);
+    const header = JSON.stringify({
+      scheme: "statechannel-direct-v1",
+      invoiceId,
+      paymentId,
+      direct: {
+        payer: payerWallet.address,
+        payee: payeeWallet.address,
+        asset: ethers.constants.AddressZero,
+        amount,
+        expiry: now() + 120,
+        invoiceId,
+        paymentId,
+        channelState: state,
+        sigA
+      }
+    });
+
+    const out = await verifyPaymentFull(header, {
+      payee: payeeWallet.address,
+      invoiceStore: () => ({
+        payee: payeeWallet.address,
+        amount,
+        asset: ethers.constants.AddressZero,
+        resource: "http://payee.local/v1/data",
+        method: "GET"
+      })
+    });
+
+    expect(out.ok).to.eq(false);
+    expect(out.error).to.contain("contextHash mismatch");
   });
 
   it("verifyPaymentFull performs hub metadata and payment-status checks", async function () {

@@ -31,17 +31,20 @@ const arg2 = positional[1];
 
 if (!target) {
   console.error(`Usage:
-  agent:pay <url> [hub|direct] [--asset <addr>] [--network <chain>] [--method <verb>] [--json <json>]
-  agent:pay <payeeAddress> <amount> [--asset <addr>] [--network <chain>]
-  agent:pay <channelId> <amount>
+  npx scp pay <url> [hub|direct] [--asset <addr>] [--network <chain>] [--method <verb>] [--json <json>]
+  npx scp pay <payeeAddress> <amount> [--asset <addr>] [--network <chain>]
+  npx scp pay <channelId> <amount>
 
 Examples:
-  agent:pay https://api.example/pay                  # pay via hub (default)
-  agent:pay https://api.example/pay direct            # pay directly
-  agent:pay https://api.example/pay --asset 0xUSDC    # pay with specific asset
-  agent:pay https://api.example/v1/run --method POST --json '{"q":"hello"}'
-  agent:pay 0xPayeeAddress... 100000000000 --network sepolia --asset 0x0000000000000000000000000000000000000000
-  agent:pay 0xChannelId... 5000000                    # pay through channel`);
+  npx scp pay https://api.example/pay                  # pay via hub (default)
+  npx scp pay https://api.example/pay direct           # pay directly
+  npx scp pay https://api.example/pay --asset 0xUSDC   # pay with specific asset
+  npx scp pay https://api.example/v1/run --method POST --json '{"q":"hello"}'
+  npx scp pay 0xPayeeAddress... 100000000000 --network sepolia --asset 0x0000000000000000000000000000000000000000
+  npx scp pay 0xChannelId... 5000000                   # pay through channel
+
+Local fallback:
+  npm run scp -- pay https://api.example/pay`);
   process.exit(1);
 }
 
@@ -133,7 +136,7 @@ async function main() {
   try {
     if (isChannelId) {
       if (!arg2) {
-        console.error("Usage: agent:pay <channelId> <amount>");
+        console.error("Usage: npx scp pay <channelId> <amount>");
         process.exit(1);
       }
       console.log(`Paying ${arg2} through channel ${target.slice(0, 10)}...`);
@@ -142,7 +145,7 @@ async function main() {
       console.log(JSON.stringify(result, null, 2));
     } else if (isAddress) {
       if (!arg2) {
-        console.error("Usage: agent:pay <payeeAddress> <amount> [--asset <addr>] [--network <chain>]");
+        console.error("Usage: npx scp pay <payeeAddress> <amount> [--asset <addr>] [--network <chain>]");
         process.exit(1);
       }
       const payOpts = {};

@@ -112,7 +112,7 @@ async function run() {
     });
     try {
       console.log(`[scp:agent] payer agent ready: ${agent.wallet.address}`);
-      console.log("[scp:agent] pay URL: npm run scp:agent:pay -- <url> [hub|direct]");
+      console.log("[scp:agent] pay URL: npx scp pay <url> [hub|direct]");
       console.log("[scp:agent] agent API: npm run scp:agent:server");
       console.log("[scp:agent] local /pay helper: AGENT_START_PAYEE=1 npm run scp:agent");
       console.log("[scp:agent] one-shot local demo payment: npm run scp:agent -- --demo-pay");

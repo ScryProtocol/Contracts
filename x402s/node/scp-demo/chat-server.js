@@ -26,6 +26,7 @@ const PAYEE_ADDR = payeeWallet.address;
 const ZERO_ADDR = "0x0000000000000000000000000000000000000000";
 const PUBLIC_URL = process.env.PUBLIC_URL || "";
 const PUBLIC_HUB = process.env.PUBLIC_HUB || HUB_URL;
+const SCP_PAY_AUTO_CONFIRM = process.env.SCP_PAY_AUTO_CONFIRM !== "0";
 
 // --- Offer config: OFFERS_FILE > env > defaults ---
 function loadOfferConfig() {
@@ -183,12 +184,20 @@ function getPaymentHeader(req) {
 
 // Setup verifier
 const consumed = new Map();
+const payAcks = new Map();
 const verify = createVerifier({
   payee: PAYEE_ADDR,
   hubUrl: HUB_URL,
   hubs: [HUB_URL],
   confirmHub: true,
   seenPayments: consumed
+});
+const verifyPay = createVerifier({
+  payee: PAYEE_ADDR,
+  hubUrl: HUB_URL,
+  hubs: [HUB_URL],
+  confirmHub: true,
+  seenPayments: payAcks
 });
 
 // --- Chat HTML UI ---
@@ -197,7 +206,7 @@ function serveChatHTML(req, res) {
   const host = req.headers["x-forwarded-host"] || req.headers["host"] || `127.0.0.1:${PORT}`;
   const prefix = req.headers["x-forwarded-prefix"] || "";
   const base = `${proto}://${host}${prefix}`;
-  const scpPayBase = process.env.SCP_PAY_URL || "https://statechannel.org/scppay";
+  const scpPayBase = process.env.SCP_PAY_URL || "https://statechannel.org/scppay/";
   const chatEndpoint = `${base}/chat`;
   const priceInfo = PRICE_LABEL;
   const networkLabel = CHAT_NETWORK.charAt(0).toUpperCase() + CHAT_NETWORK.slice(1);
@@ -227,12 +236,6 @@ function serveChatHTML(req, res) {
 html,body{height:100%;background:var(--bg);color:var(--t1);font-family:var(--mono);font-size:13px;overflow:hidden}
 
 /* CRT effect */
-body::before{content:'';position:fixed;inset:0;
-  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.08) 2px,rgba(0,0,0,.08) 4px);
-  pointer-events:none;z-index:9999}
-body::after{content:'';position:fixed;inset:0;
-  background:radial-gradient(ellipse at center,transparent 60%,rgba(0,0,0,.5) 100%);
-  pointer-events:none;z-index:9998}
 
 /* Layout */
 .shell{display:flex;flex-direction:column;height:100vh;max-width:720px;margin:0 auto;padding:12px 16px}
@@ -379,6 +382,19 @@ var $paid = document.getElementById("totalPaid");
 var knownIds = new Set();
 var totalPaid = 0;
 var pendingMsg = null;
+var paymentRevealTimer = null;
+var AUTO_CONFIRM = ${JSON.stringify(SCP_PAY_AUTO_CONFIRM)};
+
+function buildScpPaySrc(base, params) {
+  var u = new URL(base, window.location.href);
+  for (var key in params) {
+    if (!Object.prototype.hasOwnProperty.call(params, key)) continue;
+    var value = params[key];
+    if (value === null || value === undefined || value === "") continue;
+    u.searchParams.set(key, String(value));
+  }
+  return u.toString();
+}
 
 // Textarea auto-resize
 $input.addEventListener("input", function() {
@@ -403,11 +419,16 @@ function sendMessage() {
   pendingMsg = msg;
   $send.disabled = true;
   toast("Paying...", "ok");
-  // Open scp-pay iframe hidden; only show overlay if iframe asks for confirmation
+  clearTimeout(paymentRevealTimer);
   var payUrl = BASE + "/pay";
-  $payFr.src = SCPPAY + "?autopay=1&url=" + encodeURIComponent(payUrl);
+  $payFr.src = buildScpPaySrc(SCPPAY, { autopay: 1, url: payUrl });
   $payFr.onload = function() {
-    $payFr.contentWindow.postMessage({type:"x402:config",url:payUrl,autoLim:0.001},"*");
+    $payFr.contentWindow.postMessage({
+      type: "x402:config",
+      url: payUrl,
+      autoLim: 0.001,
+      autoConfirmUrl: AUTO_CONFIRM
+    }, "*");
   };
 }
 
@@ -416,13 +437,28 @@ $payOv.addEventListener("click", function(e) {
 });
 
 function closePay() {
+  clearTimeout(paymentRevealTimer);
+  paymentRevealTimer = null;
   $payOv.classList.remove("show");
   $payFr.src = "";
 }
 
 window.addEventListener("message", function(e) {
+  if (e.data && e.data.type === "x402:status") {
+    if (e.data.message) toast(e.data.message, "ok");
+    return;
+  }
   if (e.data && e.data.type === "x402:needs-confirm") {
+    clearTimeout(paymentRevealTimer);
+    paymentRevealTimer = null;
     $payOv.classList.add("show");
+    return;
+  }
+  if (e.data && e.data.type === "x402:payment:error") {
+    closePay();
+    pendingMsg = null;
+    $send.disabled = !$input.value.trim();
+    toast("Payment failed: " + (e.data.message || "unknown error"), "err");
     return;
   }
   if (e.data && e.data.type === "x402:payment:success" && pendingMsg) {
@@ -434,6 +470,7 @@ window.addEventListener("message", function(e) {
     xhr.setRequestHeader("Payment-Signature", JSON.stringify({
       scheme: "credit",
       paymentId: e.data.payId || "cpay",
+      asset: e.data.asset || "0x0000000000000000000000000000000000000000",
       amount: e.data.amount || "0",
       payer: e.data.payer || "anon"
     }));
@@ -611,7 +648,40 @@ const server = http.createServer(async (req, res) => {
 
   // GET /pay — offer discovery for agent clients
   if (u.pathname === "/pay" && req.method === "GET") {
-    return sendJson(res, 402, makeOffers("", req));
+    const rawHeader = getPaymentHeader(req);
+    if (!rawHeader) {
+      return sendJson(res, 402, makeOffers("", req));
+    }
+
+    let payment;
+    try { payment = JSON.parse(rawHeader); } catch { payment = null; }
+
+    let result;
+    if (payment && payment.scheme === "credit") {
+      if (!payment.paymentId) return sendJson(res, 402, { error: "missing paymentId" });
+      if (payAcks.has(payment.paymentId)) return sendJson(res, 200, payAcks.get(payment.paymentId).response);
+      result = { ok: true, payer: payment.payer || "anon", paymentId: payment.paymentId };
+    } else {
+      const invoiceLookup = (invoiceId) => {
+        const inv = invoices.get(invoiceId);
+        return !!inv;
+      };
+      try {
+        result = await verifyPay(rawHeader, invoiceLookup);
+      } catch (e) {
+        return sendJson(res, 402, { error: "verification failed: " + e.message });
+      }
+      if (result.replayed) return sendJson(res, 200, result.response);
+      if (!result.ok) return sendJson(res, 402, { error: result.error, retryable: false });
+    }
+
+    const response = {
+      ok: true,
+      receipt: { paymentId: result.paymentId },
+      payer: result.payer || "anon"
+    };
+    payAcks.set(result.paymentId, { response, ts: Date.now() });
+    return sendJson(res, 200, response);
   }
 
   // GET / — HTML chat UI for browsers, JSON for API clients

@@ -58,8 +58,8 @@ describe("SCP Meow API", function () {
     process.env.PAYEE_PRIVATE_KEY = PAYEE_KEY;
     process.env.MEOW_PRICE_ETH = "0.0000001";
 
-    delete require.cache[require.resolve("../node/meow-api/server")];
-    ({ createMeowServer } = require("../node/meow-api/server"));
+    delete require.cache[require.resolve("../node/scp-demo/meow-api/server")];
+    ({ createMeowServer } = require("../node/scp-demo/meow-api/server"));
 
     hubServer = http.createServer((req, res) => {
       if (req.method === "GET" && req.url === "/.well-known/x402") {
@@ -144,8 +144,8 @@ describe("SCP Meow API", function () {
     process.env.PORT = String(PAY_ONCE_PORT);
     process.env.MEOW_PAYMENT_MODE = "pay_once";
 
-    delete require.cache[require.resolve("../node/meow-api/server")];
-    const { createMeowServer: createPayOnceServer } = require("../node/meow-api/server");
+    delete require.cache[require.resolve("../node/scp-demo/meow-api/server")];
+    const { createMeowServer: createPayOnceServer } = require("../node/scp-demo/meow-api/server");
     const payOnceServer = createPayOnceServer();
     await new Promise((resolve) => payOnceServer.listen(PAY_ONCE_PORT, API_HOST, resolve));
 
@@ -198,8 +198,8 @@ describe("SCP Meow API", function () {
       await new Promise((resolve) => payOnceServer.close(resolve));
       delete process.env.MEOW_PAYMENT_MODE;
       process.env.PORT = String(API_PORT);
-      delete require.cache[require.resolve("../node/meow-api/server")];
-      ({ createMeowServer } = require("../node/meow-api/server"));
+      delete require.cache[require.resolve("../node/scp-demo/meow-api/server")];
+      ({ createMeowServer } = require("../node/scp-demo/meow-api/server"));
     }
   });
 });

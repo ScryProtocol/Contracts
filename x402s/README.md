@@ -1002,6 +1002,8 @@ The browser Agent class implements the full SCP protocol:
 
 State is persisted to `localStorage` keyed by `wallet:network:contract`.
 
+Hub credit is now asset-scoped. `GET /v1/credit/balance?address=0x...` returns `creditsByAsset` plus temporary legacy compatibility fields, and `POST /v1/credit/withdraw` now requires an `asset` field. The safe first version only allows ETH-scoped withdrawals.
+
 ### Embedding as an iframe (Widget Mode)
 
 scp-pay can be embedded as a payment widget inside any web app. This is how the chat demo (`scp-chat`) works — it opens scp-pay in a hidden iframe, and the iframe handles the full payment flow.
@@ -1144,6 +1146,7 @@ Local repo fallback: `npm run scp -- <command> ...`
 | `npm run scp:channel:close -- <channelId>` | Close |
 | `npm run scp:channel:rebalance -- <fromId> <toId> <amount>` | Move hub funds between channels |
 | `npm run scp:channel:list` | List all channels |
+| `npx scp channel resync <channelId>` | Refresh local hub state from the hub latest signed state |
 | **Infrastructure** | |
 | `npm run scp:hub` | Start hub (port 4021) |
 | `npm run scp:payee` | Start demo payee (port 4042) |

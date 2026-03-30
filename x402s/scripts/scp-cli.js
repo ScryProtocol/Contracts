@@ -28,6 +28,8 @@ function printUsage() {
   npx scp pay <channelId> <amount>
   npx scp payments
   npx scp channel <channelId>
+  npx scp channel resync <channelId>
+  npx scp resync <channelId>
   npx scp open <0xAddr> <network> <asset> <amount>
   npx scp fund <channelId> <amount>
   npx scp close <channelId>
@@ -42,6 +44,7 @@ Examples:
   npx scp hub
   npx scp hub base
   npx scp channel 0xChannelId
+  npx scp channel resync 0xChannelId
   npx scp pay https://api.example.com/v1/data
   npx scp pay https://api.example.com/v1/data direct
   npx scp open 0xHubAddress sepolia eth 0.01
@@ -55,6 +58,18 @@ const rawArgs = process.argv.slice(2);
 const args = rawArgs[0] === "--" ? rawArgs.slice(1) : rawArgs;
 const cmd = String(args[0] || "help").toLowerCase();
 const rest = args[1] === "--" ? args.slice(2) : args.slice(1);
+const channelSubcommands = new Set([
+  "inspect",
+  "resync",
+  "open",
+  "fund",
+  "close",
+  "list",
+  "balance",
+  "status",
+  "receipts",
+  "rpc"
+]);
 
 switch (cmd) {
   case "help":
@@ -75,7 +90,18 @@ switch (cmd) {
     break;
   case "channel":
   case "inspect":
-    runWithWizard(path.join("node", "scp-agent", "channel-cli.js"), ["inspect", ...rest]);
+    if (cmd === "inspect") {
+      runWithWizard(path.join("node", "scp-agent", "channel-cli.js"), ["inspect", ...rest]);
+      break;
+    }
+    if (rest[0] && channelSubcommands.has(String(rest[0]).toLowerCase())) {
+      runWithWizard(path.join("node", "scp-agent", "channel-cli.js"), rest);
+    } else {
+      runWithWizard(path.join("node", "scp-agent", "channel-cli.js"), ["inspect", ...rest]);
+    }
+    break;
+  case "resync":
+    runWithWizard(path.join("node", "scp-agent", "channel-cli.js"), ["resync", ...rest]);
     break;
   case "open":
     runWithWizard(path.join("node", "scp-agent", "channel-cli.js"), ["open", ...rest]);

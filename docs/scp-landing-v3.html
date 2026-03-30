@@ -1,0 +1,1882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>x402s — State Channel Protocol</title>
+<meta name="description" content="Off-chain micropayments for the agentic web. Zero gas per request. Instant settlement. Open source.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #06080c;
+  --surface: #0c1018;
+  --border: #151c28;
+  --border-light: #1e2838;
+  --cyan: #00e5ff;
+  --cyan-dim: #00e5ff18;
+  --cyan-glow: #00e5ff30;
+  --cyan-muted: #00e5ff60;
+  --red: #ff3c5a;
+  --red-dim: #ff3c5a20;
+  --code-str: #8b9dc3;
+  --text: #c8cdd6;
+  --text-bright: #e8ecf2;
+  --text-muted: #404858;
+  --text-dim: #5a6478;
+  --display: 'Syne', system-ui, sans-serif;
+  --body: 'IBM Plex Sans', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', 'Menlo', monospace;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+
+body {
+  font-family: var(--body);
+  background: var(--bg);
+  color: var(--text);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  font-weight: 300;
+  line-height: 1.6;
+}
+
+/* Film grain overlay */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 200px;
+}
+
+::selection { background: var(--cyan-dim); color: var(--cyan); }
+a { color: inherit; text-decoration: none; }
+
+/* Scroll progress bar */
+#scrollProgress {
+  position: fixed;
+  top: 0; left: 0;
+  height: 2px;
+  width: 0%;
+  background: linear-gradient(90deg, var(--cyan), var(--cyan-muted));
+  z-index: 200;
+  transition: none;
+}
+
+/* ── Nav ── */
+nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  padding: 0 clamp(24px, 5vw, 80px);
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: background 0.4s, border-color 0.4s;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+}
+nav.scrolled {
+  background: rgba(6,8,12,0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-color: var(--border);
+}
+.nav-logo {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--text-bright);
+}
+.nav-logo span { color: var(--text-muted); }
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+.nav-links a {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  transition: color 0.3s;
+}
+.nav-links a:hover { color: var(--text-bright); }
+.nav-gh {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1px solid var(--border-light);
+  font-family: var(--mono) !important;
+  font-size: 0.65rem !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  color: var(--text-dim) !important;
+  transition: color 0.3s, border-color 0.3s !important;
+  border-radius: 0 !important;
+}
+.nav-gh:hover { color: var(--cyan) !important; border-color: var(--cyan-muted) !important; }
+.nav-gh svg { width: 14px; height: 14px; }
+
+/* Mobile hamburger */
+.nav-hamburger {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  cursor: pointer;
+  padding: 8px;
+  z-index: 110;
+  background: none;
+  border: none;
+}
+.nav-hamburger span {
+  display: block;
+  width: 20px;
+  height: 1px;
+  background: var(--text-dim);
+  transition: transform 0.3s, opacity 0.3s;
+}
+.nav-hamburger.open span:nth-child(1) { transform: rotate(45deg) translate(4px, 4px); }
+.nav-hamburger.open span:nth-child(2) { opacity: 0; }
+.nav-hamburger.open span:nth-child(3) { transform: rotate(-45deg) translate(4px, -4px); }
+
+.nav-drawer {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(6,8,12,0.97);
+  z-index: 105;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+}
+.nav-drawer.open { display: flex; }
+.nav-drawer a {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  transition: color 0.3s;
+}
+.nav-drawer a:hover { color: var(--cyan); }
+
+@media (max-width: 768px) {
+  .nav-links { display: none; }
+  .nav-hamburger { display: flex; }
+}
+
+/* ── Section primitives ── */
+section {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 120px clamp(24px, 5vw, 80px);
+}
+.section-label {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+}
+.section-title {
+  font-family: var(--display);
+  font-size: clamp(2rem, 5vw, 3.2rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--text-bright);
+  max-width: 600px;
+}
+.section-desc {
+  font-size: 1rem;
+  font-weight: 300;
+  color: var(--text-dim);
+  line-height: 1.7;
+  margin-top: 20px;
+  max-width: 520px;
+}
+.divider {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 clamp(24px, 5vw, 80px);
+}
+.divider-line {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--border) 20%, var(--border) 80%, transparent 100%);
+}
+
+/* ── Reveal + animations ── */
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.8s var(--ease), transform 0.8s var(--ease);
+}
+[data-reveal].visible { opacity: 1; transform: none; }
+.stagger-children > * {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.6s var(--ease), transform 0.6s var(--ease);
+}
+.stagger-children.visible > * { opacity: 1; transform: none; }
+.stagger-children.visible > *:nth-child(1) { transition-delay: 0.05s; }
+.stagger-children.visible > *:nth-child(2) { transition-delay: 0.1s; }
+.stagger-children.visible > *:nth-child(3) { transition-delay: 0.15s; }
+.stagger-children.visible > *:nth-child(4) { transition-delay: 0.2s; }
+.stagger-children.visible > *:nth-child(5) { transition-delay: 0.25s; }
+.stagger-children.visible > *:nth-child(6) { transition-delay: 0.3s; }
+.stagger-children.visible > *:nth-child(7) { transition-delay: 0.35s; }
+.stagger-children.visible > *:nth-child(8) { transition-delay: 0.4s; }
+.stagger-children.visible > *:nth-child(9) { transition-delay: 0.45s; }
+
+/* Glitch border flicker */
+@keyframes glitchBorder {
+  0% { border-color: var(--border); }
+  10% { border-color: var(--cyan); }
+  15% { border-color: var(--red); }
+  20% { border-color: var(--cyan-muted); }
+  25% { border-color: var(--border); }
+  100% { border-color: var(--border); }
+}
+[data-reveal].glitch-in {
+  animation: glitchBorder 0.4s ease-out;
+}
+
+/* ── Hero ── */
+.hero {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 120px clamp(24px, 5vw, 80px) 60px;
+  max-width: 1120px;
+  margin: 0 auto;
+  overflow: hidden;
+}
+#heroCanvas {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 60%;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.6;
+}
+.hero-content {
+  position: relative;
+  z-index: 1;
+  max-width: 620px;
+}
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 28px;
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 0;
+}
+.hero-badge .pulse {
+  width: 6px;
+  height: 6px;
+  background: var(--cyan);
+  border-radius: 50%;
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(0,229,255,0.4); }
+  50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(0,229,255,0); }
+}
+.hero h1 {
+  font-family: var(--display);
+  font-size: clamp(2.8rem, 7vw, 4.5rem);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  color: var(--text-bright);
+  margin-bottom: 8px;
+}
+.hero h1 .sub {
+  display: block;
+  font-size: clamp(1.4rem, 3.5vw, 2rem);
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+.hero-sub {
+  font-size: 1.05rem;
+  font-weight: 300;
+  color: var(--text-dim);
+  line-height: 1.7;
+  max-width: 480px;
+  margin-top: 20px;
+}
+.hero-sub strong { color: var(--text); font-weight: 500; }
+.hero-actions {
+  display: flex;
+  gap: 16px;
+  margin-top: 36px;
+  flex-wrap: wrap;
+}
+
+/* Buttons */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 28px;
+  background: var(--cyan);
+  color: var(--bg);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  transition: box-shadow 0.3s, transform 0.15s;
+}
+.btn-primary:hover { box-shadow: 0 0 20px rgba(0,229,255,0.25); transform: translateY(-1px); }
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 28px;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid var(--border-light);
+  border-radius: 0;
+  cursor: pointer;
+  transition: color 0.3s, border-color 0.3s;
+}
+.btn-ghost:hover { color: var(--text-bright); border-color: var(--text-dim); }
+
+/* ── Flow visual widget ── */
+.flow-widget {
+  margin-top: 48px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 0;
+}
+.flow-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+}
+.flow-tab {
+  flex: 1;
+  padding: 12px 20px;
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  transition: color 0.3s, background 0.3s;
+  text-align: center;
+}
+.flow-tab.active {
+  color: var(--cyan);
+  background: rgba(0,229,255,0.04);
+  border-bottom: 1px solid var(--cyan);
+  margin-bottom: -1px;
+}
+.flow-tab:hover:not(.active) { color: var(--text-dim); }
+.flow-panel {
+  display: none;
+  padding: 40px 32px 32px;
+}
+.flow-panel.active { display: block; }
+
+/* Desktop flow: horizontal */
+.flow-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  position: relative;
+}
+.flow-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 100px;
+}
+.flow-node-box {
+  width: 72px;
+  height: 72px;
+  border: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--text-dim);
+  background: var(--bg);
+  border-radius: 0;
+  position: relative;
+}
+.flow-node-label {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.flow-edge {
+  width: 80px;
+  height: 2px;
+  background: var(--border);
+  position: relative;
+  overflow: visible;
+}
+.flow-edge::after {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 0;
+  width: 16px;
+  height: 4px;
+  background: var(--cyan);
+  border-radius: 2px;
+  animation: flowPulse 2.5s ease-in-out infinite;
+}
+.flow-edge.d2::after { animation-delay: 0.8s; }
+@keyframes flowPulse {
+  0% { left: -16px; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { left: calc(100%); opacity: 0; }
+}
+.flow-annotation {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  text-align: center;
+  margin-top: 24px;
+  line-height: 1.8;
+}
+
+/* Vertical flow for mobile */
+.flow-col {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+.flow-edge-v {
+  width: 2px;
+  height: 48px;
+  background: var(--border);
+  position: relative;
+}
+.flow-edge-v::after {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: 0;
+  width: 4px;
+  height: 16px;
+  background: var(--cyan);
+  border-radius: 2px;
+  animation: flowPulseV 2.5s ease-in-out infinite;
+}
+.flow-edge-v.d2::after { animation-delay: 0.8s; }
+@keyframes flowPulseV {
+  0% { top: -16px; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { top: calc(100%); opacity: 0; }
+}
+
+@media (max-width: 600px) {
+  .flow-row { display: none; }
+  .flow-col { display: flex; }
+}
+
+/* ── Metrics strip ── */
+.metrics {
+  display: flex;
+  gap: 0;
+  margin-top: 56px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 0;
+}
+.metric {
+  flex: 1;
+  padding: 20px 24px;
+  border-right: 1px solid var(--border);
+  text-align: center;
+}
+.metric:last-child { border-right: none; }
+.metric-val {
+  font-family: var(--display);
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text-bright);
+  font-variant-numeric: tabular-nums;
+}
+.metric-val.cyan { color: var(--cyan); }
+.metric-label {
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+@media (max-width: 600px) {
+  .metrics { flex-wrap: wrap; }
+  .metric { flex: 1 1 50%; border-bottom: 1px solid var(--border); }
+  .metric:nth-child(2) { border-right: none; }
+}
+
+/* ── Why / Comparison ── */
+.comparison {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+  margin-top: 48px;
+  border-radius: 0;
+}
+.compare {
+  background: var(--surface);
+  padding: 36px 32px;
+}
+.compare h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 24px;
+}
+.compare .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.compare.old .dot { background: var(--red); }
+.compare.new .dot { background: var(--cyan); }
+.compare ul {
+  list-style: none;
+}
+.compare ul li {
+  font-size: 0.88rem;
+  font-weight: 300;
+  color: var(--text-dim);
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  padding-left: 18px;
+}
+.compare ul li:last-child { border-bottom: none; }
+.compare ul li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+}
+.compare.old ul li::before { background: var(--red); opacity: 0.5; }
+.compare.old ul li { color: var(--text-muted); }
+.compare.new ul li::before { background: var(--cyan); opacity: 0.6; }
+.compare.new ul li { color: var(--text); }
+@media (max-width: 640px) {
+  .comparison { grid-template-columns: 1fr; }
+}
+
+/* ── Features grid ── */
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--border);
+  margin-top: 48px;
+  border-radius: 0;
+}
+.feat {
+  background: var(--surface);
+  padding: 36px 28px;
+  position: relative;
+  transition: background 0.4s;
+}
+.feat:hover { background: #0e1420; }
+.feat::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 0; height: 1px;
+  background: var(--cyan);
+  transition: width 0.5s var(--ease);
+}
+.feat:hover::before { width: 100%; }
+.feat-num {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+.feat h3 {
+  font-family: var(--body);
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-bright);
+  margin-bottom: 10px;
+  letter-spacing: -0.01em;
+}
+.feat p {
+  font-size: 0.84rem;
+  font-weight: 300;
+  color: var(--text-dim);
+  line-height: 1.65;
+}
+.feat code {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--code-str);
+}
+@media (max-width: 768px) {
+  .features-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 480px) {
+  .features-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Protocol steps ── */
+.proto-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--border);
+  margin-top: 48px;
+  border-radius: 0;
+}
+.proto-step {
+  background: var(--surface);
+  padding: 32px 24px;
+}
+.proto-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--cyan-muted);
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--cyan);
+  margin-bottom: 20px;
+  border-radius: 0;
+}
+.proto-step h3 {
+  font-family: var(--body);
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-bright);
+  margin-bottom: 10px;
+}
+.proto-step p {
+  font-size: 0.84rem;
+  font-weight: 300;
+  color: var(--text-dim);
+  line-height: 1.65;
+}
+.proto-step code {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--cyan);
+}
+@media (max-width: 768px) {
+  .proto-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 480px) {
+  .proto-grid { grid-template-columns: 1fr; }
+}
+
+/* ── A2A Scenarios ── */
+.a2a-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+  margin-top: 48px;
+  border-radius: 0;
+}
+.a2a-card {
+  background: var(--surface);
+  padding: 32px 28px;
+}
+.a2a-card h3 {
+  font-family: var(--body);
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-bright);
+  margin-bottom: 10px;
+}
+.a2a-card p {
+  font-size: 0.84rem;
+  font-weight: 300;
+  color: var(--text-dim);
+  line-height: 1.65;
+}
+.a2a-flow {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0;
+  margin-top: 48px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 0;
+}
+.a2a-flow-step {
+  flex: 1;
+  text-align: center;
+  padding: 28px 20px;
+  position: relative;
+  border-right: 1px solid var(--border);
+}
+.a2a-flow-step:last-child { border-right: none; }
+.a2a-flow-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 6px solid var(--cyan-muted);
+  z-index: 1;
+}
+.a2a-flow-num {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: var(--cyan);
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+}
+.a2a-flow-label {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  font-weight: 400;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+@media (max-width: 640px) {
+  .a2a-grid { grid-template-columns: 1fr; }
+  .a2a-flow { flex-direction: column; }
+  .a2a-flow-step { border-right: none; border-bottom: 1px solid var(--border); }
+  .a2a-flow-step:last-child { border-bottom: none; }
+  .a2a-flow-step:not(:last-child)::after {
+    right: 50%;
+    top: auto;
+    bottom: -6px;
+    transform: translateX(50%) rotate(90deg);
+  }
+}
+
+/* ── Code sections ── */
+.code-section {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr;
+  gap: 40px;
+  align-items: start;
+  margin-top: 8px;
+}
+.code-text h3 {
+  font-family: var(--display);
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--text-bright);
+  margin-bottom: 16px;
+}
+.code-text p {
+  font-size: 0.92rem;
+  font-weight: 300;
+  color: var(--text-dim);
+  line-height: 1.7;
+}
+.code-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 20px;
+}
+.code-tag {
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 0;
+}
+.code-block {
+  background: #0a0e14;
+  border: 1px solid var(--border);
+  border-radius: 0;
+  overflow: hidden;
+  position: relative;
+}
+.code-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.code-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.code-dot.r { background: #ff5f57; }
+.code-dot.y { background: #febc2e; }
+.code-dot.g { background: #28c840; }
+.code-tab {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  margin-left: 10px;
+  letter-spacing: 0.04em;
+}
+.code-copy {
+  position: absolute;
+  top: 8px; right: 12px;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: color 0.3s, border-color 0.3s;
+  border-radius: 0;
+  z-index: 2;
+}
+.code-copy:hover { color: var(--cyan); border-color: var(--cyan-muted); }
+.code-body {
+  padding: 20px 20px;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  line-height: 1.7;
+  color: var(--text);
+  overflow-x: auto;
+  white-space: pre;
+}
+.code-body .cmt { color: var(--text-muted); }
+.code-body .kw { color: var(--text-bright); }
+.code-body .str { color: var(--code-str); }
+.code-body .fn { color: var(--cyan); }
+.code-body .num { color: var(--cyan); }
+@media (max-width: 768px) {
+  .code-section { grid-template-columns: 1fr; }
+}
+
+/* ── Roles ── */
+.roles-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--border);
+  margin-top: 48px;
+  border-radius: 0;
+}
+.role {
+  background: var(--surface);
+  padding: 36px 28px;
+}
+.role-badge {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border: 1px solid var(--border-light);
+  margin-bottom: 20px;
+  border-radius: 0;
+}
+.role-badge.most { color: var(--cyan); border-color: var(--cyan-dim); }
+.role-badge.dev { color: var(--code-str); border-color: rgba(139,157,195,0.2); }
+.role-badge.infra { color: var(--text-dim); border-color: var(--border-light); }
+.role h3 {
+  font-family: var(--body);
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: var(--text-bright);
+  margin-bottom: 12px;
+}
+.role p {
+  font-size: 0.84rem;
+  font-weight: 300;
+  color: var(--text-dim);
+  line-height: 1.65;
+  margin-bottom: 20px;
+}
+.role code {
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  padding: 10px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 0;
+}
+@media (max-width: 768px) {
+  .roles-grid { grid-template-columns: 1fr; }
+}
+
+/* ── CTA ── */
+.cta-section {
+  text-align: center;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 120px clamp(24px, 5vw, 80px);
+}
+.cta-section h2 {
+  font-family: var(--display);
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 700;
+  color: var(--text-bright);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+.cta-actions {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin-top: 36px;
+  flex-wrap: wrap;
+}
+.cta-cmd {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 28px;
+  padding: 12px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: border-color 0.3s;
+}
+.cta-cmd:hover { border-color: var(--cyan-muted); }
+.cta-cmd .prompt { color: var(--cyan); }
+.cta-cursor {
+  display: inline-block;
+  width: 7px;
+  height: 1.1em;
+  background: var(--cyan);
+  vertical-align: text-bottom;
+  animation: blink 1.1s step-end infinite;
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* ── Footer ── */
+footer {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 40px clamp(24px, 5vw, 80px);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.foot-logo {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+.foot-links {
+  display: flex;
+  gap: 24px;
+}
+.foot-links a {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  transition: color 0.3s;
+}
+.foot-links a:hover { color: var(--text-bright); }
+@media (max-width: 480px) {
+  footer { flex-direction: column; gap: 16px; text-align: center; }
+}
+
+/* ── Back to top ── */
+.btt {
+  position: fixed;
+  bottom: 28px; right: 28px;
+  width: 36px; height: 36px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s, color 0.3s, border-color 0.3s;
+  z-index: 50;
+  border-radius: 0;
+}
+.btt.visible { opacity: 1; pointer-events: auto; }
+.btt:hover { color: var(--cyan); border-color: var(--cyan-muted); }
+.btt svg { width: 14px; height: 14px; }
+</style>
+</head>
+<body>
+
+<div id="scrollProgress"></div>
+
+<canvas id="heroCanvas"></canvas>
+
+<nav id="mainNav">
+  <a href="#" class="nav-logo">x402s <span>/</span> scp</a>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#protocol">Protocol</a>
+    <a href="#quickstart">API</a>
+    <a href="#a2a">A2A</a>
+    <a href="#roles">Roles</a>
+    <a href="https://github.com/nicholascpark/Contracts/tree/main/x402s" class="nav-gh" target="_blank" rel="noopener">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      GitHub
+    </a>
+  </div>
+  <button class="nav-hamburger" id="navHamburger" onclick="toggleMobileNav()" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+
+<div class="nav-drawer" id="navDrawer">
+  <a href="#features" onclick="closeMobileNav()">Features</a>
+  <a href="#protocol" onclick="closeMobileNav()">Protocol</a>
+  <a href="#quickstart" onclick="closeMobileNav()">API</a>
+  <a href="#a2a" onclick="closeMobileNav()">A2A</a>
+  <a href="#roles" onclick="closeMobileNav()">Roles</a>
+  <a href="https://github.com/nicholascpark/Contracts/tree/main/x402s" target="_blank" rel="noopener">GitHub</a>
+</div>
+
+<!-- ════════════════════════════════════════ HERO ════════════════════════════════════════ -->
+<div class="hero">
+  <div class="hero-content">
+    <div class="hero-badge" data-reveal>
+      <span class="pulse"></span>
+      Free &amp; Open Source &middot; MIT Licensed &middot; HTTP 402
+    </div>
+    <h1 data-reveal data-scramble>State Channel<br>Protocol<span class="sub">No gas. No wait.</span></h1>
+    <p class="hero-sub" data-reveal>
+      <strong>x402s</strong> brings off-chain micropayments to the agentic web. Agents pay APIs with signed state updates &mdash; zero gas per request, sub-second settlement, one channel to reach every payee. Built on the <strong>x402</strong> open standard.
+    </p>
+    <div class="hero-actions" data-reveal>
+      <a href="#quickstart" class="btn-primary">Quick Start &rarr;</a>
+      <a href="#protocol" class="btn-ghost">How It Works</a>
+    </div>
+
+    <!-- Flow visual widget -->
+    <div class="flow-widget" data-reveal>
+      <div class="flow-tabs">
+        <button class="flow-tab active" onclick="switchFlowTab(0)">Hub Route</button>
+        <button class="flow-tab" onclick="switchFlowTab(1)">Agent &harr; Agent</button>
+      </div>
+      <div class="flow-panel active" id="flowPanel0">
+        <!-- Desktop horizontal -->
+        <div class="flow-row">
+          <div class="flow-node">
+            <div class="flow-node-box">Agent</div>
+            <div class="flow-node-label">Payer</div>
+          </div>
+          <div class="flow-edge"></div>
+          <div class="flow-node">
+            <div class="flow-node-box" style="border-color:var(--cyan-muted);color:var(--cyan)">Hub</div>
+            <div class="flow-node-label">Router</div>
+          </div>
+          <div class="flow-edge d2"></div>
+          <div class="flow-node">
+            <div class="flow-node-box">Payee</div>
+            <div class="flow-node-label">API</div>
+          </div>
+        </div>
+        <!-- Mobile vertical -->
+        <div class="flow-col">
+          <div class="flow-node">
+            <div class="flow-node-box">Agent</div>
+            <div class="flow-node-label">Payer</div>
+          </div>
+          <div class="flow-edge-v"></div>
+          <div class="flow-node">
+            <div class="flow-node-box" style="border-color:var(--cyan-muted);color:var(--cyan)">Hub</div>
+            <div class="flow-node-label">Router</div>
+          </div>
+          <div class="flow-edge-v d2"></div>
+          <div class="flow-node">
+            <div class="flow-node-box">Payee</div>
+            <div class="flow-node-label">API</div>
+          </div>
+        </div>
+        <div class="flow-annotation">Agent opens one channel with hub. Hub routes to any connected payee. 4 messages: 402 &rarr; quote &rarr; issue &rarr; 200.</div>
+      </div>
+      <div class="flow-panel" id="flowPanel1">
+        <div class="flow-row">
+          <div class="flow-node">
+            <div class="flow-node-box">Agent 1</div>
+            <div class="flow-node-label">Requester</div>
+          </div>
+          <div class="flow-edge"></div>
+          <div class="flow-node">
+            <div class="flow-node-box" style="border-color:var(--cyan-muted);color:var(--cyan)">Hub</div>
+            <div class="flow-node-label">Router</div>
+          </div>
+          <div class="flow-edge d2"></div>
+          <div class="flow-node">
+            <div class="flow-node-box">Agent 2</div>
+            <div class="flow-node-label">Provider</div>
+          </div>
+        </div>
+        <div class="flow-col">
+          <div class="flow-node">
+            <div class="flow-node-box">Agent 1</div>
+            <div class="flow-node-label">Requester</div>
+          </div>
+          <div class="flow-edge-v"></div>
+          <div class="flow-node">
+            <div class="flow-node-box" style="border-color:var(--cyan-muted);color:var(--cyan)">Hub</div>
+            <div class="flow-node-label">Router</div>
+          </div>
+          <div class="flow-edge-v d2"></div>
+          <div class="flow-node">
+            <div class="flow-node-box">Agent 2</div>
+            <div class="flow-node-label">Provider</div>
+          </div>
+        </div>
+        <div class="flow-annotation">Direct agent-to-agent payments via hub routing. Both agents hold channels with the same hub.</div>
+      </div>
+    </div>
+
+    <!-- Metrics strip -->
+    <div class="metrics" data-reveal>
+      <div class="metric">
+        <div class="metric-val cyan">Free</div>
+        <div class="metric-label">Per request</div>
+      </div>
+      <div class="metric">
+        <div class="metric-val">0 gas</div>
+        <div class="metric-label">Off-chain</div>
+      </div>
+      <div class="metric">
+        <div class="metric-val">&lt;1s</div>
+        <div class="metric-label">Latency</div>
+      </div>
+      <div class="metric">
+        <div class="metric-val">ERC-20</div>
+        <div class="metric-label">Any asset</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="divider" data-reveal><div class="divider-line"></div></div>
+
+<!-- ════════════════════════════════════════ WHY ════════════════════════════════════════ -->
+<section id="why" data-reveal>
+  <div class="section-label">WHY X402S</div>
+  <div class="section-title" data-scramble>Agent payments without the friction</div>
+  <p class="section-desc">On-chain per-request payments are impractical at scale &mdash; gas costs, confirmation latency, and throughput limits make them unviable for API micropayments. State channels fix this.</p>
+
+  <div class="comparison stagger-children">
+    <div class="compare old">
+      <h3><span class="dot"></span> On-chain per call</h3>
+      <ul>
+        <li>Gas fee every request</li>
+        <li>Block confirmation latency</li>
+        <li>Chain congestion risk</li>
+        <li>Public spending graph</li>
+        <li>One tx per payee per payment</li>
+      </ul>
+    </div>
+    <div class="compare new">
+      <h3><span class="dot"></span> x402s State Channels</h3>
+      <ul>
+        <li>Zero gas per request</li>
+        <li>Instant signed-state payment</li>
+        <li>Private off-chain flow</li>
+        <li>One channel &rarr; many payees</li>
+        <li>On-chain only at open / close</li>
+        <li>Dispute-protected settlement</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<div class="divider" data-reveal><div class="divider-line"></div></div>
+
+<!-- ════════════════════════════════════════ FEATURES ════════════════════════════════════════ -->
+<section id="features" data-reveal>
+  <div class="section-label">CAPABILITIES</div>
+  <div class="section-title" data-scramble>Built for agents</div>
+
+  <div class="features-grid stagger-children">
+    <div class="feat">
+      <div class="feat-num">01</div>
+      <h3>Off-chain speed</h3>
+      <p>Payments are signed state updates. No blocks to wait for. Pay and respond in one round-trip.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-num">02</div>
+      <h3>On-chain safety</h3>
+      <p>Dispute contract enforces settlement. Challenge watcher catches stale closes. Funds always recoverable via <code>finalizeClose()</code>.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-num">03</div>
+      <h3>HTTP-native</h3>
+      <p>APIs return 402 with offers. Agents retry with PAYMENT-SIGNATURE header. Standard HTTP, no custom transport.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-num">04</div>
+      <h3>Private transactions</h3>
+      <p>Off-chain state updates are invisible to the public chain. Only open and close touch the blockchain.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-num">05</div>
+      <h3>Hub routing</h3>
+      <p>One channel to a hub unlocks every connected payee. Pay many APIs from a single funded channel.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-num">06</div>
+      <h3>Multi-asset</h3>
+      <p>USDC, ETH, USDT, or any ERC-20. Per-path pricing. Payees set offers, agents pick what they hold.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-num">07</div>
+      <h3>Agent-first</h3>
+      <p>CLI commands for every operation. Auto-mode handles discovery, channels, and payment &mdash; or go manual.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-num">08</div>
+      <h3>Agent skill included</h3>
+      <p>Ships a ready-made skill folder. Drop into Claude or any LLM agent for automatic 402 discovery, channel management, and payment.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-num">09</div>
+      <h3>Free &amp; open</h3>
+      <p>MIT licensed. Zero platform fees. Run your own hub or use a public one. Fork it, extend it, ship it.</p>
+    </div>
+  </div>
+</section>
+
+<div class="divider" data-reveal><div class="divider-line"></div></div>
+
+<!-- ════════════════════════════════════════ PROTOCOL ════════════════════════════════════════ -->
+<section id="protocol" data-reveal>
+  <div class="section-label">PROTOCOL</div>
+  <div class="section-title" data-scramble>Four steps to pay</div>
+  <p class="section-desc">Agent opens one channel with a hub. The hub routes payments to any connected payee. Four messages to go from 402 to 200.</p>
+
+  <div class="proto-grid stagger-children">
+    <div class="proto-step">
+      <div class="proto-num">1</div>
+      <h3>Discover</h3>
+      <p>Agent GETs a resource. Payee returns <code>402</code> with payment offers: network, asset, amount, route mode.</p>
+    </div>
+    <div class="proto-step">
+      <div class="proto-num">2</div>
+      <h3>Quote</h3>
+      <p>Agent sends the chosen offer to the hub. Hub calculates fee, returns a draft with <code>totalDebit</code> ready to sign.</p>
+    </div>
+    <div class="proto-step">
+      <div class="proto-num">3</div>
+      <h3>Issue</h3>
+      <p>Agent signs the next channel state via <code>EIP-712</code>. Hub validates nonce monotonicity, balance invariant, and fee bounds. Returns a ticket.</p>
+    </div>
+    <div class="proto-step">
+      <div class="proto-num">4</div>
+      <h3>Pay + Verify</h3>
+      <p>Agent retries with <code>PAYMENT-SIGNATURE</code> header. Payee verifies ticket, returns <code>200</code> with receipt.</p>
+    </div>
+  </div>
+</section>
+
+<div class="divider" data-reveal><div class="divider-line"></div></div>
+
+<!-- ════════════════════════════════════════ A2A ════════════════════════════════════════ -->
+<section id="a2a" data-reveal>
+  <div class="section-label">AGENT-TO-AGENT</div>
+  <div class="section-title" data-scramble>Agents paying agents, through the hub</div>
+
+  <div class="a2a-grid stagger-children">
+    <div class="a2a-card">
+      <h3>Research agent buys data</h3>
+      <p>A research agent discovers a data API behind a 402. It opens a channel, pays per query, and aggregates results &mdash; all autonomously.</p>
+    </div>
+    <div class="a2a-card">
+      <h3>Inference on demand</h3>
+      <p>An orchestrator agent pays a specialized inference agent per prediction. The inference agent exposes a 402-gated endpoint.</p>
+    </div>
+    <div class="a2a-card">
+      <h3>Multi-agent orchestration</h3>
+      <p>A coordinator fans out tasks to worker agents, each behind a paid API. Payments are batched through a single hub channel.</p>
+    </div>
+    <div class="a2a-card">
+      <h3>Micro-bounties</h3>
+      <p>Post a task as a 402 offer. Any agent that completes it earns the bounty. The hub settles atomically on completion.</p>
+    </div>
+  </div>
+
+  <div class="a2a-flow stagger-children">
+    <div class="a2a-flow-step">
+      <div class="a2a-flow-num">01</div>
+      <div class="a2a-flow-label">Both agents open<br>channels with hub</div>
+    </div>
+    <div class="a2a-flow-step">
+      <div class="a2a-flow-num">02</div>
+      <div class="a2a-flow-label">Pay via hub-routed<br>state channel tickets</div>
+    </div>
+    <div class="a2a-flow-step">
+      <div class="a2a-flow-num">03</div>
+      <div class="a2a-flow-label">Settle on-chain<br>when channels close</div>
+    </div>
+  </div>
+</section>
+
+<div class="divider" data-reveal><div class="divider-line"></div></div>
+
+<!-- ════════════════════════════════════════ QUICKSTART ════════════════════════════════════════ -->
+<section id="quickstart" data-reveal>
+  <div class="section-label">QUICKSTART</div>
+  <div class="code-section">
+    <div class="code-text">
+      <h3>Five minutes to first payment</h3>
+      <p>Install, configure, open a channel, and pay. The wizard handles key generation and hub configuration.</p>
+      <div class="code-tags">
+        <span class="code-tag">CLI</span>
+        <span class="code-tag">SDK</span>
+        <span class="code-tag">HTTP Server</span>
+        <span class="code-tag">Dashboard</span>
+      </div>
+    </div>
+    <div class="code-block">
+      <div class="code-header">
+        <div class="code-dot r"></div><div class="code-dot y"></div><div class="code-dot g"></div>
+        <span class="code-tab">terminal</span>
+      </div>
+      <button class="code-copy" onclick="copyCode(this)" data-code="npm install
+npm run scp:wizard
+
+# open a channel on Sepolia
+npm run scp:channel:open -- \
+  0xHubAddr sepolia eth 0.01
+
+# check channel + hub health
+npm run scp:channel:status
+
+# pay an API
+npm run scp:agent:pay -- \
+  https://api.example/v1/data
+
+# view payment history
+npm run scp:channel:receipts">Copy</button>
+      <div class="code-body">
+<span class="cmt"># setup</span>
+<span class="fn">npm</span> install
+<span class="fn">npm</span> run <span class="str">scp:wizard</span>
+
+<span class="cmt"># open a channel (Sepolia testnet)</span>
+<span class="fn">npm</span> run <span class="str">scp:channel:open</span> <span class="kw">--</span> \
+  <span class="num">0xHubAddr</span> sepolia eth <span class="num">0.01</span>
+
+<span class="cmt"># check channel + hub health</span>
+<span class="fn">npm</span> run <span class="str">scp:channel:status</span>
+
+<span class="cmt"># pay an API</span>
+<span class="fn">npm</span> run <span class="str">scp:agent:pay</span> <span class="kw">--</span> \
+  https://api.example/v1/data
+
+<span class="cmt"># view payment history</span>
+<span class="fn">npm</span> run <span class="str">scp:channel:receipts</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider" data-reveal><div class="divider-line"></div></div>
+
+<!-- ════════════════════════════════════════ PAYEE API ════════════════════════════════════════ -->
+<section id="payeeapi" data-reveal>
+  <div class="section-label">PAYEE API</div>
+  <div class="code-section">
+    <div class="code-text">
+      <h3>Protect an endpoint</h3>
+      <p>Return HTTP 402 with offers when unpaid, verify the payment signature, serve data with a receipt. Three code paths, no SDK required.</p>
+      <div class="code-tags">
+        <span class="code-tag">402</span>
+        <span class="code-tag">accepts[]</span>
+        <span class="code-tag">verify</span>
+        <span class="code-tag">receipt</span>
+      </div>
+    </div>
+    <div class="code-block">
+      <div class="code-header">
+        <div class="code-dot r"></div><div class="code-dot y"></div><div class="code-dot g"></div>
+        <span class="code-tab">payee-api.js</span>
+      </div>
+      <button class="code-copy" onclick="copyCode(this)" data-code="const sig = req.headers[&quot;payment-signature&quot;];
+
+if (!sig) {
+  return res.status(402).json({
+    error: &quot;payment required&quot;,
+    accepts: [{
+      scheme: &quot;statechannel-hub-v1&quot;,
+      network: &quot;eip155:8453&quot;,
+      asset: &quot;0x833589...&quot;,
+      maxAmountRequired: &quot;1000000&quot;,
+      payTo: &quot;pay.eth&quot;
+    }]
+  });
+}
+
+const result = await verify(sig, store);
+if (!result.ok)
+  return res.status(402).json({ error: result.error });
+
+return res.json({
+  ok: true, data,
+  receipt: { paymentId: result.paymentId }
+});">Copy</button>
+      <div class="code-body">
+<span class="kw">const</span> sig = req.headers[<span class="str">"payment-signature"</span>];
+
+<span class="kw">if</span> (!sig) {
+  <span class="kw">return</span> res.status(<span class="num">402</span>).json({
+    error: <span class="str">"payment required"</span>,
+    accepts: [{
+      scheme: <span class="str">"statechannel-hub-v1"</span>,
+      network: <span class="str">"eip155:8453"</span>,
+      asset: <span class="str">"0x833589..."</span>,
+      maxAmountRequired: <span class="str">"1000000"</span>,
+      payTo: <span class="str">"pay.eth"</span>
+    }]
+  });
+}
+
+<span class="kw">const</span> result = <span class="kw">await</span> <span class="fn">verify</span>(sig, store);
+<span class="kw">if</span> (!result.ok)
+  <span class="kw">return</span> res.status(<span class="num">402</span>).json({ error: result.error });
+
+<span class="kw">return</span> res.json({
+  ok: <span class="kw">true</span>, data,
+  receipt: { paymentId: result.paymentId }
+});
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider" data-reveal><div class="divider-line"></div></div>
+
+<!-- ════════════════════════════════════════ ROLES ════════════════════════════════════════ -->
+<section id="roles" data-reveal>
+  <div class="section-label">ROLES</div>
+  <div class="section-title" data-scramble>Run what you need</div>
+  <p class="section-desc">Most users only need the agent. Build paid APIs or run hub infrastructure when ready.</p>
+
+  <div class="roles-grid stagger-children">
+    <div class="role">
+      <div class="role-badge most">Most users</div>
+      <h3>Agent (Payer)</h3>
+      <p>Discover offers, open channels, pay APIs. Auto-mode handles everything &mdash; or use the CLI for manual control.</p>
+      <code>npm run scp:agent:pay -- &lt;url&gt;</code>
+    </div>
+    <div class="role">
+      <div class="role-badge dev">API devs</div>
+      <h3>Payee API</h3>
+      <p>Protect routes with 402, define per-path pricing via offers.json, validate tickets with built-in verification.</p>
+      <code>npm run scp:payee</code>
+    </div>
+    <div class="role">
+      <div class="role-badge infra">Infra ops</div>
+      <h3>Hub Operator</h3>
+      <p>Quote fees, issue tickets, track settlements, run challenge watchers. Scale with PM2 for production.</p>
+      <code>npm run scp:hub</code>
+    </div>
+  </div>
+</section>
+
+<div class="divider" data-reveal><div class="divider-line"></div></div>
+
+<!-- ════════════════════════════════════════ CTA ════════════════════════════════════════ -->
+<div class="cta-section" data-reveal>
+  <h2 data-scramble>Build paid APIs<br>and agents.</h2>
+  <div class="cta-actions">
+    <a href="https://github.com/nicholascpark/Contracts/tree/main/x402s" class="btn-primary" target="_blank" rel="noopener">View on GitHub &rarr;</a>
+    <a href="#quickstart" class="btn-ghost">Quick Start</a>
+  </div>
+  <div class="cta-cmd" onclick="copyCmdLine(this)">
+    <span class="prompt">$</span> npm run scp:wizard
+    <span class="cta-cursor"></span>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════ FOOTER ════════════════════════════════════════ -->
+<footer>
+  <div class="foot-logo">x402s / scp</div>
+  <div class="foot-links">
+    <a href="#quickstart">Docs</a>
+    <a href="https://github.com/nicholascpark/Contracts/tree/main/x402s" target="_blank" rel="noopener">GitHub</a>
+    <a href="https://github.com/nicholascpark/Contracts/blob/main/x402s/docs/X402S_SPEC_V2.md" target="_blank" rel="noopener">Spec</a>
+    <a href="https://github.com/nicholascpark/Contracts/blob/main/x402s/docs/openapi.yaml" target="_blank" rel="noopener">OpenAPI</a>
+  </div>
+</footer>
+
+<a href="#" class="btt" id="btt" aria-label="Back to top">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
+</a>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════════
+   SCROLL PROGRESS
+   ══════════════════════════════════════════════════════════════════════ */
+const scrollBar = document.getElementById('scrollProgress');
+function updateScrollProgress() {
+  const h = document.documentElement.scrollHeight - window.innerHeight;
+  scrollBar.style.width = h > 0 ? (window.scrollY / h * 100) + '%' : '0%';
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   NAV + BACK-TO-TOP
+   ══════════════════════════════════════════════════════════════════════ */
+const mainNav = document.getElementById('mainNav');
+const btt = document.getElementById('btt');
+window.addEventListener('scroll', () => {
+  mainNav.classList.toggle('scrolled', scrollY > 40);
+  btt.classList.toggle('visible', scrollY > 600);
+  updateScrollProgress();
+}, { passive: true });
+
+/* ══════════════════════════════════════════════════════════════════════
+   MOBILE NAV
+   ══════════════════════════════════════════════════════════════════════ */
+function toggleMobileNav() {
+  const h = document.getElementById('navHamburger');
+  const d = document.getElementById('navDrawer');
+  h.classList.toggle('open');
+  d.classList.toggle('open');
+  document.body.style.overflow = d.classList.contains('open') ? 'hidden' : '';
+}
+function closeMobileNav() {
+  document.getElementById('navHamburger').classList.remove('open');
+  document.getElementById('navDrawer').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   SMOOTH ANCHOR SCROLL
+   ══════════════════════════════════════════════════════════════════════ */
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    const href = a.getAttribute('href');
+    if (href === '#') { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+    const target = document.querySelector(href);
+    if (target) {
+      e.preventDefault();
+      const navH = 72;
+      const top = target.getBoundingClientRect().top + window.scrollY - navH;
+      window.scrollTo({ top, behavior: 'smooth' });
+    }
+  });
+});
+
+/* ══════════════════════════════════════════════════════════════════════
+   REVEAL ON SCROLL (IntersectionObserver)
+   ══════════════════════════════════════════════════════════════════════ */
+const revealObs = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.classList.add('visible');
+      // Glitch border flicker for elements with borders
+      if (e.target.hasAttribute('data-reveal') && (
+        e.target.classList.contains('flow-widget') ||
+        e.target.closest('.comparison') ||
+        e.target.closest('.features-grid')
+      )) {
+        e.target.classList.add('glitch-in');
+        setTimeout(() => e.target.classList.remove('glitch-in'), 400);
+      }
+    }
+  });
+}, { threshold: 0.06, rootMargin: '0px 0px -40px 0px' });
+document.querySelectorAll('[data-reveal], .stagger-children').forEach(el => revealObs.observe(el));
+
+/* ══════════════════════════════════════════════════════════════════════
+   TEXT SCRAMBLE ANIMATION
+   ══════════════════════════════════════════════════════════════════════ */
+const scrambleChars = '!<>-_\\/[]{}=+*^?#_01';
+function scrambleTextNodes(el) {
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null, false);
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+  textNodes.forEach(node => {
+    const orig = node.textContent;
+    if (orig.trim().length === 0) return;
+    let iter = 0;
+    const len = orig.length;
+    const iv = setInterval(() => {
+      node.textContent = orig.split('').map((c, i) => {
+        if (c === '\n' || c === ' ') return c;
+        if (i < iter) return orig[i];
+        return scrambleChars[Math.floor(Math.random() * scrambleChars.length)];
+      }).join('');
+      iter += 1.5;
+      if (iter >= len) { node.textContent = orig; clearInterval(iv); }
+    }, 30);
+  });
+}
+const scrambleObs = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      scrambleTextNodes(e.target);
+      scrambleObs.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.3 });
+document.querySelectorAll('[data-scramble]').forEach(el => scrambleObs.observe(el));
+
+/* ══════════════════════════════════════════════════════════════════════
+   FLOW TAB SWITCHING
+   ══════════════════════════════════════════════════════════════════════ */
+function switchFlowTab(idx) {
+  document.querySelectorAll('.flow-tab').forEach((t, i) => t.classList.toggle('active', i === idx));
+  document.querySelectorAll('.flow-panel').forEach((p, i) => p.classList.toggle('active', i === idx));
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   COPY CODE / COPY COMMAND
+   ══════════════════════════════════════════════════════════════════════ */
+function copyCode(btn) {
+  const code = btn.getAttribute('data-code');
+  navigator.clipboard.writeText(code).then(() => {
+    btn.textContent = 'Copied';
+    setTimeout(() => btn.textContent = 'Copy', 1500);
+  });
+}
+function copyCmdLine(el) {
+  navigator.clipboard.writeText('npm run scp:wizard').then(() => {
+    el.style.borderColor = 'var(--cyan-muted)';
+    setTimeout(() => el.style.borderColor = '', 1200);
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   CANVAS NETWORK GRAPH (Hero background)
+   ══════════════════════════════════════════════════════════════════════ */
+(function() {
+  const canvas = document.getElementById('heroCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let W, H, nodes = [], edges = [], animFrame;
+  const dpr = window.devicePixelRatio || 1;
+
+  function resize() {
+    W = canvas.offsetWidth;
+    H = canvas.offsetHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function init() {
+    resize();
+    nodes = [];
+    for (let i = 0; i < 11; i++) {
+      nodes.push({
+        x: W * 0.12 + Math.random() * W * 0.76,
+        y: H * 0.08 + Math.random() * H * 0.84,
+        vx: (Math.random() - 0.5) * 0.12,
+        vy: (Math.random() - 0.5) * 0.12,
+        r: 1.5 + Math.random() * 2,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+    edges = [];
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const dx = nodes[i].x - nodes[j].x;
+        const dy = nodes[i].y - nodes[j].y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < W * 0.38 && edges.length < 18) {
+          edges.push({ a: i, b: j, pulseTime: 0, pulseActive: false });
+        }
+      }
+    }
+  }
+
+  let lastPulse = 0;
+  let nextPulseDelay = 3000 + Math.random() * 2000;
+
+  function draw(time) {
+    ctx.clearRect(0, 0, W, H);
+
+    // Drift nodes
+    nodes.forEach(n => {
+      n.x += n.vx;
+      n.y += n.vy;
+      if (n.x < W * 0.04 || n.x > W * 0.96) n.vx *= -1;
+      if (n.y < H * 0.04 || n.y > H * 0.96) n.vy *= -1;
+    });
+
+    // Random pulse trigger
+    if (time - lastPulse > nextPulseDelay && edges.length > 0) {
+      const idx = Math.floor(Math.random() * edges.length);
+      edges[idx].pulseActive = true;
+      edges[idx].pulseTime = time;
+      lastPulse = time;
+      nextPulseDelay = 3000 + Math.random() * 2000;
+    }
+
+    // Draw edges
+    edges.forEach(e => {
+      const a = nodes[e.a];
+      const b = nodes[e.b];
+
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.strokeStyle = 'rgba(30,40,56,0.45)';
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+
+      if (e.pulseActive) {
+        const elapsed = time - e.pulseTime;
+        const duration = 1200;
+        const t = elapsed / duration;
+        if (t > 1) {
+          e.pulseActive = false;
+        } else {
+          const px = a.x + (b.x - a.x) * t;
+          const py = a.y + (b.y - a.y) * t;
+
+          // Bright edge
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.strokeStyle = 'rgba(0,229,255,' + (0.18 * (1 - t)) + ')';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+
+          // Pulse dot
+          ctx.beginPath();
+          ctx.arc(px, py, 3, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(0,229,255,' + (0.8 * (1 - t)) + ')';
+          ctx.fill();
+        }
+      }
+    });
+
+    // Draw nodes
+    nodes.forEach(n => {
+      const breathe = Math.sin(time * 0.001 + n.phase) * 0.3 + 0.7;
+      // Outer glow
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.r * 1.8, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,229,255,' + (0.06 * breathe) + ')';
+      ctx.fill();
+      // Core
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.r * 0.6, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,229,255,' + (0.35 * breathe) + ')';
+      ctx.fill();
+    });
+
+    animFrame = requestAnimationFrame(draw);
+  }
+
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      cancelAnimationFrame(animFrame);
+      init();
+      animFrame = requestAnimationFrame(draw);
+    }, 150);
+  });
+
+  init();
+  animFrame = requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>

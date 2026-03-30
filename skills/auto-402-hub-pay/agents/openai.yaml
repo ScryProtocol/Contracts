@@ -1,0 +1,4 @@
+interface:
+  display_name: "Auto 402 Hub Pay"
+  short_description: "Auto-handle 402 payments via SCP hub channels"
+  default_prompt: "Use $auto-402-hub-pay to pay a 402 URL by checking/funding channels automatically."

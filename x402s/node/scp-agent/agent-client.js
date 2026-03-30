@@ -31,6 +31,17 @@ const CHANNEL_ABI = [
   "event ChannelClosed(bytes32 indexed channelId, uint256 stateNonce, uint256 payoutA, uint256 payoutB)"
 ];
 
+const LEGACY_CHANNEL_ABI = [
+  "function openChannel(address participantB, address asset, uint256 amount, uint64 challengePeriodSec, uint64 channelExpiry, bytes32 salt) external payable returns (bytes32 channelId)",
+  "function getChannel(bytes32 channelId) external view returns (tuple(address participantA, address participantB, address asset, uint64 challengePeriodSec, uint64 channelExpiry, uint256 totalBalance, bool isClosing, uint64 closeDeadline, uint64 latestNonce))",
+  "event ChannelOpened(bytes32 indexed channelId, address indexed participantA, address indexed participantB, address asset, uint64 challengePeriodSec, uint64 channelExpiry)"
+];
+
+const ERC20_ABI = [
+  "function allowance(address owner, address spender) view returns (uint256)",
+  "function approve(address spender, uint256 amount) returns (bool)"
+];
+
 function now() {
   return Math.floor(Date.now() / 1000);
 }
@@ -1200,10 +1211,86 @@ class ScpAgentClient {
     return new ethers.Contract(contractAddress, CHANNEL_ABI, signer);
   }
 
+  getLegacyContract(rpcUrl, contractAddress) {
+    if (!rpcUrl) throw new Error("RPC_URL required for on-chain operations");
+    if (!contractAddress) throw new Error("CONTRACT_ADDRESS required");
+    const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+    const signer = this.wallet.connect(provider);
+    return new ethers.Contract(contractAddress, LEGACY_CHANNEL_ABI, signer);
+  }
+
+  getErc20Contract(rpcUrl, tokenAddress) {
+    if (!rpcUrl) throw new Error("RPC_URL required for ERC20 operations");
+    if (!tokenAddress) throw new Error("token address required");
+    const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+    const signer = this.wallet.connect(provider);
+    return new ethers.Contract(tokenAddress, ERC20_ABI, signer);
+  }
+
+  async ensureErc20Approval(rpcUrl, tokenAddress, spender, amount, options = {}) {
+    const token = this.getErc20Contract(rpcUrl, tokenAddress);
+    const owner = this.wallet.address;
+    const needed = BigInt(amount || "0");
+    const current = (await token.allowance(owner, spender)).toBigInt();
+    if (current >= needed) {
+      return { approved: false, allowance: current.toString(), txHash: null };
+    }
+
+    const targetAmount = options.approvalAmount
+      ? ethers.BigNumber.from(String(options.approvalAmount))
+      : ethers.constants.MaxUint256;
+
+    const approveWithFallback = async (value) => {
+      let gasLimit;
+      try {
+        gasLimit = (await token.estimateGas.approve(spender, value)).mul(130).div(100);
+      } catch (_e) {
+        gasLimit = ethers.BigNumber.from("100000");
+      }
+      const tx = await token.approve(spender, value, { gasLimit });
+      await tx.wait(1);
+      return tx.hash;
+    };
+
+    try {
+      const txHash = await approveWithFallback(targetAmount);
+      const finalAllowance = (await token.allowance(owner, spender)).toBigInt();
+      return { approved: true, allowance: finalAllowance.toString(), txHash };
+    } catch (err) {
+      if (current === 0n) throw err;
+      await approveWithFallback(0);
+      const txHash = await approveWithFallback(targetAmount);
+      const finalAllowance = (await token.allowance(owner, spender)).toBigInt();
+      return { approved: true, allowance: finalAllowance.toString(), txHash };
+    }
+  }
+
+  async getChannelParams(contract, channelId, options = {}) {
+    try {
+      return await contract.getChannel(channelId);
+    } catch (err) {
+      if (!options.legacyContract) throw err;
+      const legacy = await options.legacyContract.getChannel(channelId);
+      return {
+        participantA: legacy.participantA,
+        participantB: legacy.participantB,
+        asset: legacy.asset,
+        challengePeriodSec: legacy.challengePeriodSec,
+        channelExpiry: legacy.channelExpiry,
+        totalBalance: legacy.totalBalance,
+        isClosing: legacy.isClosing,
+        closeDeadline: legacy.closeDeadline,
+        latestNonce: legacy.latestNonce,
+        hubFlags: 0
+      };
+    }
+  }
+
   async openChannel(participantB, options = {}) {
     const rpcUrl = options.rpcUrl || process.env.RPC_URL;
     const contractAddress = options.contractAddress || process.env.CONTRACT_ADDRESS;
     const contract = this.getContract(rpcUrl, contractAddress);
+    const legacyContract = this.getLegacyContract(rpcUrl, contractAddress);
     const asset = options.asset || ethers.constants.AddressZero;
     const amount = BigInt(options.amount || "0");
     const challengePeriod = Number(options.challengePeriodSec || 86400);
@@ -1214,28 +1301,47 @@ class ScpAgentClient {
       ? options.hubFlags
       : (options.hubEndpoint ? 2 : 0);
 
+    let approval = null;
+    if (asset !== ethers.constants.AddressZero) {
+      approval = await this.ensureErc20Approval(rpcUrl, asset, contractAddress, amount, options);
+    }
+
     const baseTxOpts = asset === ethers.constants.AddressZero
       ? { value: amount }
       : {};
     let gasLimit;
+    let useLegacyOpen = false;
     try {
       const estimated = await contract.estimateGas.openChannel(
         ethers.utils.getAddress(participantB), asset, amount, challengePeriod, channelExpiry, salt, hubFlags, baseTxOpts
       );
       gasLimit = estimated.mul(130).div(100);
-    } catch (_e) {
-      const msg = _e.reason || _e.message || "";
-      if (/execution reverted|CALL_EXCEPTION/i.test(msg)) {
-        throw new Error("openChannel would revert on-chain (salt collision or contract rejection). Try again.");
+    } catch (err) {
+      try {
+        const estimatedLegacy = await legacyContract.estimateGas.openChannel(
+          ethers.utils.getAddress(participantB), asset, amount, challengePeriod, channelExpiry, salt, baseTxOpts
+        );
+        gasLimit = estimatedLegacy.mul(130).div(100);
+        useLegacyOpen = true;
+      } catch (_e) {
+        const msg = err.reason || err.message || "";
+        if (/execution reverted|CALL_EXCEPTION/i.test(msg)) {
+          throw new Error("openChannel would revert on-chain (salt collision, contract rejection, or ABI mismatch). Try again.");
+        }
+        console.error("ESTIMATE GAS FAILED (using fallback):", msg);
+        gasLimit = ethers.BigNumber.from("700000");
       }
-      console.error("ESTIMATE GAS FAILED (using fallback):", msg);
-      gasLimit = ethers.BigNumber.from("700000");
     }
     const txOpts = { ...baseTxOpts, gasLimit };
-    const tx = await contract.openChannel(
-      ethers.utils.getAddress(participantB), asset, amount,
-      challengePeriod, channelExpiry, salt, hubFlags, txOpts
-    );
+    const tx = useLegacyOpen
+      ? await legacyContract.openChannel(
+          ethers.utils.getAddress(participantB), asset, amount,
+          challengePeriod, channelExpiry, salt, txOpts
+        )
+      : await contract.openChannel(
+          ethers.utils.getAddress(participantB), asset, amount,
+          challengePeriod, channelExpiry, salt, hubFlags, txOpts
+        );
     const rc = await tx.wait(1);
     const ev = rc.events.find(e => e.event === "ChannelOpened");
     const channelId = ev.args.channelId;
@@ -1277,10 +1383,11 @@ class ScpAgentClient {
       participantA: this.wallet.address,
       participantB: ethers.utils.getAddress(participantB),
       asset,
-      hubFlags,
+      hubFlags: useLegacyOpen ? 0 : hubFlags,
       amount: amount.toString(),
       challengePeriodSec: challengePeriod,
-      txHash: tx.hash
+      txHash: tx.hash,
+      ...(approval ? { approval } : {})
     };
   }
 
@@ -1288,11 +1395,17 @@ class ScpAgentClient {
     const rpcUrl = options.rpcUrl || process.env.RPC_URL;
     const contractAddress = options.contractAddress || process.env.CONTRACT_ADDRESS;
     const contract = this.getContract(rpcUrl, contractAddress);
+    const legacyContract = this.getLegacyContract(rpcUrl, contractAddress);
     const value = BigInt(amount);
 
     // Check if ETH or ERC20 by reading on-chain
-    const params = await contract.getChannel(channelId);
+    const params = await this.getChannelParams(contract, channelId, { legacyContract });
     const isEth = params.asset === ethers.constants.AddressZero;
+
+    let approval = null;
+    if (!isEth) {
+      approval = await this.ensureErc20Approval(rpcUrl, params.asset, contractAddress, value, options);
+    }
 
     const baseTxOpts = isEth ? { value } : {};
     let gasLimit;
@@ -1320,7 +1433,8 @@ class ScpAgentClient {
       channelId,
       deposited: value.toString(),
       newTotalBalance: ev ? ev.args.newTotalBalance.toString() : null,
-      txHash: tx.hash
+      txHash: tx.hash,
+      ...(approval ? { approval } : {})
     };
   }
 
@@ -1363,7 +1477,15 @@ class ScpAgentClient {
   }
 
   async payChannel(channelId, amount, options = {}) {
-    const ch = this.channelById(channelId);
+    const matches = [];
+    for (const [key, ch] of Object.entries(this.state.channels)) {
+      if (ch.channelId === channelId) matches.push({ key, ...ch });
+    }
+    const ch =
+      matches.find(entry => /^hub:/.test(entry.key)) ||
+      matches.find(entry => /^direct:/.test(entry.key)) ||
+      matches.find(entry => /^onchain:/.test(entry.key)) ||
+      null;
     if (!ch) throw new Error(`Channel ${channelId} not found in agent state.`);
 
     const hubMatch = ch.key.match(/^hub:(.+)$/);

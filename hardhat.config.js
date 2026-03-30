@@ -21,6 +21,12 @@ module.exports = {
   solidity: {
     compilers: [
       {
+        version: "0.8.28",
+        settings: {
+          evmVersion: "cancun"
+        }
+      },
+      {
         version: "0.8.6",
         settings: { }
       },

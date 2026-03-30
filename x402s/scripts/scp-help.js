@@ -15,6 +15,8 @@ const lines = [
   "",
   "Channels",
   "  npx scp channel <channelId>",
+  "  npx scp channel resync <channelId>",
+  "  npx scp resync <channelId>",
   "  npx scp open <0xAddr> <network> <asset> <amount>",
   "  npx scp fund <channelId> <amount>",
   "  npx scp close <channelId>",

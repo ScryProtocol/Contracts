@@ -118,6 +118,14 @@ Generic SCP-protected resource server with 402 challenge and ticket verification
 node node/scp-demo/payee-server.js
 ```
 
+## Specialty APIs
+
+- Meow API: `node node/scp-demo/meow-api/server.js`
+- Music API: `node node/scp-demo/music-api/server.js`
+- Weather API: `node node/scp-demo/weather-api/server.js`
+
+Legacy top-level paths still exist as compatibility wrappers, but `node/scp-demo/*-api` is now the canonical home for the demo APIs.
+
 ## E2E Demo (`demo-e2e.js`)
 
 Spins up hub + payee and runs a full payment cycle.

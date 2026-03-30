@@ -81,7 +81,7 @@ function resolveHubEndpointForNetwork(networkOrChainId, options = {}) {
     options.baseUrl ||
     process.env.HUB_BASE_URL ||
     process.env.PUBLIC_HUB_BASE_URL ||
-    "https://159.223.150.70"
+    "https://statechannel.org/heyeth"
   ).replace(/\/+$/, "");
   return `${baseUrl}${hubPathForChainId(chainId)}`;
 }

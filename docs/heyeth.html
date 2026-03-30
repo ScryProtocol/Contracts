@@ -11,6 +11,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root {
   --bg: #06080c;
@@ -157,6 +158,11 @@ nav {
   overflow: hidden;
 }
 
+.hero > * {
+  position: relative;
+  z-index: 1;
+}
+
 .hero::before {
   content: '';
   position: absolute;
@@ -168,6 +174,17 @@ nav {
   pointer-events: none;
   background: radial-gradient(circle, rgba(0,229,255,0.06) 0%, rgba(0,229,255,0.02) 40%, transparent 70%);
   animation: heroGlow 8s ease-in-out infinite;
+}
+
+#heroCanvas {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 60%;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.6;
 }
 
 @keyframes heroGlow {
@@ -298,6 +315,7 @@ nav {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   margin-top: 6px;
+  width: 340px;
 }
 
 section { padding: clamp(60px, 10vw, 120px) clamp(24px, 5vw, 80px); }
@@ -649,8 +667,7 @@ section { padding: clamp(60px, 10vw, 120px) clamp(24px, 5vw, 80px); }
 }
 
 .code-stack {
-  display: flex;
-  flex-direction: column;
+  columns: 2;
   gap: 20px;
 }
 
@@ -660,6 +677,8 @@ section { padding: clamp(60px, 10vw, 120px) clamp(24px, 5vw, 80px); }
   border-left: 2px solid var(--cyan-dim);
   position: relative;
   overflow: hidden;
+  max-width: 600px;
+  margin: 0 auto 32px;
 }
 
 .code-header {
@@ -690,7 +709,7 @@ section { padding: clamp(60px, 10vw, 120px) clamp(24px, 5vw, 80px); }
   font-size: 0.78rem;
   line-height: 1.8;
   color: var(--text-dim);
-  overflow-x: auto;
+  overflow-x: hidden;   
   white-space: pre;
 }
 
@@ -772,6 +791,30 @@ section { padding: clamp(60px, 10vw, 120px) clamp(24px, 5vw, 80px); }
   flex-wrap: wrap;
 }
 
+.cta-cmd {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 32px;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  padding: 14px 28px;
+  border: 1px solid var(--text-06);
+  cursor: pointer;
+  transition: border-color 0.3s, color 0.3s;
+  border-radius: 0;
+}
+.cta-cmd:hover { border-color: var(--cyan-dim); color: var(--text-dim); }
+.cta-cmd .prompt { color: var(--cyan); }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+.cta-cursor {
+  display: inline-block;
+  width: 7px; height: 16px;
+  background: var(--cyan);
+  animation: blink 1.1s step-end infinite;
+  vertical-align: middle;
+}
 footer {
   padding: 40px clamp(24px, 5vw, 80px);
   display: flex;
@@ -803,6 +846,60 @@ footer {
 
 .foot-links a:hover { color: var(--cyan); }
 
+/* ── Nova constellation ── */
+.nova-wrap {
+  position: absolute;
+  top: 48%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.5;
+  mix-blend-mode: screen;
+}
+@keyframes novaTwink {
+  0%,100% { opacity: var(--nop, 0.3); }
+  50% { opacity: calc(var(--nop, 0.3) * 0.15); }
+}
+@keyframes novaBreathe {
+  0%,100% { r: 22; opacity: 0.05; }
+  50% { r: 28; opacity: 0.025; }
+}
+@keyframes novaBreathe2 {
+  0%,100% { r: 13; opacity: 0.08; }
+  50% { r: 17; opacity: 0.04; }
+}
+@keyframes novaNodePop {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.35); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes novaCherry {
+  0%,100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+@keyframes novaWordFade {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.nova-wrap svg line.edge {
+  transition: stroke-dashoffset 0.55s cubic-bezier(0.4,0,0.2,1);
+}
+.nova-wrap svg circle.node {
+  transform-origin: center;
+  opacity: 0;
+  transform: scale(0);
+}
+.nova-wrap svg circle.node.visible {
+  animation: novaNodePop 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards;
+}
+.nova-cherry-halo1 { animation: novaBreathe 3s ease-in-out infinite; fill: var(--cyan); opacity: 0.04; }
+.nova-cherry-halo2 { animation: novaBreathe2 3s ease-in-out 0.5s infinite; fill: var(--cyan); opacity: 0.07; }
+.nova-cherry-core { transition: opacity 0.5s ease; fill: var(--cyan); }
+.nova-cherry-core.bloom { animation: novaCherry 3s ease-in-out infinite; }
+.nova-word { opacity: 0; }
+.nova-word.visible { animation: novaWordFade 1s ease forwards; }
+
 @media (max-width: 900px) {
   .code-section,
   .handle-demo {
@@ -814,19 +911,33 @@ footer {
   .nav-links { display: none; }
   .onboard-grid,
   .features-grid { grid-template-columns: 1fr; }
+  #heroCanvas {
+    width: 100%;
+    opacity: 0.35;
+  }
 }
 
 @media (max-width: 600px) {
   .hero-actions { flex-direction: column; width: 100%; max-width: 300px; }
   .btn-primary, .btn-ghost { text-align: center; }
   footer { flex-direction: column; gap: 16px; text-align: center; }
+  .nova-wrap { transform: translate(-50%, -50%) scale(0.65); }
 }
 </style>
 </head>
 <body>
+<canvas id="heroCanvas"></canvas>
 <nav>
   <a href="#top" class="nav-logo">hey<span>.eth</span> / api</a>
   <div class="nav-links">
+    
+    <a href="https://x.com/0xstatechannel" class="nav-x" target="_blank" rel="noopener">X</a>
+    <a href="https://discord.gg/gQY8uWfH" class="nav-discord" target="_blank" rel="noopener">Discord
+    </a>
+    <a href="https://github.com/keychain-inc/x402s" class="nav-gh" target="_blank" rel="noopener">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      GitHub
+    </a>
     <a href="#overview">Overview</a>
     <a href="#endpoints">Endpoints</a>
     <a href="#examples">Examples</a>
@@ -843,7 +954,7 @@ footer {
 
 <main id="top">
   <section class="hero">
-    <div class="hero-badge">Free hey.eth ENS for agents</div>
+    <div class="hero-badge">x402s</div>
     <h1>Free <em>hey.eth</em> for agents</h1>
     <p class="hero-sub">
     Claim a free <code>agent.hey.eth</code> ENS for your agent. 
@@ -857,15 +968,14 @@ footer {
         <div class="metric-val gold">/claim</div>
         <div class="metric-label">Claim your hey.eth handle</div>
         </div>
-      <div class="metric">
-        <div class="metric-val">/handle/:handle</div>
-        <div class="metric-label">Check handle availability and info</div>
+        <div class="metric">
+        <div class="metric-val">/docs</div>
+        <div class="metric-label">Just use <br/>curl -sS https://statechannel.org/heyeth/docs<br/> to let your agent get its own, free ENS</div>
         </div>
       <div class="metric">
-        <div class="metric-val">/ccip</div>
-        <div class="metric-label">Resolve hey.eth records via CCIP</div>
+        <div class="metric-val">SCP</div>
+        <div class="metric-label">Creates x402s for your agent wallet to accept 0 fee, instant payments</div>
         </div>
-      </div>
     </div>
   </section>
 
@@ -875,11 +985,11 @@ footer {
     <div class="section-inner">
       <div class="section-rule"></div>
       <div class="section-label">Overview</div>
-      <h2 class="section-title">One surface for <em>check</em>, <em>claim</em>, and <em>resolve</em>.</h2>
+      <h2 class="section-title">Agents need a <em>simple</em>, <em>free</em>, and <em>reliable</em> way to accept payments</h2>
       <p class="section-desc">
-        The API is already live. It reserves available labels under <code>hey.eth</code>, exposes claimed
-        records from the directory, and signs CCIP responses for offchain resolution. The only missing piece
-        for normal ENS wallets is the mainnet resolver switch.
+        The hey.eth API provides a clean path for agents to claim a human-readable handle, publish an ENS-style
+        directory record, and resolve incoming payment addresses. The route set is small, explicit, and
+        designed for automation-first use 
       </p>
 
       <div class="onboard-grid">
@@ -917,10 +1027,9 @@ footer {
     <div class="section-inner">
       <div class="section-rule"></div>
       <div class="section-label">Handle Model</div>
-      <h2 class="section-title">A clean agent handle becomes an <em>ENS-style record</em>.</h2>
+      <h2 class="section-title">A clean agent handle becomes an <em>ENS address</em>.</h2>
       <p class="section-desc">
-        The write path stays API-first: request a challenge, sign once with the intended owner wallet, then
-        send the signed claim so the directory can publish verified records.
+Get a human-readable handle that maps to an Ethereum address/s, making it easy for agents to receive payments.
       </p>
 
       <div class="handle-demo">
@@ -936,7 +1045,7 @@ footer {
             <span class="hl">GET</span> /heyeth/info/agent007<br>
             owner: 0x1234...7890<br>
             ETH: 0x1234...7890<br>
-            BAL: 0x1234...7890
+            USDC: 0x1234...7890
           </div>
         </div>
 
@@ -948,10 +1057,10 @@ footer {
           </p>
           <ul class="handle-features">
             <li>Free claims for open ENS-safe labels under <code>hey.eth</code></li>
-            <li>Wallet-signed claim flow so a caller proves control of the submitted owner address</li>
-            <li>Directory read endpoints for claimed handles and specific coin records</li>
+            <li>Directory-style record with multiple addresses per handle</li>
+            <li>Explicit auth flow with signed nonces for secure claims and updates</li>
             <li>CCIP gateway for <code>addr()</code> and basic <code>text()</code> lookups</li>
-            <li>Public Sepolia <code>pay.eth</code> hub metadata for payment routing</li>
+            <li>SCP-based x402s payments for instant, gasless payments to agent wallets</li>
           </ul>
         </div>
       </div>
@@ -978,7 +1087,7 @@ footer {
         <div class="feat">
           <div class="feat-icon">LOOKUP</div>
           <h3>GET /heyeth/handle/:handle</h3>
-          <p>Checks whether a label is claimed and returns the current owner, marker, address map, and pay hub reference.</p>
+          <p>Checks whether a label is claimed and returns the current owner, marker, address map, pay hub reference, and an x402s-style <code>offers</code> array for hub routing.</p>
         </div>
         <div class="feat">
           <div class="feat-icon">QUERY</div>
@@ -998,12 +1107,12 @@ footer {
         <div class="feat">
           <div class="feat-icon">AUTH</div>
           <h3>POST /heyeth/auth/challenge</h3>
-          <p>Returns the exact EIP-191 message to sign for a handle and owner wallet before a claim or update.</p>
+          <p>Returns the exact EIP-191 <code>personal_sign</code> / <code>signMessage</code> payload for a handle and owner wallet before a claim or update.</p>
         </div>
         <div class="feat">
           <div class="feat-icon">CLAIM</div>
           <h3>POST /heyeth/claim</h3>
-          <p>Reserves an available label and writes default ETH and BAL records for the supplied owner address. Same-owner updates still work here for backward compatibility, but <code>PUT /heyeth/handle/:handle</code> is the cleaner edit path.</p>
+          <p>Reserves an available label and writes default ETH and USDC records for the supplied owner address. Same-owner updates still work here for backward compatibility, but <code>PUT /heyeth/handle/:handle</code> is the cleaner edit path.</p>
         </div>
         <div class="feat">
           <div class="feat-icon">CCIP</div>
@@ -1011,9 +1120,9 @@ footer {
           <p>Serves signed gateway responses for resolver calls like <code>addr()</code> under <code>*.hey.eth</code>.</p>
         </div>
         <div class="feat">
-          <div class="feat-icon">STATUS</div>
-          <h3>GET /heyeth/status</h3>
-          <p>Reports the current <code>hey.eth</code> owner, resolver, and whether the resolver already supports extended resolution.</p>
+          <div class="feat-icon">SCP</div>
+          <h3>State Channel Protocol</h3>
+          <p>hey.eth handles are also x402s-compatible agent wallets, so you can send them instant, gasless payments via SCP with no on-chain fees or approvals. Just resolve the handle to get the current owner address and send to the hub's x402s.
         </div>
       </div>
     </div>
@@ -1032,9 +1141,11 @@ footer {
           <h3>No frontend session, <em>just requests</em>.</h3>
           <p>
             The goal is fast automation. Discover the route set, check a label, request a signing challenge,
-            submit the signed claim, and hit the CCIP gateway without ever touching browser UI.
+            sign the exact challenge message with the owner wallet, submit the signed claim, and hit the CCIP gateway without ever touching browser UI.
           </p>
         </div>
+        </div>
+        <div>
 
         <div class="code-stack">
           <div class="code-block">
@@ -1044,27 +1155,85 @@ footer {
               <div class="code-dot g"></div>
               <div class="code-tab">claim.sh</div>
             </div>
-            <div class="code-body"><span class="cmt"># request a signed claim challenge</span>
-curl -sS https://statechannel.org/heyeth/auth/challenge \
-  -H <span class="str">'content-type: application/json'</span> \
-  --data <span class="str">'{
-    "handle": "agent007",
-    "owner": "0x1234567890123456789012345678901234567890"
-  }'</span>
+            <div class="code-body"><span class="cmt"># jq + cast example: sign challenge.message with EIP-191 personal_sign</span>
+OWNER=<span class="str">0x1234567890123456789012345678901234567890</span>
+OWNER_PK=<span class="str">0xyour_private_key_here</span>
+HANDLE=<span class="str">agent007</span>
 
-<span class="cmt"># sign the returned challenge.message with the owner wallet, then claim</span>
+CHALLENGE=$(curl -sS https://statechannel.org/heyeth/auth/challenge \
+  -H <span class="str">'content-type: application/json'</span> \
+  --data <span class="str">"{
+    \"handle\": \"$HANDLE\",
+    \"owner\": \"$OWNER\"
+  }"</span>)
+
+MESSAGE=$(printf <span class="str">'%s'</span> <span class="str">"$CHALLENGE"</span> | jq -r <span class="str">'.challenge.message'</span>)
+NONCE=$(printf <span class="str">'%s'</span> <span class="str">"$CHALLENGE"</span> | jq -r <span class="str">'.challenge.nonce'</span>)
+
+<span class="cmt"># sign the exact returned string with personal_sign / signMessage</span>
+<span class="cmt"># do not hash it yourself and do not hex-encode it first</span>
+SIGNATURE=$(cast wallet sign --private-key <span class="str">"$OWNER_PK"</span> <span class="str">"$MESSAGE"</span>)
+
+<span class="cmt"># if you use a wallet UI instead, sign challenge.message exactly as returned</span>
 curl -sS https://statechannel.org/heyeth/claim \
   -H <span class="str">'content-type: application/json'</span> \
-  --data <span class="str">'{
-    "handle": "agent007",
-    "owner": "0x1234567890123456789012345678901234567890",
-    "nonce": "from-auth-challenge",
-    "signature": "0x...",
-    "addresses": {
-      "ETH": "0x1234567890123456789012345678901234567890",
-      "BTC": "bc1qexample..."
+  --data <span class="str">"{
+    \"handle\": \"$HANDLE\",
+    \"owner\": \"$OWNER\",
+    \"nonce\": \"$NONCE\",
+    \"signature\": \"$SIGNATURE\",
+    \"addresses\": {
+      \"ETH\": \"$OWNER\",
+      \"BTC\": \"bc1qexample...\"
     }
-  }'</span></div>
+  }"</span></div>
+          </div>
+
+          <div class="code-block">
+            <div class="code-header">
+              <div class="code-dot r"></div>
+              <div class="code-dot y"></div>
+              <div class="code-dot g"></div>
+              <div class="code-tab">claim.mjs</div>
+            </div>
+            <div class="code-body"><span class="cmt"># ethers example: sign the exact challenge.message with wallet.signMessage()</span>
+import { Wallet } from <span class="str">"ethers"</span>;
+
+const wallet = new Wallet(<span class="str">"0xyour_private_key_here"</span>);
+const handle = <span class="str">"agent007"</span>;
+
+const challengeResp = await fetch(<span class="str">"https://statechannel.org/heyeth/auth/challenge"</span>, {
+  method: <span class="str">"POST"</span>,
+  headers: { <span class="str">"content-type"</span>: <span class="str">"application/json"</span> },
+  body: JSON.stringify({
+    handle,
+    owner: wallet.address
+  })
+});
+
+const { challenge } = await challengeResp.json();
+
+<span class="cmt"># EIP-191 personal_sign style signature over the exact returned string</span>
+const signature = await wallet.signMessage(challenge.message);
+
+const claimResp = await fetch(<span class="str">"https://statechannel.org/heyeth/claim"</span>, {
+  method: <span class="str">"POST"</span>,
+  headers: { <span class="str">"content-type"</span>: <span class="str">"application/json"</span> },
+  body: JSON.stringify({
+    handle,
+    owner: wallet.address,
+    nonce: challenge.nonce,
+    signature,
+    addresses: {
+      ETH: wallet.address
+    },
+    texts: {
+      <span class="str">"com.twitter"</span>: <span class="str">"agent007"</span>
+    }
+  })
+});
+
+console.log(await claimResp.json());</div>
           </div>
 
           <div class="code-block">
@@ -1074,17 +1243,32 @@ curl -sS https://statechannel.org/heyeth/claim \
               <div class="code-dot g"></div>
               <div class="code-tab">update.sh</div>
             </div>
-            <div class="code-body"><span class="cmt"># later edits use PUT on the claimed handle</span>
-curl -sS -X PUT https://statechannel.org/heyeth/handle/agent007 \
+            <div class="code-body"><span class="cmt"># later edits use a fresh challenge + signature from the same owner wallet</span>
+OWNER=<span class="str">0x1234567890123456789012345678901234567890</span>
+OWNER_PK=<span class="str">0xyour_private_key_here</span>
+HANDLE=<span class="str">agent007</span>
+
+CHALLENGE=$(curl -sS https://statechannel.org/heyeth/auth/challenge \
   -H <span class="str">'content-type: application/json'</span> \
-  --data <span class="str">'{
-    "owner": "0x1234567890123456789012345678901234567890",
-    "nonce": "from-auth-challenge",
-    "signature": "0x...",
-    "addresses": {
-      "BTC": "bc1qupdated..."
+  --data <span class="str">"{
+    \"handle\": \"$HANDLE\",
+    \"owner\": \"$OWNER\"
+  }"</span>)
+
+MESSAGE=$(printf <span class="str">'%s'</span> <span class="str">"$CHALLENGE"</span> | jq -r <span class="str">'.challenge.message'</span>)
+NONCE=$(printf <span class="str">'%s'</span> <span class="str">"$CHALLENGE"</span> | jq -r <span class="str">'.challenge.nonce'</span>)
+SIGNATURE=$(cast wallet sign --private-key <span class="str">"$OWNER_PK"</span> <span class="str">"$MESSAGE"</span>)
+
+curl -sS -X PUT https://statechannel.org/heyeth/handle/$HANDLE \
+  -H <span class="str">'content-type: application/json'</span> \
+  --data <span class="str">"{
+    \"owner\": \"$OWNER\",
+    \"nonce\": \"$NONCE\",
+    \"signature\": \"$SIGNATURE\",
+    \"addresses\": {
+      \"BTC\": \"bc1qupdated...\"
     }
-  }'</span></div>
+  }"</span></div>
           </div>
 
           <div class="code-block">
@@ -1132,13 +1316,14 @@ curl -sS https://statechannel.org/heyeth/ccip \
   <section id="status">
     <div class="section-inner">
       <div class="section-rule"></div>
-      <div class="section-label">Current Status</div>
-      <h2 class="section-title">The API is live; <em>ENS wallet resolution</em> is now onchain-enabled.</h2>
+      <div class="section-label">State Channel Protocol</div>
+      <h2 class="section-title">hey.eth is more than an <em>ENS</em>, it's also an <em>x402s-compatible agent wallet</em>.</h2>
       <div class="spec-quote">
         <p>
-          Signed claims and CCIP responses are live through <code>statechannel.org/heyeth/*</code>, and
-          <code>hey.eth</code> now points at an offchain-capable resolver on Ethereum mainnet. Standard ENS
-          clients can resolve supported <code>*.hey.eth</code> records through the gateway.
+          hey.eth handles are designed to work seamlessly with the State Channel Protocol, enabling instant,
+          gasless payments to agent wallets. By resolving a hey.eth handle, you can retrieve the current owner
+          address and send payments directly to the hub's x402s, making it an ideal solution for agents
+          looking to receive payments without on-chain fees or approvals.
         </p>
         <cite>Current public references: GET /heyeth/status and GET /heyeth/pay/sepolia</cite>
       </div>
@@ -1147,11 +1332,12 @@ curl -sS https://statechannel.org/heyeth/ccip \
 
   <section class="cta">
     <div class="section-inner">
-      <h2>Use the <em>API</em>, not a page flow.</h2>
-      <p>
-        `statechannel.org/heyeth/` is the docs page, and `statechannel.org/heyeth/*` is the public agent-facing route set.
-      </p>
-      <div class="cta-actions">
+      <h2>Get your agent a <em>hey.eth</em></h2> 
+        <div class="cta-cmd" onclick="navigator.clipboard.writeText('curl -sS https://statechannel.org/heyeth/docs')">
+    <span class="prompt">$</span> curl -sS https://statechannel.org/heyeth/docs
+    <span class="cta-cursor"></span>
+  </div>
+<div class="cta-actions">
         <a href="https://statechannel.org/heyeth/docs" target="_blank" rel="noreferrer" class="btn-primary">Docs JSON</a>
         <a href="https://statechannel.org/heyeth/handle/pr0" target="_blank" rel="noreferrer" class="btn-ghost">Check Example</a>
         <a href="https://statechannel.org/scppay/" target="_blank" rel="noreferrer" class="btn-ghost">Browser Wallet</a>
@@ -1169,5 +1355,138 @@ curl -sS https://statechannel.org/heyeth/ccip \
     <a href="https://statechannel.org/scppay/" target="_blank" rel="noreferrer">scppay</a>
   </div>
 </footer>
+<script>
+(function() {
+  const canvas = document.getElementById('heroCanvas');
+  if (!canvas) return;
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  let W, H, nodes = [], edges = [], animFrame;
+  const dpr = window.devicePixelRatio || 1;
+
+  function resize() {
+    W = canvas.offsetWidth;
+    H = canvas.offsetHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function init() {
+    resize();
+    nodes = [];
+    for (let i = 0; i < 11; i++) {
+      nodes.push({
+        x: W * 0.12 + Math.random() * W * 0.76,
+        y: H * 0.08 + Math.random() * H * 0.84,
+        vx: (Math.random() - 0.5) * 0.12,
+        vy: (Math.random() - 0.5) * 0.12,
+        r: 1.5 + Math.random() * 2,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+    edges = [];
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const dx = nodes[i].x - nodes[j].x;
+        const dy = nodes[i].y - nodes[j].y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < W * 0.38 && edges.length < 18) {
+          edges.push({ a: i, b: j, pulseTime: 0, pulseActive: false });
+        }
+      }
+    }
+  }
+
+  let lastPulse = 0;
+  let nextPulseDelay = 3000 + Math.random() * 2000;
+
+  function draw(time) {
+    ctx.clearRect(0, 0, W, H);
+
+    nodes.forEach(n => {
+      n.x += n.vx;
+      n.y += n.vy;
+      if (n.x < W * 0.04 || n.x > W * 0.96) n.vx *= -1;
+      if (n.y < H * 0.04 || n.y > H * 0.96) n.vy *= -1;
+    });
+
+    if (time - lastPulse > nextPulseDelay && edges.length > 0) {
+      const idx = Math.floor(Math.random() * edges.length);
+      edges[idx].pulseActive = true;
+      edges[idx].pulseTime = time;
+      lastPulse = time;
+      nextPulseDelay = 3000 + Math.random() * 2000;
+    }
+
+    edges.forEach(e => {
+      const a = nodes[e.a];
+      const b = nodes[e.b];
+
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.strokeStyle = 'rgba(30,40,56,0.45)';
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+
+      if (e.pulseActive) {
+        const elapsed = time - e.pulseTime;
+        const duration = 1200;
+        const t = elapsed / duration;
+        if (t > 1) {
+          e.pulseActive = false;
+        } else {
+          const px = a.x + (b.x - a.x) * t;
+          const py = a.y + (b.y - a.y) * t;
+
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.strokeStyle = 'rgba(0,229,255,' + (0.18 * (1 - t)) + ')';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.arc(px, py, 3, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(0,229,255,' + (0.8 * (1 - t)) + ')';
+          ctx.fill();
+        }
+      }
+    });
+
+    nodes.forEach(n => {
+      const breathe = Math.sin(time * 0.001 + n.phase) * 0.3 + 0.7;
+
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.r * 1.8, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,229,255,' + (0.06 * breathe) + ')';
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.r * 0.6, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,229,255,' + (0.35 * breathe) + ')';
+      ctx.fill();
+    });
+
+    animFrame = requestAnimationFrame(draw);
+  }
+
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      cancelAnimationFrame(animFrame);
+      init();
+      animFrame = requestAnimationFrame(draw);
+    }, 150);
+  });
+
+  init();
+  animFrame = requestAnimationFrame(draw);
+})();
+</script>
 </body>
 </html>

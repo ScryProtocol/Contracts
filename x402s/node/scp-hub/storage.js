@@ -11,9 +11,43 @@ function emptyState() {
     paymentIdsByChannel: {},
     paymentIdsByPayee: {},
     channels: {},
+    hubChannels: {},
     payeeLedger: {},
+    payerCredits: {},
+    legacyScalarCredits: {},
     nextSeq: 1
   };
+}
+
+function normalizeCreditBuckets(rawBuckets, rawLegacy) {
+  const payerCredits = {};
+  const legacyScalarCredits = {};
+
+  if (rawLegacy && typeof rawLegacy === "object" && !Array.isArray(rawLegacy)) {
+    for (const [addr, amount] of Object.entries(rawLegacy)) {
+      if (amount == null) continue;
+      legacyScalarCredits[String(addr).toLowerCase()] = String(amount);
+    }
+  }
+
+  if (rawBuckets && typeof rawBuckets === "object" && !Array.isArray(rawBuckets)) {
+    for (const [addr, value] of Object.entries(rawBuckets)) {
+      const normalizedAddr = String(addr).toLowerCase();
+      if (!normalizedAddr) continue;
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        const byAsset = {};
+        for (const [asset, amount] of Object.entries(value)) {
+          if (amount == null) continue;
+          byAsset[String(asset).toLowerCase()] = String(amount);
+        }
+        payerCredits[normalizedAddr] = byAsset;
+      } else if (value != null) {
+        legacyScalarCredits[normalizedAddr] = String(value);
+      }
+    }
+  }
+
+  return { payerCredits, legacyScalarCredits };
 }
 
 // --- Memory backend (default for tests / perf mode) ---
@@ -78,6 +112,10 @@ class JsonFileBackend {
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
       return emptyState();
     }
+    const { payerCredits, legacyScalarCredits } = normalizeCreditBuckets(
+      parsed.payerCredits,
+      parsed.legacyScalarCredits
+    );
     return {
       ...parsed,
       quotes: parsed.quotes || {},
@@ -86,7 +124,10 @@ class JsonFileBackend {
       paymentIdsByChannel: parsed.paymentIdsByChannel || {},
       paymentIdsByPayee: parsed.paymentIdsByPayee || {},
       channels: parsed.channels || {},
+      hubChannels: parsed.hubChannels || {},
       payeeLedger: parsed.payeeLedger || {},
+      payerCredits,
+      legacyScalarCredits,
       nextSeq: parsed.nextSeq || 1
     };
   }
@@ -217,6 +258,10 @@ class RedisBackend {
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
       return emptyState();
     }
+    const { payerCredits, legacyScalarCredits } = normalizeCreditBuckets(
+      parsed.payerCredits,
+      parsed.legacyScalarCredits
+    );
     const out = {
       ...parsed,
       quotes: parsed.quotes || {},
@@ -225,7 +270,10 @@ class RedisBackend {
       paymentIdsByChannel: parsed.paymentIdsByChannel || {},
       paymentIdsByPayee: parsed.paymentIdsByPayee || {},
       channels: parsed.channels || {},
+      hubChannels: parsed.hubChannels || {},
       payeeLedger: parsed.payeeLedger || {},
+      payerCredits,
+      legacyScalarCredits,
       nextSeq: Number(parsed.nextSeq || 1)
     };
     if (!Number.isInteger(out.nextSeq) || out.nextSeq < 1) out.nextSeq = 1;

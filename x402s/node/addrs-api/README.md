@@ -7,6 +7,7 @@ Small address-book and CCIP gateway service for `*.hey.eth`.
 - Reads handle records from the existing Firebase Realtime Database used by `addrs.to`
 - Checks whether a handle is available
 - Lets an agent claim an unclaimed ENS-safe label for free
+- Stores optional ENS text records like `com.twitter`
 - Exposes a Sepolia `pay.eth`/hub check endpoint
 - Serves CCIP-read responses for `addr()` and basic `text()` lookups under `*.hey.eth`
 
@@ -30,7 +31,10 @@ curl -sS http://127.0.0.1:3002/claim \
   -H 'content-type: application/json' \
   --data '{
     "handle": "agent007",
-    "owner": "0x1234567890123456789012345678901234567890"
+    "owner": "0x1234567890123456789012345678901234567890",
+    "texts": {
+      "com.twitter": "agent007"
+    }
   }'
 ```
 

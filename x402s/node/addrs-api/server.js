@@ -42,7 +42,7 @@ const FIREBASE_DATABASE_URL =
 const FIREBASE_SERVICE_ACCOUNT_JSON =
   process.env.FIREBASE_SERVICE_ACCOUNT_JSON || path.resolve(process.cwd(), "handles_api.json");
 const PAY_HUB_SEPOLIA_URL =
-  process.env.PAY_HUB_SEPOLIA_URL || "https://pogchamp.tv/hub/sepolia/.well-known/x402";
+  process.env.PAY_HUB_SEPOLIA_URL || "https://statechannel.org/heyeth/hub/sepolia/.well-known/x402";
 const ENS_RPC_URL = process.env.ENS_RPC_URL || "https://ethereum.publicnode.com";
 const GATEWAY_SIGNER_PRIVATE_KEY = process.env.GATEWAY_SIGNER_PRIVATE_KEY || "";
 const CACHE_TTL_MS = Math.max(5_000, Number(process.env.CACHE_TTL_MS || 30_000));
@@ -59,7 +59,13 @@ const CLAIM_CHALLENGE_TTL_MS = Math.max(
 
 const ZONE_SUFFIX = `.${ZONE_NAME}`;
 const ZERO_ADDRESS = ethers.constants.AddressZero;
-const DEFAULT_EVM_COINS = ["ETH", "BAL"];
+const DEFAULT_EVM_COINS = ["ETH", "USDC"];
+const X402S_HANDLE_HUB_ENDPOINT_ETH =
+  process.env.X402S_HANDLE_HUB_ENDPOINT_ETH || "https://statechannel.org/heyeth/hub/eth";
+const X402S_HANDLE_HUB_ENDPOINT_SEPOLIA =
+  process.env.X402S_HANDLE_HUB_ENDPOINT_SEPOLIA || "https://statechannel.org/heyeth/hub/sepolia";
+const X402S_HANDLE_HUB_ENDPOINT_BASE =
+  process.env.X402S_HANDLE_HUB_ENDPOINT_BASE || "https://statechannel.org/heyeth/hub/base";
 const ENS_REGISTRY_ADDRESS = "0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e";
 const ENS_REGISTRY_ABI = [
   "function owner(bytes32 node) view returns (address)",
@@ -83,6 +89,7 @@ const cache = {
   handles: { ts: 0, value: null },
   claims: { ts: 0, value: null },
   coins: { ts: 0, value: null },
+  texts: { ts: 0, value: null },
   hub: { ts: 0, value: null },
   zone: { ts: 0, value: null }
 };
@@ -136,6 +143,7 @@ function invalidateHandleCaches() {
   cache.handles.ts = 0;
   cache.claims.ts = 0;
   cache.coins.ts = 0;
+  cache.texts.ts = 0;
 }
 
 async function getHandlesMap() {
@@ -148,6 +156,10 @@ async function getClaimsMap() {
 
 async function getCoinsMap() {
   return loadCachedMap("coins", "/coins");
+}
+
+async function getTextsMap() {
+  return loadCachedMap("texts", "/texts");
 }
 
 function normalizeHandleInput(input) {
@@ -164,6 +176,18 @@ function isEnsLabel(value) {
 
 function normalizeCoinKey(input) {
   return String(input || "").trim().toUpperCase();
+}
+
+function encodeTextKeyForStorage(input) {
+  return encodeURIComponent(String(input || "").trim()).replace(/\./g, "%2E");
+}
+
+function decodeTextKeyFromStorage(input) {
+  try {
+    return decodeURIComponent(String(input || "").trim());
+  } catch (_err) {
+    return String(input || "").trim().toLowerCase();
+  }
 }
 
 function normalizeMaybeAddress(value) {
@@ -223,8 +247,27 @@ async function getAddressesForHandle(handle) {
   return out;
 }
 
+async function getTextsForHandle(handle) {
+  const texts = await getTextsMap();
+  const raw = texts && texts[handle];
+  if (!raw || typeof raw !== "object") return {};
+  const out = {};
+  for (const [rawKey, rawValue] of Object.entries(raw)) {
+    const key = decodeTextKeyFromStorage(rawKey).toLowerCase();
+    const value = String(rawValue || "").trim();
+    if (!key || !value) continue;
+    out[key] = value;
+  }
+  return out;
+}
+
 async function getAllKnownHandles() {
-  const [handles, claims, coins] = await Promise.all([getHandlesMap(), getClaimsMap(), getCoinsMap()]);
+  const [handles, claims, coins, texts] = await Promise.all([
+    getHandlesMap(),
+    getClaimsMap(),
+    getCoinsMap(),
+    getTextsMap()
+  ]);
   const out = new Set();
   for (const key of Object.keys(handles || {})) out.add(key);
   for (const key of Object.keys(claims || {})) out.add(key);
@@ -232,6 +275,7 @@ async function getAllKnownHandles() {
     if (!values || typeof values !== "object") continue;
     for (const key of Object.keys(values)) out.add(key);
   }
+  for (const key of Object.keys(texts || {})) out.add(key);
   return [...out].filter((value) => isEnsLabel(value));
 }
 
@@ -263,18 +307,23 @@ async function resolveNodeToEnsName(node) {
 
 async function getHandleProfile(handle) {
   const [handles, claims] = await Promise.all([getHandlesMap(), getClaimsMap()]);
-  const addresses = await getAddressesForHandle(handle);
+  const [addresses, texts] = await Promise.all([
+    getAddressesForHandle(handle),
+    getTextsForHandle(handle)
+  ]);
   const marker = handles[handle];
   const claimMeta = claims[handle] || null;
   const owner = inferOwner(marker, addresses, claimMeta);
   return {
     handle,
     ens: `${handle}.${ZONE_NAME}`,
-    claimed: marker != null || Object.keys(addresses).length > 0,
-    available: marker == null && Object.keys(addresses).length === 0,
+    claimed: marker != null || Object.keys(addresses).length > 0 || Object.keys(texts).length > 0,
+    available:
+      marker == null && Object.keys(addresses).length === 0 && Object.keys(texts).length === 0,
     marker: marker == null ? null : marker,
     owner: owner || null,
     addresses,
+    texts,
     claim: claimMeta
   };
 }
@@ -303,6 +352,18 @@ function normalizeRecordsPayload(body, owner) {
     for (const coin of DEFAULT_EVM_COINS) {
       if (!out[coin]) out[coin] = owner;
     }
+  }
+  return out;
+}
+
+function normalizeTextsPayload(body) {
+  const src = body && typeof body.texts === "object" ? body.texts : {};
+  const out = {};
+  for (const [rawKey, rawValue] of Object.entries(src)) {
+    const key = String(rawKey || "").trim().toLowerCase();
+    const value = String(rawValue || "").trim();
+    if (!key || !value) continue;
+    out[key] = value;
   }
   return out;
 }
@@ -399,6 +460,32 @@ async function getSepoliaHubInfo() {
   return cache.hub.value;
 }
 
+function buildX402sOffers(payHub) {
+  return [
+    {
+      network: "mainnet",
+      asset: ["usdc", "eth"],
+      mode: "hub",
+      hubName: payHub && payHub.hubName ? payHub.hubName : "pay.eth",
+      hubEndpoint: X402S_HANDLE_HUB_ENDPOINT_ETH
+    },
+    {
+      network: "base",
+      asset: ["usdc", "eth"],
+      mode: "hub",
+      hubName: payHub && payHub.hubName ? payHub.hubName : "pay.eth",
+      hubEndpoint: X402S_HANDLE_HUB_ENDPOINT_BASE
+    },
+    {
+      network: "sepolia",
+      asset: ["usdc", "eth"],
+      mode: "hub",
+      hubName: payHub && payHub.hubName ? payHub.hubName : "pay.eth",
+      hubEndpoint: X402S_HANDLE_HUB_ENDPOINT_SEPOLIA
+    }
+  ];
+}
+
 async function getZoneStatus() {
   if (isFresh(cache.zone, ZONE_CACHE_TTL_MS)) return cache.zone.value;
   const provider = new ethers.providers.JsonRpcProvider(ENS_RPC_URL);
@@ -466,6 +553,33 @@ function getEffectiveBaseUrl(req) {
   }
 
   return PUBLIC_BASE_URL;
+}
+
+function getApiDocsContext(req) {
+  const publicBaseUrl = getEffectiveBaseUrl(req);
+  const isHeyEth = getEffectivePrefix(req) === "/heyeth";
+  const routes = {
+    health: "/health",
+    docs: "/docs",
+    pay: "/pay/sepolia",
+    status: isHeyEth ? "/status" : "/admin/status",
+    handleLookup: isHeyEth ? "/handle" : "/check",
+    handleQuery: "/handle",
+    handleUpdate: "/handle",
+    info: "/info",
+    auth: "/auth/challenge",
+    claim: "/claim",
+    ccip: "/ccip"
+  };
+
+  return {
+    publicBaseUrl,
+    isHeyEth,
+    routes,
+    buildUrl(pathname) {
+      return `${publicBaseUrl}${pathname}`;
+    }
+  };
 }
 
 function buildClaimUri(req) {
@@ -660,117 +774,222 @@ function verifyClaimAuth(req, handle, owner, body) {
     }
   };
 }
-
 async function sendApiDocs(req, res) {
-  const [payHub, zone] = await Promise.all([getSepoliaHubInfo(), getZoneStatus()]);
-  const publicBaseUrl = getEffectiveBaseUrl(req);
-  const publicPrefix = getEffectivePrefix(req);
-  const prefersHeyethPaths = publicPrefix === "/heyeth";
-  const healthPath = prefersHeyethPaths ? "/health" : "/health";
-  const docsPath = prefersHeyethPaths ? "/docs" : "/docs";
-  const payPath = prefersHeyethPaths ? "/pay/sepolia" : "/pay/sepolia";
-  const statusPath = prefersHeyethPaths ? "/status" : "/admin/status";
-  const handlePath = prefersHeyethPaths ? "/handle/:handle" : "/check/:handle";
-  const handleExample = prefersHeyethPaths ? "/handle/agent007" : "/check/agent007";
-  const infoPath = "/info/:handle";
-  const infoExample = "/info/agent007";
-  const coinPath = "/info/:handle/:coin";
-  const coinExample = "/info/agent007/ETH";
-  const authChallengePath = "/auth/challenge";
-  const claimPath = "/claim";
-  const ccipPath = "/ccip";
   return res.json({
-    ok: true,
-    service: "addrs-api",
-    summary:
-      "API-first handle claim and CCIP gateway for *.hey.eth, backed by addrs.to data and the public pay.eth Sepolia hub.",
-    publicBaseUrl,
-    zone: ZONE_NAME,
-    publicClaims: ENABLE_PUBLIC_CLAIMS,
-    claimSignatureRequired: REQUIRE_CLAIM_SIGNATURE,
-    ccipConfigured: !!GATEWAY_SIGNER_PRIVATE_KEY,
-    endpoints: {
-      health: { method: "GET", url: `${publicBaseUrl}${healthPath}` },
-      docs: { method: "GET", url: `${publicBaseUrl}${docsPath}` },
-      paySepolia: { method: "GET", url: `${publicBaseUrl}${payPath}` },
-      adminStatus: { method: "GET", url: `${publicBaseUrl}${statusPath}` },
-      authChallenge: {
-        method: "POST",
-        url: `${publicBaseUrl}${authChallengePath}`,
-        body: {
-          handle: "agent007",
-          owner: "0x1234567890123456789012345678901234567890"
-        }
+  "skill": "HeyEthAgentSkill",
+  "name": "hey_eth",
+  "version": "2026-03-29",
+  "provider": "statechannel.org",
+  "base_url": "https://statechannel.org/heyeth",
+  "description": "Official agent skill for hey.eth — Free ENS handles for autonomous agents. Wallet-signed claims, directory lookup, CCIP resolution, and pay.eth hub routing. Fully live, ccipReady: true, publicClaims: true.",
+  "status": {
+    "ok": true,
+    "ccipConfigured": true,
+    "claimSignatureRequired": true,
+    "zone": "hey.eth",
+    "resolverSupportsExtended": true,
+    "checkedAt": "2026-03-29T18:50:00.774Z"
+  },
+  "tools": [
+    {
+      "name": "discover",
+      "method": "GET",
+      "path": "/docs",
+      "description": "Discover full live route set, branded URLs, examples, zone status, and pay.eth hub metadata. Recommended first call for any agent.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
       },
-      checkHandle: {
-        method: "GET",
-        url: `${publicBaseUrl}${handlePath}`,
-        example: `${publicBaseUrl}${handleExample}`
-      },
-      checkHandleQuery: {
-        method: "GET",
-        url: `${publicBaseUrl}/handle?label=:handle`,
-        example: `${publicBaseUrl}/handle?label=agent007`
-      },
-      handleInfo: {
-        method: "GET",
-        url: `${publicBaseUrl}${infoPath}`,
-        example: `${publicBaseUrl}${infoExample}`
-      },
-      coinInfo: {
-        method: "GET",
-        url: `${publicBaseUrl}${coinPath}`,
-        example: `${publicBaseUrl}${coinExample}`
-      },
-      updateHandle: {
-        method: "PUT",
-        url: `${publicBaseUrl}${handlePath}`,
-        body: {
-          owner: "0x1234567890123456789012345678901234567890",
-          nonce: "from-/auth/challenge",
-          signature: "0x...",
-          addresses: {
-            BTC: "bc1qexample..."
+      "returns": "Full docs JSON including all endpoints"
+    },
+    {
+      "name": "check_handle",
+      "method": "GET",
+      "path": "/handle/{handle}",
+      "description": "Check if a handle is available and return owner, addresses, offers array, and hub routing hints.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "handle": {
+            "type": "string",
+            "description": "Label to check (e.g. 'agent007')",
+            "example": "agent007"
           }
-        }
+        },
+        "required": ["handle"]
       },
-      claim: {
-        method: "POST",
-        url: `${publicBaseUrl}${claimPath}`,
-        body: {
-          handle: "agent007",
-          owner: "0x1234567890123456789012345678901234567890",
-          nonce: "from-/auth/challenge",
-          signature: "0x...",
-          addresses: {
-            ETH: "0x1234567890123456789012345678901234567890"
+      "example_url": "https://statechannel.org/heyeth/handle/agent007"
+    },
+    {
+      "name": "check_handle_query",
+      "method": "GET",
+      "path": "/handle",
+      "description": "Alternative query-param lookup (stable path for agents).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "Handle label",
+            "example": "agent007"
           }
-        }
-      },
-      ccip: {
-        method: "POST",
-        url: `${publicBaseUrl}${ccipPath}`,
-        body: {
-          sender: "0xResolverAddress",
-          data: "0x..."
-        }
+        },
+        "required": ["label"]
       }
     },
-    notes: [
-      "POST /auth/challenge returns a wallet-signing message. POST /claim requires the matching nonce and signature.",
-      "POST /claim reserves a free ENS-safe label under hey.eth in the directory and writes ETH/BAL records by default.",
-      "PUT /handle/:handle is the explicit later-edit route for a claimed handle. POST /claim still accepts same-owner updates for backward compatibility.",
-      "POST /ccip serves signed CCIP-read responses for addr() and basic text() lookups.",
-      zone.ccipReady
-        ? "hey.eth is now pointed at an offchain-capable mainnet resolver, so ENS clients can use the CCIP gateway for supported records."
-        : zone.note ||
-          "Move hey.eth to an offchain-capable mainnet resolver to make standard ENS clients use the gateway."
-    ],
-    payHubSepolia: payHub,
-    zoneStatus: zone
-  });
+    {
+      "name": "get_info",
+      "method": "GET",
+      "path": "/info/{handle}",
+      "description": "Get full claimed directory record (owner + all published addresses/coins + text records).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "handle": {
+            "type": "string",
+            "description": "Claimed handle",
+            "example": "agent007"
+          }
+        },
+        "required": ["handle"]
+      }
+    },
+    {
+      "name": "get_coin_info",
+      "method": "GET",
+      "path": "/info/{handle}/{coin}",
+      "description": "Get specific coin address for a handle (ETH, BTC, etc.).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "handle": { "type": "string", "example": "agent007" },
+          "coin": { "type": "string", "example": "ETH" }
+        },
+        "required": ["handle", "coin"]
+      }
+    },
+    {
+      "name": "get_status",
+      "method": "GET",
+      "path": "/status",
+      "description": "Current hey.eth zone owner, resolver, CCIP readiness, and pay hub metadata.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "name": "get_pay_metadata",
+      "method": "GET",
+      "path": "/pay/sepolia",
+      "description": "Sepolia pay.eth hub metadata for payment routing (x402s offers).",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "name": "request_challenge",
+      "method": "POST",
+      "path": "/auth/challenge",
+      "description": "Get the exact EIP-191 message your agent wallet must sign to prove ownership.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "handle": { "type": "string", "example": "agent007" },
+          "owner": { "type": "string", "description": "0x wallet address", "example": "0x1234567890123456789012345678901234567890" }
+        },
+        "required": ["handle", "owner"]
+      },
+      "body_example": {
+        "handle": "agent007",
+        "owner": "0x1234567890123456789012345678901234567890"
+      }
+    },
+    {
+      "name": "claim",
+      "method": "POST",
+      "path": "/claim",
+      "description": "Claim a free handle (or update existing same-owner record). Requires signature from request_challenge.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "handle": { "type": "string" },
+          "owner": { "type": "string" },
+          "nonce": { "type": "string", "description": "From challenge response" },
+          "signature": { "type": "string", "description": "0x... EIP-191 signature" },
+          "addresses": {
+            "type": "object",
+            "description": "Optional coin addresses (defaults to ETH + USDC)",
+            "additionalProperties": { "type": "string" }
+          },
+          "texts": {
+            "type": "object",
+            "description": "Optional ENS text records such as com.twitter",
+            "additionalProperties": { "type": "string" }
+          }
+        },
+        "required": ["handle", "owner", "nonce", "signature"]
+      }
+    },
+    {
+      "name": "update",
+      "method": "PUT",
+      "path": "/handle/{handle}",
+      "description": "Clean update route for already-claimed handles (preferred over claim for edits).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "handle": { "type": "string" },
+          "owner": { "type": "string" },
+          "nonce": { "type": "string" },
+          "signature": { "type": "string" },
+          "addresses": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          },
+          "texts": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          }
+        },
+        "required": ["handle", "owner", "nonce", "signature"]
+      }
+    },
+    {
+      "name": "ccip_gateway",
+      "method": "POST",
+      "path": "/ccip",
+      "description": "Signed CCIP gateway for ENS resolvers (addr(), text(), etc.). Used by standard ENS wallets.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "sender": { "type": "string", "description": "Resolver contract address" },
+          "data": { "type": "string", "description": "Encoded calldata" }
+        },
+        "required": ["sender", "data"]
+      }
+    }
+  ],
+  "notes": [
+    "All write operations require a fresh wallet signature (EIP-191).",
+    "Free claims for any ENS-safe label under hey.eth.",
+    "CCIP is live and mainnet resolver is already offchain-capable.",
+    "Use discover() first to get the absolute latest branded URLs if needed.",
+    "Full live docs JSON available at https://statechannel.org/heyeth/docs"
+  ],
+  "example_usage": {
+    "claim_flow": [
+      "1. POST /auth/challenge → get message",
+      "2. Sign message with owner wallet",
+      "3. POST /claim with nonce + signature + addresses/texts"
+    ]
+  }
+});
 }
-
 app.get("/", async (req, res) => sendApiDocs(req, res));
 app.get("/docs", async (req, res) => sendApiDocs(req, res));
 app.get("/auth/challenge", async (req, res) => sendClaimChallenge(req, res));
@@ -797,9 +1016,10 @@ app.get("/pay/sepolia", async (_req, res) => {
 
 async function sendAdminStatus(req, res) {
   const [payHub, zone] = await Promise.all([getSepoliaHubInfo(), getZoneStatus()]);
+  const { publicBaseUrl } = getApiDocsContext(req);
   return res.json({
     service: "addrs-api",
-    publicBaseUrl: getEffectiveBaseUrl(req),
+    publicBaseUrl,
     zone,
     payHubSepolia: payHub
   });
@@ -808,10 +1028,14 @@ async function sendAdminStatus(req, res) {
 app.get("/admin", async (req, res) => sendAdminStatus(req, res));
 app.get("/admin/status", async (req, res) => sendAdminStatus(req, res));
 
-async function updateClaimedHandleRecords(res, handle, owner, profile, records, claimAuth) {
+async function updateClaimedHandleRecords(res, handle, owner, profile, records, texts, claimAuth) {
   const mergedAddresses = {
     ...(profile.addresses || {}),
     ...records
+  };
+  const mergedTexts = {
+    ...(profile.texts || {}),
+    ...texts
   };
   const claimMeta = {
     ...(profile.claim || {}),
@@ -827,6 +1051,9 @@ async function updateClaimedHandleRecords(res, handle, owner, profile, records, 
   for (const [coin, value] of Object.entries(mergedAddresses)) {
     updates[`/coins/${coin}/${handle}`] = value;
   }
+  for (const [key, value] of Object.entries(mergedTexts)) {
+    updates[`/texts/${handle}/${encodeTextKeyForStorage(key)}`] = value;
+  }
   await database.ref().update(updates);
   invalidateHandleCaches();
 
@@ -838,6 +1065,7 @@ async function updateClaimedHandleRecords(res, handle, owner, profile, records, 
     ens: profile.ens || `${handle}.${ZONE_NAME}`,
     owner,
     addresses: mergedAddresses,
+    texts: mergedTexts,
     claim: claimMeta
   });
 }
@@ -853,6 +1081,7 @@ async function sendHandleCheck(res, handleInput) {
   ]);
   return res.json({
     ...profile,
+    offers: buildX402sOffers(payHub),
     payHubSepolia: payHub
   });
 }
@@ -886,8 +1115,10 @@ app.put("/handle/:handle", async (req, res) => {
   }
 
   let records;
+  let texts;
   try {
     records = normalizeRecordsPayload(req.body || {}, owner);
+    texts = normalizeTextsPayload(req.body || {});
   } catch (err) {
     return sendError(res, 400, err.message);
   }
@@ -909,7 +1140,7 @@ app.put("/handle/:handle", async (req, res) => {
     });
   }
 
-  return updateClaimedHandleRecords(res, handle, owner, profile, records, claimAuth);
+  return updateClaimedHandleRecords(res, handle, owner, profile, records, texts, claimAuth);
 });
 
 app.get("/check/:handle", async (req, res) => {
@@ -931,7 +1162,8 @@ app.get("/info/:handle", async (req, res) => {
     handle,
     ens: profile.ens,
     owner: profile.owner,
-    addresses: profile.addresses
+    addresses: profile.addresses,
+    texts: profile.texts
   });
 });
 
@@ -979,8 +1211,10 @@ app.post("/claim", async (req, res) => {
   }
 
   let records;
+  let texts;
   try {
     records = normalizeRecordsPayload(req.body || {}, owner);
+    texts = normalizeTextsPayload(req.body || {});
   } catch (err) {
     return sendError(res, 400, err.message);
   }
@@ -994,7 +1228,7 @@ app.post("/claim", async (req, res) => {
   if (!tx.committed) {
     const profile = await getHandleProfile(handle);
     if (profile.owner && profile.owner.toLowerCase() === owner.toLowerCase()) {
-      return updateClaimedHandleRecords(res, handle, owner, profile, records, claimAuth);
+      return updateClaimedHandleRecords(res, handle, owner, profile, records, texts, claimAuth);
     }
     return sendError(res, 409, "handle is already claimed", {
       handle,
@@ -1018,6 +1252,9 @@ app.post("/claim", async (req, res) => {
   for (const [coin, value] of Object.entries(records)) {
     updates[`/coins/${coin}/${handle}`] = value;
   }
+  for (const [key, value] of Object.entries(texts)) {
+    updates[`/texts/${handle}/${encodeTextKeyForStorage(key)}`] = value;
+  }
   await database.ref().update(updates);
   invalidateHandleCaches();
 
@@ -1028,6 +1265,7 @@ app.post("/claim", async (req, res) => {
     ens: `${handle}.${ZONE_NAME}`,
     owner,
     addresses: records,
+    texts,
     claim: claimMeta
   });
 });
@@ -1165,7 +1403,9 @@ app.post("/ccip", async (req, res) => {
     const textKey = String(key || "").trim().toLowerCase();
     let value = "";
     if (!isRootRequest) {
-      if (textKey === "url") value = `${PUBLIC_BASE_URL}/info/${handle}`;
+      if (Object.prototype.hasOwnProperty.call(profile.texts || {}, textKey)) {
+        value = profile.texts[textKey];
+      } else if (textKey === "url") value = `${PUBLIC_BASE_URL}/info/${handle}`;
       else if (textKey === "description") value = `Agent handle ${handle}.${ZONE_NAME}`;
       else if (textKey === "com.addrs.handle") value = handle;
       else if (textKey === "com.addrs.owner") value = profile.owner || "";

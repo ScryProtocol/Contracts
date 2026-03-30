@@ -101,6 +101,7 @@ If funded channels exist for multiple offers, pick the cheapest in USD. If no ch
 | `npm run scp:channel:fund -- <channelId> <amount>` | Top up |
 | `npm run scp:channel:close -- <channelId>` | Close |
 | `npm run scp:channel:list` | List channels |
+| `npx scp channel resync <channelId>` | Refresh local hub state from the hub latest signed state |
 
 ### APIs
 | Command | Port |

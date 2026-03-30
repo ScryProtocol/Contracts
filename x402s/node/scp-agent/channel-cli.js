@@ -18,6 +18,7 @@ const args = process.argv.slice(3);
 
 const USAGE = `Simple npm aliases:
   npx scp channel <channelId>
+  npx scp channel resync <channelId>
   npx scp open <0xAddr> <network> <asset> <amount>
   npx scp fund <channelId> <amount>
   npx scp close <channelId>
@@ -26,6 +27,7 @@ const USAGE = `Simple npm aliases:
 
 Advanced CLI usage:
   channel inspect  <channelId>                              Show local + hub + on-chain state
+  channel resync   <channelId>                              Refresh local hub state from hub latest signed state
   channel open     <0xAddr> <network> <asset> <amount>      Open with friendly names
   channel open     <0xAddr> <rpcUrl> <0xToken> <rawAmount>  Open with raw values
   channel fund     <channelId> <asset> <amount>             Deposit with asset name
@@ -106,6 +108,36 @@ function assetDecimals(address, chainId) {
 function fmtHuman(raw, decimals) {
   if (!raw || raw === "0") return "0";
   return formatAmount(raw, decimals);
+}
+
+function normalizeAssetAddress(address) {
+  const addr = String(address || "").toLowerCase();
+  if (!addr || addr === "eth" || addr === ethers.constants.AddressZero.toLowerCase()) {
+    return ethers.constants.AddressZero.toLowerCase();
+  }
+  return addr;
+}
+
+function pickCreditAmount(body, asset, legacyField) {
+  const map = body && typeof body === "object" ? body.payerCreditsByAsset || body.creditsByAsset || {} : {};
+  const assetKey = normalizeAssetAddress(asset);
+  if (map && typeof map === "object" && map[assetKey] != null) {
+    return String(map[assetKey]);
+  }
+  return String((body && body[legacyField]) || "0");
+}
+
+function formatCreditsMap(body, chainId, fieldName) {
+  const map = body && typeof body === "object" ? body[fieldName] || {} : {};
+  if (!map || typeof map !== "object") return [];
+  const out = [];
+  for (const [asset, amount] of Object.entries(map)) {
+    if (String(amount || "0") === "0") continue;
+    const sym = assetSymbol(asset, chainId);
+    const dec = assetDecimals(asset, chainId);
+    out.push(`${fmtHuman(String(amount), dec)} ${sym}`);
+  }
+  return out;
 }
 
 function networkLabel(chainId) {
@@ -230,6 +262,84 @@ async function fetchOnchainChannelState(agent, ch) {
     ok: false,
     contractAddress,
     error: lastError ? lastError.message : "all RPCs failed"
+  };
+}
+
+async function fetchHubSnapshotsForChannel(httpClient, hubEntries, channelId) {
+  const snapshots = [];
+  for (const entry of hubEntries) {
+    const hubUrl = entry.key.slice(4);
+    try {
+      const res = await httpClient.request("GET", `${hubUrl}/v1/channels/${encodeURIComponent(channelId)}`);
+      if (res.statusCode === 200 && res.body) {
+        snapshots.push({ hubUrl, ok: true, body: res.body });
+      } else {
+        snapshots.push({ hubUrl, ok: false, error: `HTTP ${res.statusCode}` });
+      }
+    } catch (err) {
+      snapshots.push({ hubUrl, ok: false, error: err.message });
+    }
+  }
+  return snapshots;
+}
+
+function applyHubResync(agent, entry, body, channelId) {
+  const latestState = body && body.latestState ? body.latestState : null;
+  const latestNonce = latestState && latestState.stateNonce != null
+    ? Number(latestState.stateNonce)
+    : body && body.latestNonce != null
+      ? Number(body.latestNonce)
+      : null;
+  if (!latestState || !Number.isFinite(latestNonce)) {
+    throw new Error(`hub ${entry.key.slice(4)} did not return a latest signed state`);
+  }
+
+  const existing = agent.state.channels[entry.key] || {};
+  agent.state.channels[entry.key] = {
+    ...existing,
+    ...entry,
+    nonce: latestNonce,
+    balA: String(latestState.balA),
+    balB: String(latestState.balB),
+    endpoint: entry.key.slice(4),
+    participantA: body.participantA || existing.participantA,
+    status: body.status || existing.status
+  };
+
+  const existingWatch = agent.state.watch && agent.state.watch.byChannelId
+    ? agent.state.watch.byChannelId[channelId]
+    : null;
+  agent.state.watch.byChannelId[channelId] = {
+    role: "agent",
+    source: "hub-resync",
+    updatedAt: Math.floor(Date.now() / 1000),
+    state: {
+      channelId,
+      stateNonce: latestNonce,
+      balA: String(latestState.balA),
+      balB: String(latestState.balB),
+      locksRoot:
+        existingWatch && existingWatch.state && existingWatch.state.locksRoot
+          ? existingWatch.state.locksRoot
+          : ethers.constants.HashZero,
+      stateExpiry:
+        existingWatch && existingWatch.state && existingWatch.state.stateExpiry
+          ? existingWatch.state.stateExpiry
+          : 0,
+      contextHash:
+        existingWatch && existingWatch.state && existingWatch.state.contextHash
+          ? existingWatch.state.contextHash
+          : ethers.constants.HashZero
+    },
+    sigA: null,
+    sigB: null
+  };
+
+  return {
+    hubUrl: entry.key.slice(4),
+    latestNonce,
+    balA: String(latestState.balA),
+    balB: String(latestState.balB)
   };
 }
 
@@ -430,33 +540,7 @@ async function main() {
         : null;
       const onchain = await fetchOnchainChannelState(agent, primary);
       const hubEntries = entries.filter((entry) => entry.key.startsWith("hub:"));
-      const hubSnapshots = [];
-
-      for (const entry of hubEntries) {
-        const hubUrl = entry.key.slice(4);
-        try {
-          const res = await httpClient.request("GET", `${hubUrl}/v1/channels/${encodeURIComponent(channelId)}`);
-          if (res.statusCode === 200 && res.body) {
-            hubSnapshots.push({
-              hubUrl,
-              ok: true,
-              body: res.body
-            });
-          } else {
-            hubSnapshots.push({
-              hubUrl,
-              ok: false,
-              error: `HTTP ${res.statusCode}`
-            });
-          }
-        } catch (err) {
-          hubSnapshots.push({
-            hubUrl,
-            ok: false,
-            error: err.message
-          });
-        }
-      }
+      const hubSnapshots = await fetchHubSnapshotsForChannel(httpClient, hubEntries, channelId);
       const primaryHubSnapshot = hubSnapshots.find((snapshot) => snapshot.ok) || null;
       const verdict = summarizeChannelDiff({
         localEntry: primary,
@@ -548,8 +632,11 @@ async function main() {
             if (latestState.balB != null) {
               console.log(`      hubBalB:    ${fmtHuman(String(latestState.balB), dec)} ${sym}`);
             }
-            if (body.payerCredit != null) {
-              console.log(`      payerCredit:${fmtHuman(String(body.payerCredit), dec)} ${sym}`);
+            const payerCredits = formatCreditsMap(body, chainId, "payerCreditsByAsset");
+            if (payerCredits.length) {
+              console.log(`      payerCredits:${payerCredits.join(", ")}`);
+            } else if (body.payerCredit != null && body.payerCredit !== "0") {
+              console.log(`      payerCredit:${fmtHuman(String(body.payerCredit), dec)} ${sym} (legacy)`);
             }
             console.log(`      signed:     ${body.hasSignedState ? "yes" : "no"}`);
           } else {
@@ -559,6 +646,83 @@ async function main() {
       }
 
       httpClient.close();
+
+    } else if (cmd === "resync") {
+      const channelId = args[0];
+      if (!channelId) {
+        console.error("Usage: channel resync <channelId>");
+        process.exit(1);
+      }
+
+      const entries = Object.entries(agent.state.channels)
+        .filter(([, ch]) => ch && ch.channelId === channelId)
+        .map(([key, ch]) => ({ key, ...ch }));
+
+      if (entries.length === 0) {
+        console.error(`Channel not found in local state: ${channelId}`);
+        process.exit(1);
+      }
+
+      const primary = entries.find((entry) => entry.key.startsWith("onchain:")) || entries[0];
+      let hubEntries = entries.filter((entry) => entry.key.startsWith("hub:"));
+
+      if (hubEntries.length === 0 && primary.participantB) {
+        const candidateHubEndpoint =
+          process.env.HUB_URL || resolveHubEndpointForNetwork(chainIdFromChannel(primary));
+        if (candidateHubEndpoint) {
+          const matchedEndpoint = await matchingHubEndpoint(
+            agent,
+            primary.participantB,
+            candidateHubEndpoint
+          );
+          if (matchedEndpoint) {
+            const aliased = agent.aliasHubChannel(matchedEndpoint, primary);
+            if (aliased) {
+              hubEntries = [{ key: `hub:${matchedEndpoint}`, ...aliased }];
+            }
+          }
+        }
+      }
+
+      if (hubEntries.length === 0) {
+        console.error("No hub-tracked local entry found for this channel.");
+        process.exit(1);
+      }
+
+      const httpClient = new HttpJsonClient({ timeoutMs: 5000 });
+      const hubSnapshots = await fetchHubSnapshotsForChannel(httpClient, hubEntries, channelId);
+      httpClient.close();
+
+      const successful = hubEntries
+        .map((entry) => ({
+          entry,
+          snapshot: hubSnapshots.find((item) => item.hubUrl === entry.key.slice(4))
+        }))
+        .filter((item) => item.snapshot && item.snapshot.ok);
+
+      if (successful.length === 0) {
+        console.error("Could not fetch latest channel state from any tracked hub endpoint.");
+        for (const snapshot of hubSnapshots) {
+          console.error(`  ${snapshot.hubUrl}: ${snapshot.error || "unknown error"}`);
+        }
+        process.exit(1);
+      }
+
+      const applied = [];
+      for (const { entry, snapshot } of successful) {
+        applied.push(applyHubResync(agent, entry, snapshot.body, channelId));
+      }
+      agent.persist();
+
+      console.log("Channel resynced from hub.");
+      console.log(`  channelId: ${channelId}`);
+      for (const item of applied) {
+        console.log(`  hub:       ${item.hubUrl}`);
+        console.log(`  nonce:     ${item.latestNonce}`);
+        console.log(`  balA:      ${item.balA}`);
+        console.log(`  balB:      ${item.balB}`);
+      }
+      console.log("  watch:     refreshed from hub snapshot; signatures cleared until next successful payment");
 
     } else if (cmd === "list") {
       const channels = agent.listChannels();
@@ -709,9 +873,12 @@ async function main() {
             const creditRes = await httpClient.request("GET", `${hubUrl}/v1/credit/balance?address=${encodeURIComponent(agent.wallet.address)}`).catch(() => null);
             if (creditRes && creditRes.statusCode === 200 && creditRes.body) {
               const credit = creditRes.body;
-              const creditBal = credit.balance || credit.credit || "0";
-              if (creditBal !== "0") {
-                console.log(`  │    credit:        ${fmtHuman(creditBal, dec)} ${sym}`);
+              const creditLines = formatCreditsMap(credit, chainId, "creditsByAsset");
+              const creditBal = pickCreditAmount(credit, ch.asset, "credit");
+              if (creditLines.length) {
+                console.log(`  │    credit:        ${creditLines.join(", ")}`);
+              } else if (creditBal !== "0") {
+                console.log(`  │    credit:        ${fmtHuman(creditBal, dec)} ${sym} (legacy)`);
               }
             }
           } catch (_e) {
@@ -782,7 +949,10 @@ async function main() {
                 const localNonce = ch.nonce || 0;
                 const nonceDiff = Number(hubNonce) - Number(localNonce);
                 const syncLabel = nonceDiff === 0 ? "synced" : nonceDiff > 0 ? `hub ahead +${nonceDiff}` : `local ahead ${nonceDiff}`;
-                console.log(`       hub: nonce=${hubNonce} ${syncLabel}  credit=${hc.payerCredit || "0"}`);
+                const payerCredits = formatCreditsMap(hc, chainId, "payerCreditsByAsset");
+                const legacyCredit = String(hc.payerCredit || "0");
+                const creditLabel = payerCredits.length ? payerCredits.join(", ") : legacyCredit !== "0" ? `${legacyCredit} legacy` : "0";
+                console.log(`       hub: nonce=${hubNonce} ${syncLabel}  credit=${creditLabel}`);
               }
             } catch (_e) { /* skip */ }
           }
@@ -798,10 +968,14 @@ async function main() {
           try {
             const res = await httpClient.request("GET", `${hubUrl}/v1/credit/balance?address=${encodeURIComponent(agent.wallet.address)}`);
             if (res.statusCode === 200 && res.body) {
+              const creditLines = formatCreditsMap(res.body, normalizeChainId(process.env.NETWORK) || 8453, "creditsByAsset");
               const bal = res.body.balance || res.body.credit || "0";
-              if (bal !== "0") {
+              if (creditLines.length) {
                 if (!hasCredit) { console.log("  Credit:"); hasCredit = true; }
-                console.log(`    ${hubUrl}: ${bal}`);
+                console.log(`    ${hubUrl}: ${creditLines.join(", ")}`);
+              } else if (bal !== "0") {
+                if (!hasCredit) { console.log("  Credit:"); hasCredit = true; }
+                console.log(`    ${hubUrl}: ${bal} (legacy)`);
               }
             }
           } catch (_e) { /* skip */ }

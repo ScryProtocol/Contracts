@@ -1,5 +1,5 @@
 const { ethers } = require("ethers");
-const { hashChannelState, recoverChannelStateSigner } = require("./state-signing");
+const { hashChannelState, recoverChannelStateSigner, setDomainDefaults } = require("./state-signing");
 
 /**
  * Recompute a contextHash from unsigned wrapper fields.
@@ -66,6 +66,42 @@ function normalizeLowerAddress(value) {
   }
 }
 
+function resolveInvoiceRecord(invoiceStore, invoiceId, paymentProof) {
+  if (!invoiceStore) return { ok: true, invoice: null };
+
+  if (typeof invoiceStore === "function") {
+    const result = invoiceStore(invoiceId, paymentProof);
+    if (!result) return { ok: false, invoice: null };
+    if (result === true) return { ok: true, invoice: null };
+    return { ok: true, invoice: result && typeof result === "object" ? result : null };
+  }
+
+  let invoice;
+  if (invoiceStore instanceof Map) {
+    invoice = invoiceStore.get(invoiceId);
+  } else if (typeof invoiceStore.get === "function") {
+    invoice = invoiceStore.get(invoiceId);
+  } else if (typeof invoiceStore === "object") {
+    invoice = invoiceStore[invoiceId];
+  } else if (typeof invoiceStore.has === "function") {
+    return invoiceStore.has(invoiceId) ? { ok: true, invoice: null } : { ok: false, invoice: null };
+  } else {
+    return { ok: false, invoice: null };
+  }
+
+  if (!invoice) return { ok: false, invoice: null };
+  if (paymentProof) {
+    if (invoice.amount && paymentProof.amount !== invoice.amount) return { ok: false, invoice: null };
+    if (invoice.asset && String(paymentProof.asset || "").toLowerCase() !== String(invoice.asset).toLowerCase()) {
+      return { ok: false, invoice: null };
+    }
+    if (invoice.payee && String(paymentProof.payee || "").toLowerCase() !== String(invoice.payee).toLowerCase()) {
+      return { ok: false, invoice: null };
+    }
+  }
+  return { ok: true, invoice: invoice && typeof invoice === "object" ? invoice : null };
+}
+
 function verifyDirectProgression(direct, state, { commit = true } = {}) {
   const channelId = direct.channelState.channelId;
   const prev = state.get(channelId) || { nonce: 0, balB: "0" };
@@ -96,6 +132,7 @@ function verifyPayment(header, expect) {
   const payload = parsePaymentHeader(header);
   if (!payload) return { ok: false, error: "missing or invalid header" };
   if (!payload.ticket) return { ok: false, error: "no ticket" };
+  const signingOpts = expect && expect.signingOpts ? expect.signingOpts : undefined;
 
   const signer = verifyTicket(payload.ticket);
   if (!signer) return { ok: false, error: "bad ticket sig" };
@@ -121,12 +158,12 @@ function verifyPayment(header, expect) {
       if (cp.channelState.channelId !== cp.channelId || Number(cp.channelState.stateNonce) !== Number(cp.stateNonce)) {
         return { ok: false, error: "channel proof mismatch", signer };
       }
-      const expectedHash = hashChannelState(cp.channelState);
+      const expectedHash = hashChannelState(cp.channelState, signingOpts);
       if (String(expectedHash).toLowerCase() !== String(cp.stateHash).toLowerCase()) {
         return { ok: false, error: "state hash mismatch", signer };
       }
       try {
-        recoverChannelStateSigner(cp.channelState, cp.sigA);
+        recoverChannelStateSigner(cp.channelState, cp.sigA, signingOpts);
       } catch (_e) {
         return { ok: false, error: "invalid channel proof sig", signer };
       }
@@ -144,6 +181,7 @@ function verifyDirectPayment(header, expect, state) {
   const payload = parsePaymentHeader(header);
   if (!payload) return { ok: false, error: "missing or invalid header" };
   if (payload.scheme !== "statechannel-direct-v1") return { ok: false, error: "wrong scheme" };
+  const signingOpts = expect && expect.signingOpts ? expect.signingOpts : undefined;
 
   const dp = payload.direct;
   if (!dp || !dp.channelState || !dp.sigA || !dp.payer || !dp.amount || !dp.payee) {
@@ -161,24 +199,28 @@ function verifyDirectPayment(header, expect, state) {
   if (dp.expiry < nowSec()) return { ok: false, error: "direct payment expired" };
   if (expect.amount && dp.amount !== expect.amount) return { ok: false, error: "wrong amount" };
 
-  const recovered = recoverChannelStateSigner(dp.channelState, dp.sigA);
+  const recovered = recoverChannelStateSigner(dp.channelState, dp.sigA, signingOpts);
   if (recovered.toLowerCase() !== dp.payer.toLowerCase()) {
     return { ok: false, error: "payer sig mismatch" };
   }
 
-  // SECURITY: verify contextHash binds the signed state to the request fields.
-  // The agent signs contextHash = keccak256(canonical({payee, resource, method, invoiceId,
-  // paymentId, amount, asset})) inside channelState. Without this check, a payee could
-  // repurpose a valid signed state for a different invoice/path/amount.
+  const requireContextHash = expect.requireContextHash !== false;
+  if (requireContextHash && !dp.channelState.contextHash) {
+    return { ok: false, error: "missing contextHash" };
+  }
+
+  // SECURITY: require contextHash to bind the signed state to stored offer fields.
+  // The verifier must derive this from trusted invoice metadata when available rather
+  // than trusting unsigned wrapper fields alone.
   if (dp.channelState.contextHash) {
     const expectedCtx = buildContextHash({
-      payee: dp.payee,
+      payee: expect.payee || dp.payee,
       ...(expect.resource ? { resource: expect.resource } : {}),
-      ...(expect.method ? { method: expect.method } : {}),
+      ...(expect.method ? { method: String(expect.method).toUpperCase() } : {}),
       invoiceId: dp.invoiceId,
       paymentId: dp.paymentId,
-      amount: dp.amount,
-      asset: dp.asset
+      amount: expect.amount || dp.amount,
+      asset: expect.asset || dp.asset
     });
     if (dp.channelState.contextHash.toLowerCase() !== expectedCtx.toLowerCase()) {
       return { ok: false, error: "contextHash mismatch: signed state does not match payment fields" };
@@ -275,14 +317,25 @@ async function verifyPaymentFull(header, options) {
 
   // Direct route
   if (payload.scheme === "statechannel-direct-v1") {
-    const result = await verifyDirectPaymentAsync(header, options, options.directChannels, {
+    const invoiceCheck = resolveInvoiceRecord(options.invoiceStore, payload.invoiceId, payload.direct || null);
+    if (!invoiceCheck.ok) {
+      return { ok: false, error: "unknown invoice" };
+    }
+    const invoice = invoiceCheck.invoice || null;
+    const result = await verifyDirectPaymentAsync(header, {
+      ...options,
+      payee: invoice?.payee || options.payee,
+      amount: invoice?.amount || options.amount,
+      asset: invoice?.asset || options.asset,
+      ...(invoice?.resource ? { resource: invoice.resource } : {}),
+      ...(invoice?.method ? { method: invoice.method } : {}),
+      requireContextHash: options.requireDirectContextHash !== false,
+      signingOpts: options.signingOpts
+    }, options.directChannels, {
       getChannel: options.getChannel,
       requireOnChain: options.requireDirectOnChain
     });
     if (!result.ok) return result;
-    if (!hasInvoice(options.invoiceStore, payload.invoiceId, result.direct)) {
-      return { ok: false, error: "unknown invoice" };
-    }
     const seen = options.seenPayments;
     if (seen && seen.has(result.paymentId)) {
       return { ok: true, replayed: true, paymentId: result.paymentId, direct: result.direct, response: seen.get(result.paymentId) };
@@ -301,7 +354,12 @@ async function verifyPaymentFull(header, options) {
     hub = info.body.address;
   }
 
-  const result = verifyPayment(header, { hub, payee: options.payee, amount: options.amount });
+  const result = verifyPayment(header, {
+    hub,
+    payee: options.payee,
+    amount: options.amount,
+    signingOpts: options.signingOpts
+  });
   if (!result.ok) return result;
 
   if (!hasInvoice(options.invoiceStore, result.ticket.invoiceId, result.ticket)) {
@@ -325,28 +383,7 @@ async function verifyPaymentFull(header, options) {
 }
 
 function hasInvoice(invoiceStore, invoiceId, paymentProof) {
-  if (!invoiceStore) return true;
-  if (typeof invoiceStore === "function") return !!invoiceStore(invoiceId, paymentProof);
-  if (invoiceStore instanceof Map) {
-    const inv = invoiceStore.get(invoiceId);
-    if (!inv) return false;
-    if (paymentProof) {
-      if (inv.amount && paymentProof.amount !== inv.amount) return false;
-      if (inv.asset && String(paymentProof.asset || "").toLowerCase() !== String(inv.asset).toLowerCase()) return false;
-    }
-    return true;
-  }
-  if (typeof invoiceStore.has === "function") return invoiceStore.has(invoiceId);
-  if (typeof invoiceStore === "object") {
-    const inv = invoiceStore[invoiceId];
-    if (!inv) return false;
-    if (paymentProof) {
-      if (inv.amount && paymentProof.amount !== inv.amount) return false;
-      if (inv.asset && String(paymentProof.asset || "").toLowerCase() !== String(inv.asset).toLowerCase()) return false;
-    }
-    return true;
-  }
-  return false;
+  return resolveInvoiceRecord(invoiceStore, invoiceId, paymentProof).ok;
 }
 
 /**
@@ -392,6 +429,7 @@ function createVerifier({
   hubUrl,
   hub,
   hubs,
+  chainId,
   rpcUrl,
   contractAddress,
   getChannel: extGetChannel,
@@ -404,6 +442,16 @@ function createVerifier({
   const httpClient = new HttpJsonClient();
   const seenPayments = extSeenPayments || new Map();
   const directChannels = extDirectChannels || new Map();
+  if (contractAddress) {
+    setDomainDefaults(chainId, contractAddress);
+  }
+  const signingOpts = {};
+  if (Number.isInteger(Number(chainId))) {
+    signingOpts.chainId = Number(chainId);
+  }
+  if (contractAddress) {
+    signingOpts.contractAddress = contractAddress;
+  }
   let getChannel = typeof extGetChannel === "function" ? extGetChannel : null;
   if (!getChannel && rpcUrl && contractAddress) {
     const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
@@ -439,7 +487,8 @@ function createVerifier({
         seenPayments,
         directChannels,
         getChannel,
-        requireDirectOnChain
+        requireDirectOnChain,
+        signingOpts
       });
     }
 
@@ -447,13 +496,13 @@ function createVerifier({
     if (hubMap.size < hubUrls.length) await resolveHubs();
 
     // Try ticket signer against known hubs
-    const quickCheck = verifyPayment(header, { payee });
+    const quickCheck = verifyPayment(header, { payee, signingOpts });
     if (quickCheck.ok && quickCheck.signer) {
       const matchedUrl = hubMap.get(quickCheck.signer.toLowerCase());
       if (matchedUrl) {
         return verifyPaymentFull(header, {
           payee, hub: quickCheck.signer, hubUrl: confirmHub ? matchedUrl : null,
-          httpClient, invoiceStore, seenPayments, directChannels, getChannel, requireDirectOnChain
+          httpClient, invoiceStore, seenPayments, directChannels, getChannel, requireDirectOnChain, signingOpts
         });
       }
     }
@@ -471,7 +520,7 @@ function createVerifier({
 
     return verifyPaymentFull(header, {
       payee, hub: fallbackAddr, hubUrl: confirmHub ? fallbackUrl : null,
-      httpClient, invoiceStore, seenPayments, directChannels, getChannel, requireDirectOnChain
+      httpClient, invoiceStore, seenPayments, directChannels, getChannel, requireDirectOnChain, signingOpts
     });
   };
 

@@ -1,0 +1,19 @@
+{
+  "offers": [
+    {
+      "network": "base",
+      "asset": ["usdc", "eth"],
+      "maxAmountRequired": ["0.01", "0.00001"],
+      "stream": { "t": 1 },
+      "mode": "hub",
+      "hubName": "pay.eth",
+      "hubEndpoint": "https://pogchamp.tv/hub/base"
+    }
+  ],
+  "pathPrices": {
+    "/chat": {
+      "usdc": "0.01",
+      "eth": "0.00001"
+    }
+  }
+}

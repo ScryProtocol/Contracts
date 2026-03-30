@@ -17,7 +17,12 @@ const {
   setDomainDefaults
 } = require("./state-signing");
 const { WebhookManager, EVENT } = require("./webhooks");
-const { resolveNetwork, resolveAsset, resolveContract } = require("../scp-common/networks");
+const {
+  resolveNetwork,
+  resolveAsset,
+  resolveContract,
+  resolveHubEndpointForNetwork
+} = require("../scp-common/networks");
 const { recoverPayeeAuthSigner } = require("../scp-common/payee-auth");
 
 const PORT = Number(process.env.PORT || 4021);
@@ -219,6 +224,10 @@ function isHexAddress(v) {
   return typeof v === "string" && /^0x[a-fA-F0-9]{40}$/.test(v);
 }
 
+function isAssetId(v) {
+  return typeof v === "string" && (v.toLowerCase() === "eth" || isHexAddress(v));
+}
+
 function calcFee(amountStr) {
   const amount = BigInt(amountStr);
   const variable = (amount * FEE_BPS) / 10000n;
@@ -300,6 +309,85 @@ function parseSettlementMode(value) {
 function ensureIndexBucket(state, key) {
   if (!state[key] || typeof state[key] !== "object") state[key] = {};
   return state[key];
+}
+
+function normalizeAssetKey(asset) {
+  const raw = String(asset || ethers.constants.AddressZero).trim().toLowerCase();
+  if (!raw || raw === "eth" || raw === ethers.constants.AddressZero.toLowerCase()) {
+    return ethers.constants.AddressZero.toLowerCase();
+  }
+  return raw;
+}
+
+function ensureCreditState(state) {
+  if (!state.payerCredits || typeof state.payerCredits !== "object") state.payerCredits = {};
+  if (!state.legacyScalarCredits || typeof state.legacyScalarCredits !== "object") {
+    state.legacyScalarCredits = {};
+  }
+}
+
+function ensureCreditBucket(state, addr) {
+  ensureCreditState(state);
+  const payerKey = String(addr || "").toLowerCase();
+  const existing = state.payerCredits[payerKey];
+  if (!existing || typeof existing !== "object" || Array.isArray(existing)) {
+    state.payerCredits[payerKey] = {};
+  }
+  return state.payerCredits[payerKey];
+}
+
+function readCreditBucket(state, addr) {
+  const payerKey = String(addr || "").toLowerCase();
+  const credits = state && state.payerCredits;
+  if (!credits || typeof credits !== "object") return {};
+  const bucket = credits[payerKey];
+  if (!bucket || typeof bucket !== "object" || Array.isArray(bucket)) return {};
+  return bucket;
+}
+
+function getCreditsByAsset(state, addr) {
+  const bucket = readCreditBucket(state, addr);
+  return { ...bucket };
+}
+
+function getCredit(state, addr, asset) {
+  const bucket = readCreditBucket(state, addr);
+  return BigInt(bucket[normalizeAssetKey(asset)] || "0");
+}
+
+function addCredit(state, addr, asset, amount) {
+  const delta = BigInt(amount || "0");
+  if (delta < 0n) throw new Error("credit delta must be >= 0");
+  const bucket = ensureCreditBucket(state, addr);
+  const assetKey = normalizeAssetKey(asset);
+  const next = BigInt(bucket[assetKey] || "0") + delta;
+  bucket[assetKey] = next.toString();
+  return next;
+}
+
+function subCredit(state, addr, asset, amount) {
+  const delta = BigInt(amount || "0");
+  if (delta < 0n) throw new Error("credit delta must be >= 0");
+  const bucket = ensureCreditBucket(state, addr);
+  const assetKey = normalizeAssetKey(asset);
+  const current = BigInt(bucket[assetKey] || "0");
+  if (current < delta) {
+    throw new Error("insufficient credit");
+  }
+  const next = current - delta;
+  bucket[assetKey] = next.toString();
+  return next;
+}
+
+function getLegacyScalarCredit(state, addr) {
+  const payerKey = String(addr || "").toLowerCase();
+  const legacy = state && state.legacyScalarCredits;
+  if (!legacy || typeof legacy !== "object") return 0n;
+  return BigInt(legacy[payerKey] || "0");
+}
+
+function entryMatchesAsset(entry, asset) {
+  return normalizeAssetKey(entry && entry.asset) === normalizeAssetKey(asset);
 }
 
 function indexIssuedPayment(state, payment) {
@@ -557,13 +645,15 @@ async function handleRequest(req, res) {
         );
       }
 
-      // Look up payer credits (earned from incoming handle payments)
+      // Look up same-asset payer credits (earned from incoming payments).
+      // Legacy scalar credits remain visible via compatibility fields only and
+      // are not auto-applied to fresh quotes.
       let payerCredit = "0";
       const existingCh = await store.getChannel(body.channelId);
       if (existingCh && existingCh.participantA) {
         const payerKey = existingCh.participantA.toLowerCase();
         const credits = await store.tx((s) => {
-          return s.payerCredits?.[payerKey] || "0";
+          return getCredit(s, payerKey, ticketDraft.asset).toString();
         });
         if (BigInt(credits) > 0n) {
           // Credit is capped at hub's balB in this channel (hub can only give back what it has)
@@ -857,9 +947,8 @@ async function handleRequest(req, res) {
           }
         }
         if (_appliedCredit > 0n) {
-          if (!s.payerCredits) s.payerCredits = {};
           const payerKey = recoveredA.toLowerCase();
-          const prev = BigInt(s.payerCredits[payerKey] || "0");
+          const prev = getCredit(s, payerKey, ticket.asset);
           if (prev < _appliedCredit) {
             _txReject = "payer credit consumed by concurrent request";
             return;
@@ -883,9 +972,8 @@ async function handleRequest(req, res) {
 
         if (_appliedCredit > 0n) {
           const payerKey = recoveredA.toLowerCase();
-          const prev = BigInt(s.payerCredits[payerKey] || "0");
-          s.payerCredits[payerKey] = (prev - _appliedCredit).toString();
-          console.log("[credits] consumed", _appliedCredit.toString(), "from", payerKey, "remaining:", (prev - _appliedCredit).toString());
+          const creditRemaining = subCredit(s, payerKey, ticket.asset, _appliedCredit);
+          console.log("[credits] consumed", _appliedCredit.toString(), "from", payerKey, "asset:", normalizeAssetKey(ticket.asset), "remaining:", creditRemaining.toString());
           // SECURITY: mark matching payeeLedger entries as credit_consumed
           // to prevent double payout via payee/settle after credit rebate
           let remaining = _appliedCredit;
@@ -893,6 +981,7 @@ async function handleRequest(req, res) {
           for (const pe of pEntries) {
             if (remaining <= 0n) break;
             if (pe.status !== "issued") continue;
+            if (!entryMatchesAsset(pe, ticket.asset)) continue;
             const ea = BigInt(pe.amount || "0");
             if (ea <= remaining) {
               pe.status = "credit_consumed";
@@ -936,6 +1025,7 @@ async function handleRequest(req, res) {
           channelId: body.channelState.channelId,
           latestNonce: body.channelState.stateNonce,
           status: "open",
+          asset: ticket.asset,
           latestState: body.channelState,
           participantA: recoveredA,
           sigA: body.sigA,
@@ -958,11 +1048,9 @@ async function handleRequest(req, res) {
 
         // Accumulate payer credits: when a payee has a payer channel,
         // track the incoming payment so it can be rebated on their next spend.
-        if (!s.payerCredits) s.payerCredits = {};
         const creditKey = payee; // payee address (lowercase)
-        const prev = BigInt(s.payerCredits[creditKey] || "0");
-        s.payerCredits[creditKey] = (prev + BigInt(ticket.amount)).toString();
-        console.log("[credits] credited", ticket.amount, "to", creditKey, "total:", s.payerCredits[creditKey]);
+        const nextCredit = addCredit(s, creditKey, ticket.asset, ticket.amount);
+        console.log("[credits] credited", ticket.amount, "to", creditKey, "asset:", normalizeAssetKey(ticket.asset), "total:", nextCredit.toString());
       });
       if (_txReject) {
         return sendJson(res, 409, makeError("SCP_009_POLICY_VIOLATION", _txReject));
@@ -1109,9 +1197,9 @@ async function handleRequest(req, res) {
         }
         // V5: verify payee has sufficient credits to reverse (prevent withdraw-then-refund drain)
         const payee = String(ticketPayment.payee || "").toLowerCase();
-        if (!s.payerCredits) s.payerCredits = {};
         const creditKey = payee;
-        const prevCredit = BigInt(s.payerCredits[creditKey] || "0");
+        const paymentAsset = ticketPayment.asset || ZERO_ADDR;
+        const prevCredit = getCredit(s, creditKey, paymentAsset);
         const deduction = BigInt(body.refundAmount);
         if (prevCredit < deduction) {
           _refundReject = "payee credits insufficient for refund (already withdrawn)";
@@ -1145,8 +1233,8 @@ async function handleRequest(req, res) {
           }
         }
         // H1: Reverse payee credits
-        s.payerCredits[creditKey] = (prevCredit - deduction).toString();
-        console.log("[credits] reversed", body.refundAmount, "from", creditKey, "remaining:", s.payerCredits[creditKey]);
+        const remaining = subCredit(s, creditKey, paymentAsset, deduction);
+        console.log("[credits] reversed", body.refundAmount, "from", creditKey, "asset:", normalizeAssetKey(paymentAsset), "remaining:", remaining.toString());
       });
       if (_refundReject) {
         return sendJson(res, 409, makeError("SCP_009_POLICY_VIOLATION", _refundReject));
@@ -1245,17 +1333,23 @@ async function handleRequest(req, res) {
           onChainTotal = chData.totalBalance.toString();
         } catch (_e) { /* ignore */ }
       }
-      // Include payer credits if participantA has any
+      // Include payer credits by asset plus a temporary legacy scalar field.
       let payerCredit = "0";
+      let payerCreditsByAsset = {};
       if (ch.participantA) {
-        const credits = await store.tx((s) => s.payerCredits?.[ch.participantA.toLowerCase()] || "0");
-        payerCredit = credits;
+        const creditState = await store.tx((s) => ({
+          payerCreditsByAsset: getCreditsByAsset(s, ch.participantA),
+          payerCredit: getLegacyScalarCredit(s, ch.participantA).toString()
+        }));
+        payerCredit = creditState.payerCredit;
+        payerCreditsByAsset = creditState.payerCreditsByAsset;
       }
       return sendJson(res, 200, {
         ...safe,
         hasSignedState: !!(sigA || sigB),
         onChainTotalBalance: onChainTotal,
         latestState: safeState,
+        payerCreditsByAsset,
         payerCredit
       });
     }
@@ -1673,6 +1767,22 @@ async function handleRequest(req, res) {
           txHash = tx.hash;
           closeChannelId = hc.channelId;
         } else {
+          const hc = await store.getHubChannel(payee);
+          if (hc && hc.channelId && hc.status !== "closed" && hc.latestState && hc.sigA) {
+            let collectibleBalB;
+            try {
+              collectibleBalB = BigInt(hc.balB || "0");
+            } catch (_e) {
+              failSettlement(409, "SCP_009_POLICY_VIOLATION", "invalid hub-payee channel balance");
+            }
+            if (collectibleBalB > 0n) {
+              failSettlement(
+                409,
+                "SCP_009_POLICY_VIOLATION",
+                "direct settlement unsafe while hub-payee channel still has collectible balB; use cooperative_close"
+              );
+            }
+          }
           if (asset === ethers.constants.AddressZero) {
             const tx = await signer.sendTransaction({
               to: ethers.utils.getAddress(payee),
@@ -1742,11 +1852,13 @@ async function handleRequest(req, res) {
         }
         // SECURITY: debit payerCredits by the settled amount to prevent
         // double payout via credit/withdraw after payee/settle
-        if (settledTotal > 0n && s.payerCredits) {
-          const cur = BigInt(s.payerCredits[payee] || "0");
-          const newCr = cur > settledTotal ? cur - settledTotal : 0n;
-          s.payerCredits[payee] = newCr.toString();
-          if (cur > 0n) console.log("[settle] debited payerCredits for", payee, "by", settledTotal.toString(), "was:", cur.toString(), "now:", newCr.toString());
+        if (settledTotal > 0n) {
+          const cur = getCredit(s, payee, asset);
+          const debit = cur > settledTotal ? settledTotal : cur;
+          if (debit > 0n) {
+            const newCr = subCredit(s, payee, asset, debit);
+            console.log("[settle] debited payerCredits for", payee, "asset:", normalizeAssetKey(asset), "by", debit.toString(), "was:", cur.toString(), "now:", newCr.toString());
+          }
         }
         if (idemScopeKey) {
           if (!s.settlements) s.settlements = {};
@@ -1899,10 +2011,12 @@ async function handleRequest(req, res) {
       if (!hubSigner) return sendJson(res, 503, makeError("SCP_010_SETTLEMENT_UNAVAILABLE", "hub signer not available"));
       // Fetch on-chain totalBalance to ensure balA+balB matches contract
       let onChainTotal;
+      let closeAsset = normalizeAssetKey(ch.asset || ethers.constants.AddressZero);
       try {
         const _roC = getReadOnlyContract() || new ethers.Contract(CONTRACT_ADDRESS, CHANNEL_ABI, hubSigner);
         const onChainData = await _roC.getChannel(channelId);
         onChainTotal = onChainData.totalBalance.toBigInt();
+        closeAsset = normalizeAssetKey(onChainData.asset || closeAsset);
         if (onChainTotal === 0n) {
           return sendJson(res, 409, makeError("SCP_007_CHANNEL_NOT_FOUND", "channel already closed on-chain"));
         }
@@ -1926,7 +2040,7 @@ async function handleRequest(req, res) {
       // H8: Only apply credit if tickets were issued on this channel (latestNonce > 0).
       // Nonce-0 channels never had tickets, so cross-channel credit must not apply.
       const credit = (ch.latestNonce > 0)
-        ? await store.tx((s) => BigInt(s.payerCredits?.[payerKey] || "0"))
+        ? await store.tx((s) => getCredit(s, payerKey, closeAsset))
         : 0n;
       if (credit > 0n && newBalB > 0n) {
         creditApplied = credit > newBalB ? newBalB : credit;
@@ -1962,7 +2076,10 @@ async function handleRequest(req, res) {
       // Store creditApplied in channel record so confirm-close can use the hub-derived value
       await store.tx((s) => {
         if (!s.channels[channelId]) s.channels[channelId] = {};
-        s.channels[channelId].pendingCloseCredit = creditApplied.toString();
+        s.channels[channelId].pendingCloseCredit = {
+          amount: creditApplied.toString(),
+          asset: closeAsset
+        };
         s.channels[channelId].pendingCloseState = closeState;
       });
       console.log("[close] issuing sigB for channel", channelId, "payer:", recovered, "creditApplied:", creditApplied.toString());
@@ -1991,7 +2108,19 @@ async function handleRequest(req, res) {
       }
       // Mark channel closed in store and consume credit using hub-stored value (not caller input)
       const ch = await store.getChannel(channelId);
-      const creditUsed = ch?.pendingCloseCredit ? BigInt(ch.pendingCloseCredit) : 0n;
+      const pendingCloseCredit = ch?.pendingCloseCredit;
+      const creditUsed = pendingCloseCredit
+        ? BigInt(
+          typeof pendingCloseCredit === "object"
+            ? pendingCloseCredit.amount || "0"
+            : pendingCloseCredit
+        )
+        : 0n;
+      const creditAsset = normalizeAssetKey(
+        typeof pendingCloseCredit === "object" && pendingCloseCredit
+          ? pendingCloseCredit.asset
+          : ch?.asset || ethers.constants.AddressZero
+      );
       await store.tx((s) => {
         if (s.channels[channelId]) {
           s.channels[channelId].status = "closed";
@@ -2000,15 +2129,16 @@ async function handleRequest(req, res) {
         }
         if (creditUsed > 0n && ch && ch.participantA) {
           const pk = ch.participantA.toLowerCase();
-          if (!s.payerCredits) s.payerCredits = {};
-          const cur = BigInt(s.payerCredits[pk] || "0");
-          s.payerCredits[pk] = (cur > creditUsed ? cur - creditUsed : 0n).toString();
+          const cur = getCredit(s, pk, creditAsset);
+          const debit = cur > creditUsed ? creditUsed : cur;
+          if (debit > 0n) subCredit(s, pk, creditAsset, debit);
           // SECURITY: mark payeeLedger entries as credit_consumed
-          let rem = creditUsed;
+          let rem = debit;
           const pe2 = s.payeeLedger?.[pk] || [];
           for (const e of pe2) {
             if (rem <= 0n) break;
             if (e.status !== "issued") continue;
+            if (!entryMatchesAsset(e, creditAsset)) continue;
             const ea = BigInt(e.amount || "0");
             if (ea <= rem) { e.status = "credit_consumed"; e.creditConsumedAt = now(); rem -= ea; }
             else { e.amount = (ea - rem).toString(); rem = 0n; }
@@ -2022,19 +2152,23 @@ async function handleRequest(req, res) {
     // --- Credit-only payment (no channel required) ---
     if (req.method === "POST" && pathname === "/v1/credit/pay") {
       const body = await parseBody(req);
-      const { payer, payee, amount, sig, invoiceId, nonce: cpNonce } = body;
-      if (!isHexAddress(payer) || !isHexAddress(payee) || !amount || !sig) {
-        return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "payer, payee, amount, sig required"));
+      const { payer, payee, asset, amount, sig, invoiceId, nonce: cpNonce } = body;
+      if (!isHexAddress(payer) || !isHexAddress(payee) || !amount || !sig || !asset) {
+        return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "payer, payee, asset, amount, sig required"));
+      }
+      if (!isAssetId(asset)) {
+        return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "asset must be eth or 0x token address"));
       }
       if (!cpNonce || typeof cpNonce !== "string") {
         return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "nonce required"));
       }
       const amt = BigInt(amount);
       if (amt <= 0n) return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "amount must be > 0"));
-      // Verify signature: payer signs keccak256(payer + payee + amount + invoiceId + nonce)
+      const assetKey = normalizeAssetKey(asset);
+      // Verify signature: payer signs keccak256(payer + payee + asset + amount + invoiceId + nonce)
       const msg = ethers.utils.solidityKeccak256(
-        ["address", "address", "uint256", "string", "string"],
-        [payer, payee, amount, invoiceId || "", cpNonce]
+        ["address", "address", "address", "uint256", "string", "string"],
+        [payer, payee, assetKey, amount, invoiceId || "", cpNonce]
       );
       let recovered;
       try {
@@ -2054,26 +2188,24 @@ async function handleRequest(req, res) {
         if (!s.spentCreditNonces) s.spentCreditNonces = {};
         const creditReplayKey = `${payerKey}:${cpNonce}`;
         if (s.spentCreditNonces[creditReplayKey]) { txResult = "replay"; return; }
-        if (!s.payerCredits) s.payerCredits = {};
-        const pc = BigInt(s.payerCredits[payerKey] || "0");
+        const pc = getCredit(s, payerKey, assetKey);
         if (pc < amt) { txResult = "insufficient"; return; }
         // Mark nonce spent + debit + credit + record — all atomic
         s.spentCreditNonces[creditReplayKey] = now();
-        s.payerCredits[payerKey] = (pc - amt).toString();
-        const pp = BigInt(s.payerCredits[payeeKey] || "0");
-        s.payerCredits[payeeKey] = (pp + amt).toString();
+        subCredit(s, payerKey, assetKey, amt);
+        addCredit(s, payeeKey, assetKey, amt);
         if (!s.payments) s.payments = {};
         s.payments[payId] = {
           paymentId: payId, status: "issued", createdAt: now(),
           invoiceId: invoiceId || "", payee, payer,
-          amount: amount, fee: "0", totalDebit: amount, type: "credit"
+          asset: assetKey, amount: amount, fee: "0", totalDebit: amount, type: "credit"
         };
         if (!s.payeeLedger) s.payeeLedger = {};
         if (!s.payeeLedger[payeeKey]) s.payeeLedger[payeeKey] = [];
         const seq = Number(s.nextSeq || 1);
         s.payeeLedger[payeeKey].push({
           seq, createdAt: now(), paymentId: payId,
-          invoiceId: invoiceId || "", amount, asset: "credit", status: "issued"
+          invoiceId: invoiceId || "", amount, asset: assetKey, status: "issued"
         });
         s.nextSeq = seq + 1;
         txResult = "ok";
@@ -2085,8 +2217,8 @@ async function handleRequest(req, res) {
         return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION",
           "insufficient credit"));
       }
-      console.log("[credit-pay]", payerKey, "->", payeeKey, amount, "payId:", payId);
-      return sendJson(res, 200, { ok: true, paymentId: payId, amount, payer, payee, type: "credit" });
+      console.log("[credit-pay]", payerKey, "->", payeeKey, amount, "asset:", assetKey, "payId:", payId);
+      return sendJson(res, 200, { ok: true, paymentId: payId, amount, asset: assetKey, payer, payee, type: "credit" });
     }
 
     // --- Credit balance check ---
@@ -2094,10 +2226,16 @@ async function handleRequest(req, res) {
       const { query } = url.parse(req.url, true);
       const addr = (query && query.address || "").toLowerCase();
       if (!addr) return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "address required"));
-      const credit = await store.tx((s) => {
-        return s.payerCredits?.[addr] || "0";
+      const creditState = await store.tx((s) => ({
+        creditsByAsset: getCreditsByAsset(s, addr),
+        legacyScalarCredit: getLegacyScalarCredit(s, addr).toString()
+      }));
+      return sendJson(res, 200, {
+        address: addr,
+        creditsByAsset: creditState.creditsByAsset,
+        legacyScalarCredit: creditState.legacyScalarCredit,
+        credit: creditState.legacyScalarCredit
       });
-      return sendJson(res, 200, { address: addr, credit });
     }
 
     // --- Credit withdrawal: hub sends ETH on-chain to the user ---
@@ -2107,12 +2245,21 @@ async function handleRequest(req, res) {
       if (!addr || !isHexAddress(addr)) return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "valid address required"));
       const sig = body.sig;
       if (!sig) return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "signature required"));
+      if (!body.asset) return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "asset required"));
+      if (!isAssetId(body.asset)) return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "asset must be eth or 0x token address"));
+      const asset = normalizeAssetKey(body.asset);
       const amount = body.amount;
       if (!amount || BigInt(amount) <= 0n) return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "amount required"));
       const nonce = body.nonce;
       if (!nonce || typeof nonce !== "string") return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "nonce required"));
-      // Verify signature: keccak256(address, amount, nonce, "withdraw")
-      const msgHash = ethers.utils.solidityKeccak256(["address", "uint256", "string", "string"], [addr, amount, nonce, "withdraw"]);
+      if (asset !== ethers.constants.AddressZero.toLowerCase()) {
+        return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "only ETH credit withdrawals are supported right now"));
+      }
+      // Verify signature: keccak256(address, asset, amount, nonce, "withdraw")
+      const msgHash = ethers.utils.solidityKeccak256(
+        ["address", "address", "uint256", "string", "string"],
+        [addr, asset, amount, nonce, "withdraw"]
+      );
       let recovered;
       try {
         recovered = ethers.utils.verifyMessage(ethers.utils.arrayify(msgHash), sig).toLowerCase();
@@ -2124,19 +2271,18 @@ async function handleRequest(req, res) {
       let debitOk = false;
       await store.tx((s) => {
         if (!s.spentWithdrawNonces) s.spentWithdrawNonces = {};
-        const withdrawReplayKey = `${addr.toLowerCase()}:${nonce}`;
+        const withdrawReplayKey = `${addr.toLowerCase()}:${asset}:${nonce}`;
         if (s.spentWithdrawNonces[withdrawReplayKey]) return; // replay — debitOk stays false
-        if (!s.payerCredits) s.payerCredits = {};
-        const cur = BigInt(s.payerCredits[addr] || "0");
+        const cur = getCredit(s, addr, asset);
         if (cur < BigInt(amount)) return; // insufficient — debitOk stays false
         // Debit BEFORE sending (prevents TOCTOU)
-        s.payerCredits[addr] = (cur - BigInt(amount)).toString();
+        subCredit(s, addr, asset, BigInt(amount));
         s.spentWithdrawNonces[withdrawReplayKey] = now();
         debitOk = true;
       });
       if (!debitOk) {
         // Distinguish replay from insufficient
-        const isReplay = await store.tx((s) => !!(s.spentWithdrawNonces?.[`${addr.toLowerCase()}:${nonce}`]));
+        const isReplay = await store.tx((s) => !!(s.spentWithdrawNonces?.[`${addr.toLowerCase()}:${asset}:${nonce}`]));
         if (isReplay) return sendJson(res, 409, makeError("SCP_009_POLICY_VIOLATION", "nonce already used"));
         return sendJson(res, 400, makeError("SCP_009_POLICY_VIOLATION", "insufficient credit"));
       }
@@ -2146,13 +2292,11 @@ async function handleRequest(req, res) {
         const tx = await signer.sendTransaction({ to: ethers.utils.getAddress(addr), value: ethers.BigNumber.from(amount), gasLimit: 21000 });
         await tx.wait(1);
         console.log("[credit-withdraw]", addr, amount, "tx:", tx.hash);
-        return sendJson(res, 200, { ok: true, address: addr, amount, txHash: tx.hash });
+        return sendJson(res, 200, { ok: true, address: addr, asset, amount, txHash: tx.hash });
       } catch (e) {
         // Re-credit on tx failure (nonce stays spent to prevent retry of same sig)
         await store.tx((s) => {
-          if (!s.payerCredits) s.payerCredits = {};
-          const cur = BigInt(s.payerCredits[addr] || "0");
-          s.payerCredits[addr] = (cur + BigInt(amount)).toString();
+          addCredit(s, addr, asset, amount);
         });
         console.error("[credit-withdraw] failed (re-credited):", e.message);
         return sendJson(res, 500, makeError("SCP_011_SETTLEMENT_FAILED", "withdrawal tx failed: " + e.message));
@@ -2186,8 +2330,16 @@ async function handleRequest(req, res) {
       }
       const { query } = url.parse(req.url, true);
       const amt = (query && query.amount) || HANDLE_PRICE;
-      const handleBase = process.env.HANDLE_PUBLIC_URL || `https://${handleDomain}`;
-      const hubEp = process.env.HUB_PUBLIC_ENDPOINT || process.env.HUB_ENDPOINT || process.env.HUB_URL || `http://${HOST}:${PORT}`;
+      const handleBase =
+        process.env.HANDLE_PUBLIC_URL ||
+        (handleDomain === "statechannel.org"
+          ? "https://statechannel.org/heyeth"
+          : `https://${handleDomain}`);
+      const hubEp =
+        process.env.HUB_PUBLIC_ENDPOINT ||
+        process.env.HUB_ENDPOINT ||
+        process.env.HUB_URL ||
+        resolveHubEndpointForNetwork(CHAIN_ID);
       if (existing) {
         const payInv = "inv_h_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
         const mkOffer = (asset, label) => ({

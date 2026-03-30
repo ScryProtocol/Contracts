@@ -6,6 +6,7 @@ const fs = require("fs");
 const path = require("path");
 const { ethers } = require("ethers");
 const { createVerifier } = require("../scp-hub/ticket");
+const { setDomainDefaults } = require("../scp-hub/state-signing");
 const { HttpJsonClient } = require("../scp-common/http-client");
 const { resolveHubEndpointForNetwork, toCaip2 } = require("../scp-common/networks");
 
@@ -247,6 +248,9 @@ function makeOffers(cfg, payeeAddress, routePath, routeCfg, invoiceStore) {
     invoiceStore.set(invoiceId, {
       createdAt: now(),
       path: routePath || cfg.resourcePath,
+      resource,
+      method: "GET",
+      payee: payeeAddress,
       amount: price,
       asset,
       network,
@@ -430,10 +434,13 @@ async function handle(req, res, ctx) {
     const inv = invoiceStore.get(invoiceId);
     if (!inv) return false;
     if (expectedPath && inv.path && inv.path !== expectedPath) return false;
-    if (!paymentProof) return true;
+    if (!paymentProof) return inv;
     if (inv.amount && paymentProof.amount !== inv.amount) return false;
     if (inv.asset && String(paymentProof.asset || "").toLowerCase() !== String(inv.asset).toLowerCase()) return false;
-    return true;
+    if (inv.payee && String(paymentProof.payee || paymentProof.payeeAddress || "").toLowerCase() !== String(inv.payee).toLowerCase()) {
+      return false;
+    }
+    return inv;
   };
   const result = await ctx.verifyPayment(rawHeader, invoiceLookup);
 
@@ -523,10 +530,14 @@ function createPayeeServer(options = {}) {
     hubUrls: collectHubUrls(cfg),
     http: new HttpJsonClient({ timeoutMs: 8000, maxSockets: 128 })
   };
+  if (cfg.contractAddress) {
+    setDomainDefaults(Number(String(cfg.network || "").split(":")[1]) || undefined, cfg.contractAddress);
+  }
   ctx.verifyPayment = createVerifier({
     payee: payeeAddress,
     hubs: ctx.hubUrls,
     confirmHub: !cfg.perfMode,
+    chainId: Number(String(cfg.network || "").split(":")[1]) || undefined,
     rpcUrl: cfg.rpcUrl,
     contractAddress: cfg.contractAddress,
     requireDirectOnChain: true,
