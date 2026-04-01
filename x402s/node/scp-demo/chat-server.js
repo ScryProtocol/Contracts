@@ -10,7 +10,7 @@ const { URL } = require("url");
 const crypto = require("crypto");
 const { ethers } = require("ethers");
 const { createVerifier } = require("../scp-hub/ticket");
-const { resolveHubEndpointForNetwork, toCaip2, resolveAsset } = require("../scp-common/networks");
+const { resolveHubEndpointForNetwork, toCaip2, resolveAsset, resolveContract } = require("../scp-common/networks");
 
 const CHAT_NETWORK = process.env.CHAT_NETWORK || "base";
 const NETWORK = toCaip2(CHAT_NETWORK) || "eip155:8453";
@@ -24,6 +24,7 @@ const payeeWallet = new ethers.Wallet(PAYEE_KEY);
 const PAYEE_ADDR = payeeWallet.address;
 
 const ZERO_ADDR = "0x0000000000000000000000000000000000000000";
+const CONTRACT_ADDR = process.env.CONTRACT_ADDRESS || resolveContract(CHAIN_ID);
 const PUBLIC_URL = process.env.PUBLIC_URL || "";
 const PUBLIC_HUB = process.env.PUBLIC_HUB || HUB_URL;
 const SCP_PAY_AUTO_CONFIRM = process.env.SCP_PAY_AUTO_CONFIRM !== "0";
@@ -190,14 +191,18 @@ const verify = createVerifier({
   hubUrl: HUB_URL,
   hubs: [HUB_URL],
   confirmHub: true,
-  seenPayments: consumed
+  seenPayments: consumed,
+  chainId: CHAIN_ID,
+  contractAddress: CONTRACT_ADDR
 });
 const verifyPay = createVerifier({
   payee: PAYEE_ADDR,
   hubUrl: HUB_URL,
   hubs: [HUB_URL],
   confirmHub: true,
-  seenPayments: payAcks
+  seenPayments: payAcks,
+  chainId: CHAIN_ID,
+  contractAddress: CONTRACT_ADDR
 });
 
 // --- Chat HTML UI ---
@@ -708,6 +713,7 @@ server.listen(PORT, "127.0.0.1", () => {
   console.log(`[SCP Chat] network: ${CHAT_NETWORK} (${NETWORK})`);
   console.log(`[SCP Chat] payee: ${PAYEE_ADDR}`);
   console.log(`[SCP Chat] hub: ${HUB_URL}`);
+  console.log(`[SCP Chat] domain: chainId=${CHAIN_ID} contract=${CONTRACT_ADDR}`);
   console.log(`[SCP Chat] pricing: ${PRICE_LABEL} per message`);
   console.log(`[SCP Chat] GET /chat (free) | POST /chat (paid)`);
 });
