@@ -1,0 +1,165 @@
+.stats-page {
+  min-height: 100vh;
+  background: #0e0e10;
+  padding: 20px;
+  color: #efeff1;
+  overflow-y: auto;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.stats-panel {
+  max-width: 900px;
+  margin: 0 auto;
+  background: #18181b;
+  border-radius: 20px;
+  padding: 24px;
+}
+
+.stats-back {
+  color: #9147ff;
+  text-decoration: none;
+  font-size: 14px;
+  display: inline-block;
+  margin-bottom: 16px;
+}
+
+.stats-back:hover {
+  text-decoration: underline;
+}
+
+.stats-panel h2 {
+  margin: 0 0 20px 0;
+  font-size: 24px;
+  color: #efeff1;
+}
+
+.stats-panel h3 {
+  margin: 24px 0 12px 0;
+  font-size: 16px;
+  color: #adadb8;
+}
+
+.stats-loading {
+  text-align: center;
+  padding: 40px;
+  color: #adadb8;
+}
+
+.stats-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-box {
+  background: #26262c;
+  border-radius: 20px;
+  padding: 16px;
+  text-align: center;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #adadb8;
+  margin-top: 4px;
+}
+
+.stats-table-container {
+  overflow-x: auto;
+}
+
+.stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.stats-table th,
+.stats-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid #26262c;
+}
+
+.stats-table th {
+  color: #adadb8;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.stats-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.stats-table th.sortable:hover {
+  color: #efeff1;
+}
+
+.stats-table tr.active {
+  background: rgba(145, 71, 255, 0.1);
+}
+
+.stats-table tr:hover {
+  background: #26262c;
+}
+
+.user-id {
+  font-family: monospace;
+  color: #bf94ff;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
+.status-dot.online {
+  background: #00f593;
+}
+
+.status-dot.offline {
+  background: #53535f;
+}
+
+.twitch-logins {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.twitch-login {
+  background: #26262c;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  color: #bf94ff;
+}
+
+@media (max-width: 600px) {
+  .stats-page {
+    padding: 10px;
+  }
+
+  .stats-panel {
+    padding: 16px;
+  }
+
+  .stats-table {
+    font-size: 12px;
+  }
+
+  .stats-table th,
+  .stats-table td {
+    padding: 8px 6px;
+  }
+}

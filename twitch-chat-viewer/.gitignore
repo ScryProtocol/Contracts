@@ -1,0 +1,10 @@
+node_modules
+build
+.env
+.env.local
+.env.production
+.env.development
+.npm-ci.log
+server/visitor-stats.json
+server/watch-time.json
+server/custom-lists.json

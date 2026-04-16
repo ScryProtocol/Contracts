@@ -1,0 +1,486 @@
+.stream-list {
+  width: 340px;
+  height: 100vh;
+  background: #0e0e10;
+  color: #efeff1;
+  overflow-y: auto;
+  border-right: 1\px solid #1f1f23;
+}
+
+.stream-list-header {
+  padding: 10px 15px;
+  background: #0e0e10;
+  border-bottom: 1px solid #1f1f23;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Twitch Login Section */
+.twitch-login-section {
+  padding: 8px 0;
+  border-bottom: 1px solid #1f1f23;
+  margin-bottom: 4px;
+}
+
+.twitch-login-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: white;
+  background: #9147ff;
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.twitch-login-btn:hover {
+  background: #772ce8;
+}
+
+.twitch-login-btn svg {
+  flex-shrink: 0;
+}
+
+.login-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.login-row .twitch-login-btn {
+  flex: 1;
+}
+
+.help-btn {
+  width: 36px;
+  height: auto;
+  font-size: 16px;
+  font-weight: 700;
+  color: white;
+  background: #9147ff;
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.help-btn:hover {
+  background: #772ce8;
+}
+
+.help-btn.small {
+  width: 24px;
+  height: 24px;
+  font-size: 12px;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.user-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: #efeff1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logout-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  color: #adadb8;
+  background: #1f1f23;
+  border: 1px solid #2c2c35;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.logout-btn:hover {
+  color: #efeff1;
+  background: #2c2c35;
+}
+
+/* View Mode Tabs */
+.view-mode-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.view-tab {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #adadb8;
+  background: #1f1f23;
+  border: 1px solid #2c2c35;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.view-tab:hover {
+  background: #26262c;
+  color: #efeff1;
+}
+
+.view-tab.active {
+  background: #9147ff;
+  color: white;
+  border-color: #9147ff;
+}
+
+a.view-tab.view-tab-party {
+  text-decoration: none;
+  background: linear-gradient(135deg, #9146ff 0%, #6d28d9 100%);
+  color: white;
+  border-color: transparent;
+  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+a.view-tab.view-tab-party:hover {
+  filter: brightness(1.08);
+  color: white;
+}
+
+/* No Streams Message */
+.no-streams {
+  padding: 40px 20px;
+  text-align: center;
+  color: #adadb8;
+}
+
+.no-streams p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.stream-list h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #bf94ff;
+}
+
+.search-input {
+  padding: 6px 10px;
+  font-size: 12px;
+  color: #efeff1;
+  background: #1f1f23;
+  border: 1px solid #2c2c35;
+  border-radius: 20px;
+  outline: none;
+  width: 100%;
+}
+
+.search-input:focus {
+  border-color: #9147ff;
+}
+
+.sort-options {
+  display: flex;
+  gap: 4px;
+}
+
+.sort-btn {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #adadb8;
+  background: #1f1f23;
+  border: 1px solid #2c2c35;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.sort-btn:hover {
+  background: #26262c;
+  color: #efeff1;
+}
+
+.sort-btn.active {
+  background: #9147ff;
+  color: white;
+  border-color: #9147ff;
+}
+
+.stream-items {
+  padding: 0;
+}
+
+.stream-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.1s ease;
+  border: none;
+  border-left: 2px solid transparent;
+  position: relative;
+}
+
+.stream-item:hover {
+  background: #1f1f23;
+}
+
+.stream-item.selected {
+  background: #18181b;
+  border-left-color: #9147ff;
+}
+
+.stream-item.offline {
+  padding-left: 45px;
+}
+
+.stream-rank {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: #9147ff;
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 20px;
+  z-index: 1;
+}
+
+.stream-thumbnail {
+  width: 50px;
+  height: 70px;
+  border-radius: 20px;
+  object-fit: cover;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.stream-info {
+  flex: 1;
+  min-width: 0;
+  padding-top: 2px;
+}
+
+.stream-streamer {
+  font-size: 13px;
+  font-weight: 600;
+  color: #efeff1;
+  margin-bottom: 2px;
+  display: block;
+}
+
+.stream-title {
+  font-size: 12px;
+  font-weight: 400;
+  color: #adadb8;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.stream-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: #adadb8;
+}
+
+.stream-game {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  color: #adadb8;
+}
+
+.stream-stats {
+  display: flex;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 400;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.viewer-count {
+  color: #adadb8;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.viewer-count::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background: #eb0400;
+  border-radius: 50%;
+}
+
+.chat-rate {
+  color: #adadb8;
+  background: #1f1f23;
+  padding: 2px 6px;
+  border-radius: 20px;
+  font-weight: 600;
+}
+
+.chat-rate-10s {
+  color: white;
+  background: linear-gradient(135deg, #d9480f 0%, #e85d0c 100%);
+  padding: 3px 7px;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 9px;
+  box-shadow: 0 1px 3px rgba(217, 72, 15, 0.4);
+  border: 1px solid rgba(217, 72, 15, 0.4);
+}
+
+.chat-rate-5m {
+  color: white;
+  background: linear-gradient(135deg, #2d9b96 0%, #258e8a 100%);
+  padding: 3px 7px;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 9px;
+  box-shadow: 0 1px 3px rgba(45, 155, 150, 0.4);
+  border: 1px solid rgba(45, 155, 150, 0.4);
+}
+
+.stream-list::-webkit-scrollbar {
+  width: 10px;
+}
+
+.stream-list::-webkit-scrollbar-track {
+  background: #0e0e10;
+}
+
+.stream-list::-webkit-scrollbar-thumb {
+  background: #464649;
+  border-radius: 20px;
+  border: 2px solid #0e0e10;
+}
+
+.stream-list::-webkit-scrollbar-thumb:hover {
+  background: #5c5c61;
+}
+
+/* Mobile sidebar as overlay */
+@media (max-width: 768px) {
+  .stream-list {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 85%;
+    max-width: 340px;
+    height: 100vh;
+    z-index: 90;
+    transform: translateX(0);
+    transition: transform 0.3s ease;
+    box-shadow: 4px 0 16px rgba(0, 0, 0, 0.5);
+  }
+
+  .stream-list-header {
+    padding: 12px 15px;
+  }
+
+  .search-input {
+    padding: 10px 12px;
+    font-size: 16px; /* Prevents iOS zoom on focus */
+    min-height: 44px;
+  }
+
+  .sort-btn {
+    padding: 10px 12px;
+    font-size: 12px;
+    min-height: 44px;
+  }
+
+  .view-tab {
+    padding: 10px 12px;
+    font-size: 12px;
+    min-height: 44px;
+  }
+
+  .stream-item {
+    padding: 12px;
+    min-height: 80px;
+  }
+
+  .stream-thumbnail {
+    width: 60px;
+    height: 80px;
+  }
+
+  .stream-streamer {
+    font-size: 14px;
+  }
+
+  .stream-title {
+    font-size: 13px;
+  }
+
+  .stream-stats {
+    gap: 4px;
+  }
+}
+
+@media (max-width: 480px) {
+  .stream-list {
+    width: 100%;
+    max-width: none;
+  }
+
+  .stream-list-header h2 {
+    font-size: 13px;
+  }
+
+  .sort-btn {
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+
+  .stream-stats span {
+    padding: 2px 6px !important;
+    font-size: 9px !important;
+  }
+}

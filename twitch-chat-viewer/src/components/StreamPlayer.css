@@ -1,0 +1,508 @@
+.stream-player-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #0e0e10;
+  height: 100%;
+  position: relative;
+}
+
+.stream-player-container:fullscreen .stream-header {
+  display: none !important;
+}
+
+.stream-player-container:fullscreen .stream-chat {
+  display: none !important;
+}
+
+.stream-player-container:fullscreen .cooldown-progress-container {
+  display: none !important;
+}
+
+.stream-player-container:fullscreen:hover .stream-header {
+  display: flex !important;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  opacity: 1;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.no-stream-selected {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #efeff1;
+  text-align: center;
+  background: #18181b;
+}
+
+.no-stream-content {
+  max-width: 500px;
+  padding: 40px;
+}
+
+.no-stream-content h1 {
+  font-size: 36px;
+  margin-bottom: 16px;
+  color: #efeff1;
+  font-weight: 700;
+}
+
+.no-stream-content p {
+  font-size: 16px;
+  color: #adadb8;
+  margin-bottom: 24px;
+  line-height: 1.5;
+}
+
+.instructions {
+  background: #0e0e10;
+  padding: 24px;
+  border-radius: 20px;
+  text-align: left;
+}
+
+.instructions p {
+  font-size: 14px;
+  margin: 12px 0;
+  color: #adadb8;
+}
+
+.stream-header {
+  background: #18181b;
+  padding: 12px 20px;
+  border-bottom: 1px solid #1f1f23;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.stream-header-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.stream-header-info h1 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 4px 0;
+  color: #efeff1;
+}
+
+.stream-header-info p {
+  font-size: 13px;
+  color: #adadb8;
+  margin: 0 0 8px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stream-header-stats {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.mute-toggle {
+  background: #9147ff;
+  border: none;
+  border-radius: 20px;
+  padding: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  transition: all 0.2s ease;
+}
+
+.mute-toggle:hover {
+  background: #772ce8;
+  transform: scale(1.05);
+}
+
+.mute-toggle:active {
+  transform: scale(0.95);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #1f1f23;
+  color: #adadb8;
+}
+
+.badge.game {
+  background: #1f1f23;
+  color: #efeff1;
+  padding: 4px 10px;
+}
+
+.badge.viewers {
+  background: transparent;
+  color: #adadb8;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.badge.viewers::before {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  background: #eb0400;
+  border-radius: 50%;
+}
+
+.badge.chat-rate {
+  background: #9147ff;
+  color: white;
+}
+
+.badge.chat-rate-10s {
+  background: linear-gradient(135deg, #d9480f 0%, #e85d0c 100%);
+  color: white;
+  font-weight: 600;
+  font-size: 11px;
+  padding: 5px 10px;
+  box-shadow: 0 2px 4px rgba(217, 72, 15, 0.4);
+  border: 1px solid rgba(217, 72, 15, 0.5);
+}
+
+.badge.chat-rate-5m {
+  background: linear-gradient(135deg, #2d9b96 0%, #258e8a 100%);
+  color: white;
+  font-weight: 600;
+  font-size: 11px;
+  padding: 5px 10px;
+  box-shadow: 0 2px 4px rgba(45, 155, 150, 0.4);
+  border: 1px solid rgba(45, 155, 150, 0.5);
+}
+
+.stream-content {
+  flex: 1;
+  display: flex;
+  gap: 0;
+  overflow: hidden;
+  background: #000;
+}
+
+.stream-player {
+  flex: 1;
+  min-width: 0;
+  background: #000;
+  position: relative;
+}
+
+.stream-chat {
+  width: 340px;
+  background: #18181b;
+  border-left: 1px solid #1f1f23;
+  position: relative;
+}
+
+.stream-player iframe,
+.stream-chat iframe {
+  display: block;
+  visibility: visible;
+  opacity: 1;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+@media (max-width: 1024px) {
+  .stream-chat {
+    width: 300px;
+  }
+}
+
+.blacklist-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #eb0400;
+  border: none;
+  border-radius: 20px;
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.blacklist-btn:hover {
+  background: #c20300;
+  transform: scale(1.05);
+}
+
+.blacklist-btn:active {
+  transform: scale(0.95);
+}
+
+.cooldown-progress-container {
+  position: relative;
+  height: 4px;
+  background: #1f1f23;
+  overflow: visible;
+  margin-bottom: 0;
+}
+
+.cooldown-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #9147ff 0%, #772ce8 100%);
+  transition: width 2s linear;
+  box-shadow: 0 0 8px rgba(145, 71, 255, 0.5);
+  will-change: width;
+}
+
+.cooldown-text {
+  position: absolute;
+  top: -24px;
+  right: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #efeff1;
+  background: #18181b;
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid #2c2c35;
+  white-space: nowrap;
+}
+
+/* Tablet breakpoint */
+@media (max-width: 1024px) {
+  .stream-header {
+    padding: 10px 15px;
+  }
+
+  .stream-header-info h1 {
+    font-size: 16px;
+  }
+
+  .stream-header-info p {
+    font-size: 12px;
+  }
+
+  .badge {
+    padding: 4px 6px;
+    font-size: 11px;
+  }
+}
+
+/* Mobile breakpoint */
+@media (max-width: 768px) {
+  .stream-content {
+    flex-direction: column;
+  }
+
+  .stream-player {
+    flex: 0 0 28vh;
+    min-height: 160px;
+  }
+
+  .stream-chat {
+    width: 100%;
+    flex: 1;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    border-left: none;
+    border-top: 1px solid #1f1f23;
+  }
+
+  .stream-header {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+  }
+
+  .stream-header-info h1 {
+    font-size: 13px;
+    margin-bottom: 0;
+  }
+
+  .stream-header-info p {
+    font-size: 11px;
+    margin-bottom: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+  }
+
+  .stream-header-stats {
+    gap: 6px;
+    flex-wrap: nowrap;
+  }
+
+  .stream-header-stats .badge.game,
+  .stream-header-stats > span[title="Viewer count"],
+  .stream-header-stats > span[title="Last 5 minutes average"] {
+    display: none !important;
+  }
+
+  .settings-toggle {
+    padding: 6px !important;
+    min-height: 32px !important;
+    min-width: 32px !important;
+    font-size: 0 !important;
+  }
+
+  .settings-toggle svg {
+    width: 16px !important;
+    height: 16px !important;
+  }
+
+  .mute-toggle {
+    padding: 6px;
+    min-height: 32px;
+    min-width: 32px;
+  }
+
+  .mute-btn {
+    display: none !important;
+  }
+
+  .blacklist-btn {
+    padding: 6px;
+    min-height: 32px;
+    min-width: 32px;
+    font-size: 0;
+    gap: 0;
+  }
+
+  .no-stream-content {
+    padding: 20px;
+  }
+
+  .no-stream-content h1 {
+    font-size: 24px;
+  }
+
+  .no-stream-content p {
+    font-size: 14px;
+  }
+
+  .instructions {
+    padding: 16px;
+  }
+
+  .cooldown-text {
+    font-size: 10px;
+    padding: 2px 8px;
+    top: -20px;
+    right: 8px;
+  }
+
+  .cooldown-progress-container {
+    height: 3px;
+  }
+
+  /* Stack icon and value vertically on mobile */
+  .stat-badge {
+    flex-direction: column !important;
+    padding: 4px 8px !important;
+    gap: 0 !important;
+    min-width: 36px;
+    text-align: center;
+  }
+
+  .stat-badge .stat-icon {
+    font-size: 12px;
+    line-height: 1;
+  }
+
+  .stat-badge .stat-value {
+    font-size: 9px;
+    line-height: 1.2;
+  }
+}
+
+/* Small mobile breakpoint */
+@media (max-width: 480px) {
+  .stream-player {
+    flex: 0 0 25vh;
+    min-height: 140px;
+  }
+
+  .stream-header {
+    padding: 5px 8px;
+    gap: 5px;
+  }
+
+  .stream-header-info h1 {
+    font-size: 12px;
+  }
+
+  .mute-toggle {
+    padding: 5px;
+    min-height: 28px;
+    min-width: 28px;
+  }
+
+  .mute-toggle svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .blacklist-btn {
+    padding: 5px;
+    min-height: 28px;
+    min-width: 28px;
+  }
+
+  .blacklist-btn svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  .no-stream-content h1 {
+    font-size: 20px;
+  }
+
+  .no-stream-content p {
+    font-size: 13px;
+  }
+
+  /* Even smaller on small mobile */
+  .stat-badge {
+    padding: 3px 6px !important;
+    min-width: 32px;
+  }
+
+  .stat-badge .stat-icon {
+    font-size: 10px;
+  }
+
+  .stat-badge .stat-value {
+    font-size: 8px;
+  }
+}

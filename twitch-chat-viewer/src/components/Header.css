@@ -1,0 +1,238 @@
+.twitch-header {
+  display: none;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  color: #9147ff;
+}
+
+.header-nav {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.nav-item {
+  font-size: 14px;
+  font-weight: 600;
+  color: #adadb8;
+  padding: 6px 10px;
+  border-radius: 20px;
+  transition: all 0.1s ease;
+  cursor: pointer;
+}
+
+.nav-item:hover {
+  background: #1f1f23;
+  color: #efeff1;
+}
+
+.nav-item.active {
+  color: #efeff1;
+  background: #1f1f23;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #1f1f23;
+  border-radius: 20px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  background: #00f593;
+  border-radius: 50%;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.status-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: #efeff1;
+}
+
+.random-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #9147ff;
+  border: none;
+  border-radius: 20px;
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.random-btn:hover {
+  background: #772ce8;
+}
+
+.random-btn:active {
+  transform: scale(0.95);
+}
+
+/* Mobile menu button - hidden on desktop */
+.mobile-menu-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: #efeff1;
+  padding: 8px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.mobile-menu-btn:hover {
+  background: #1f1f23;
+}
+
+.mobile-menu-btn:active {
+  background: #2c2c35;
+}
+
+/* Mobile header styles */
+@media (max-width: 768px) {
+  .twitch-header {
+    display: none;
+  }
+
+  .header-left {
+    gap: 10px;
+  }
+
+  .mobile-menu-btn {
+    display: flex;
+    min-height: 40px;
+    min-width: 40px;
+  }
+
+  .header-nav .nav-item {
+    display: none;
+  }
+
+  .header-right {
+    gap: 8px;
+  }
+
+  .status-indicator {
+    padding: 4px 8px;
+  }
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+  }
+
+  .status-text {
+    display: none;
+  }
+
+  .random-btn {
+    padding: 8px 12px;
+    min-height: 40px;
+    min-width: 40px;
+  }
+
+  .random-btn span {
+    display: none;
+  }
+}
+
+/* Mobile landscape - even more compact */
+@media (max-width: 768px) and (orientation: landscape) {
+  .twitch-header {
+    height: 36px;
+    padding: 0 10px;
+  }
+
+  .header-left {
+    gap: 8px;
+  }
+
+  .logo svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .mobile-menu-btn {
+    min-height: 32px;
+    min-width: 32px;
+    padding: 4px;
+  }
+
+  .status-indicator {
+    padding: 3px 6px;
+  }
+
+  .status-dot {
+    width: 5px;
+    height: 5px;
+  }
+
+  .random-btn {
+    padding: 6px 10px;
+    min-height: 32px;
+    min-width: 32px;
+  }
+
+  .random-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .twitch-header {
+    padding: 0 8px;
+  }
+
+  .header-left {
+    gap: 6px;
+  }
+
+  .logo svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .status-indicator {
+    padding: 4px 6px;
+  }
+
+  .random-btn {
+    padding: 8px 10px;
+  }
+}
